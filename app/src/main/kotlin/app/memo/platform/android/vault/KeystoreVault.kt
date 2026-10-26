@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Log
+import app.memo.core.codec.SynCodec
 import app.memo.core.platform.Vault
 import app.memo.core.platform.VaultException
 import app.memo.core.platform.VaultName
@@ -32,6 +33,14 @@ internal object BackupRotationPolicy {
      */
     fun isDue(now: Long, lastRotationMs: Long): Boolean =
         now < lastRotationMs || now - lastRotationMs >= INTERVAL_MS
+}
+
+/**
+ * Which files in the vault directory count as stored data. Leftover `*.tmp` files from an
+ * interrupted write are not data, so they never stop a fresh vault from creating its key.
+ */
+internal object VaultDataPolicy {
+    fun countsAsVaultData(fileName: String): Boolean = !fileName.endsWith(".tmp")
 }
 
 /**
@@ -67,14 +76,15 @@ class KeystoreVault(context: Context) : Vault {
     /** Last backup rotation per entry name, in epoch millis. Guarded by the per-name lock. */
     private val lastRotation = ConcurrentHashMap<String, Long>()
 
+    /** Entry name -> the backup it was read from, for every entry that fell back this session. */
+    private val recoveries = linkedMapOf<String, String>()
+
     /**
-     * Describes the most recent read that had to use a backup copy, or null if
-     * no fallback has happened since this instance was created. The app shows it to the user,
-     * e.g. "Recovered workspace.syn from backup .bak1; review your data".
+     * One line per entry read from a backup copy this session, e.g. "workspace.syn from .bak1".
+     * Empty when nothing fell back. The app lists these and keeps writes paused until the user confirms.
      */
-    @Volatile
-    var lastRecovery: String? = null
-        private set
+    val lastRecovery: List<String>
+        get() = synchronized(recoveries) { recoveries.map { (name, from) -> "$name from $from" } }
 
     override fun read(name: String): ByteArray? {
         VaultName.validate(name)
@@ -99,7 +109,7 @@ class KeystoreVault(context: Context) : Vault {
             val (source, plain) = found
             if (source != name) {
                 val backup = source.removePrefix(name)
-                lastRecovery = "Recovered $name from backup $backup; review your data"
+                synchronized(recoveries) { recoveries[name] = backup }
                 Log.w(
                     TAG,
                     "vault entry '$name' was unreadable and was restored from backup '$source'" +
@@ -126,7 +136,8 @@ class KeystoreVault(context: Context) : Vault {
                     out.fd.sync()
                 }
                 val now = System.currentTimeMillis()
-                if (BackupRotationPolicy.isDue(now, lastRotationOf(name))) {
+                // A corrupt primary must never replace good backups: rotate only when it still opens.
+                if (BackupRotationPolicy.isDue(now, lastRotationOf(name)) && primaryOpens(name, key)) {
                     rotateBackups(name)
                     lastRotation[name] = now
                 }
@@ -175,8 +186,47 @@ class KeystoreVault(context: Context) : Vault {
         return try {
             file.readBytes()
         } catch (e: IOException) {
-            Log.w(TAG, "could not read vault file '$candidate'", e)
+            Log.w(TAG, "could not read vault file '$candidate' (${SynCodec.safeMessage(e)})")
             null
+        }
+    }
+
+    /** True when the primary exists and opens under [key]. */
+    private fun primaryOpens(name: String, key: SecretKey): Boolean {
+        val bytes = readOrNull(name) ?: return false
+        return try {
+            VaultFormat.open(key, name, bytes)
+            true
+        } catch (e: VaultException) {
+            false
+        }
+    }
+
+    /**
+     * Deletes every vault file and the Keystore key. Only for an explicit user reset: all stored
+     * data is lost and nothing is recovered afterwards. Run it on the runtime thread with no other
+     * vault work in progress.
+     */
+    fun resetAll() {
+        synchronized(KEY_LOCK) {
+            dir.listFiles()?.forEach { file ->
+                if (!file.delete()) throw VaultException("could not delete vault file '${file.name}'")
+            }
+            deleteKey()
+            lastRotation.clear()
+            synchronized(recoveries) { recoveries.clear() }
+        }
+    }
+
+    private fun deleteKey() {
+        try {
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
+            keyStore.load(null)
+            if (keyStore.containsAlias(KEY_ALIAS)) keyStore.deleteEntry(KEY_ALIAS)
+        } catch (e: GeneralSecurityException) {
+            throw VaultException("could not delete vault key", e)
+        } catch (e: IOException) {
+            throw VaultException("could not delete vault key", e)
         }
     }
 
@@ -206,7 +256,7 @@ class KeystoreVault(context: Context) : Vault {
         }
     }
 
-    private fun hasVaultData(): Boolean = dir.list()?.isNotEmpty() == true
+    private fun hasVaultData(): Boolean = dir.list()?.any { VaultDataPolicy.countsAsVaultData(it) } == true
 
     /** Returns the existing key, or creates one only when there is no vault data. */
     private fun keyForWrite(): SecretKey {
