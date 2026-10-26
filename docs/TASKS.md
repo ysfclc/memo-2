@@ -109,6 +109,69 @@ Each task lists:
 
 ---
 
+## 0.9 Work packages (how the tasks are actually run)
+User direction (2026-10-26): "bundle tasks that are touching same area or priority… I don't wanna run 160+ agents. You can even do small things inline along the way."
+
+- **One agent per work package (WP), not per task.**
+  - The task IDs below stay the checklist inside a package.
+  - The agent makes one commit per task ID on one branch `wp/<name>` and runs CI after each commit.
+  - The LVG is applied once per package, against every task's tests and checks.
+- **The lead does inline**, with no agent:
+  - CI/YAML edits
+  - docs, FEATURES/PROGRESS/STATUS
+  - small wiring (≲60 lines)
+  - fixes found during LVG
+  - merges and conflict resolution
+  - milestone reviews are still a separate review agent
+- At most 3 packages run at once. Packages within a wave own disjoint areas.
+- Each package merges into the milestone branch it belongs to. A milestone goes to `main` once all its packages are merged and its review is clean.
+
+| Wave | WP | Tasks bundled | Area | Milestone |
+|---|---|---|---|---|
+| 1 | **UI-KIT** | M2.B0b, M2.B0c, M2.B0d | `ui/motion`, `ui/components`, `ui/nav` | M1 |
+| 1 | **LLM** | M1.A1, M1.A2, M1.A3 | `platform/android/llm`, `cpp/`, `runtime/InferenceManager` | M1 |
+| 1 | **HUB** | M1.B1, M1.B2 | `core/catalog`, `app/hub` | M1 |
+| 2 | **CHAT** | M1.C1, M1.C2, M1.B3 | `core/chat`, `ui/chat`, `ui/models` | M1 |
+| 2 | **VOICE** | M2.A1, M2.A2, M2.A3, M3.6.C1 | `platform/android/voice`, `core/voice` | M2 |
+| 2 | **AUTO-CORE** | M3.5.A1, M3.5.A2, M4.A0, M4.L1 | `core/policy/Autonomy`, `core/automation` (pure) | M3 |
+| 3 | **VOICE-SURFACES** | M2.B1, M2.C1, M2.C2, M2.C3 | `ui/voice`, `platform/android/assist`, `surface` | M2 |
+| 3 | **BRAIN** | M3.A1, M3.A4, M3.A2 | `core/plan`, `core/agent`, `core/prompts`, `runtime/Planner*` | M3 |
+| 3 | **SPEED** | M2.5.A1, M2.5.A2, M2.5.A3, M3.7.C3 | build, `:baselineprofile`, `update/`, `release.yml` | M2 |
+| 4 | **APPROVALS** | M3.A3, M3.B1, M3.B2, M3.B3, M3.C1 | `ui/artifact`, `ui/live`, `ui/chat/PlanCard`, widget | M3 |
+| 4 | **EDITORS** | M3.5.B1, M3.5.B2, M3.5.C1 | `ui/edit`, `ui/workflow`, `ui/settings` | M3 |
+| 4 | **LANG** | M3.6.A1, M3.6.B1, M3.7.A2 | `core/plan/grammar`, `res/values-*` | M3 |
+| 5 | **TIME** | M3.7.A1, M3.7.C1 | `core/time`, `platform/android/notify`, `ui/today`, `ui/drive` | M3 |
+| 5 | **KNOWLEDGE** | M3.7.B1, M3.7.B2, M3.7.B3, M3.7.C4 | `capture/`, `core/knowledge`, `search/`, `ui/memory` | M3 |
+| 5 | **COMPILER-CORE** | M3.8.A1, M3.8.A2, M3.8.A3, M3.8.B1 | `core/capability` | M3 |
+| 6 | **COMPILER-LOOP** | M3.8.A4, M3.8.A5, M3.8.C1 | `core/capability` loop, `ui/compiler` | M3 |
+| 6 | **SELF** | M3.9.A1, M3.9.A2 | `core/self`, `app/self` | M3 |
+| 6 | **WEB** | M4.0, M4.A0b, M4.A1, M4.A3 | CI emulator job, fixtures, `platform/android/browser` runtime, `ui/browser` | M4 |
+| 7 | **STUDIO** | M3.9.B1, M3.9.B2, M3.9.B3, M3.9.C1 | `studio/cv`, `core/self` tailoring | M3 |
+| 7 | **FRONTIER** | M4.A2, M4.A5, M4.C2 | adapters, `FrontierExecutor`, API channel, routing settings | M4 |
+| 7 | **LIVE-VIEW** | M4.L2 | `ui/live/session`, preview capture | M4 |
+| 8 | **APPS** | M4.B1, M4.B2, M4.D1, M4.L3 | `platform/android/automation`, `ui/host` | M4 |
+| 8 | **DISCOVERY** | M4.C1, M4.B3, M4.B4 | `core/discovery`, `core/adapter/AppAdapterPack`, capability map | M4 |
+| 8 | **COUNCIL-CORE** | M4.A4a, M4.A4d | `core/council`, `core/agent/EntityExtraction` | M4 |
+| 9 | **OVERLAY** | M4.D2, M4.L4 | `surface/OverlayService`, `ui/overlay`, previews | M4 |
+| 9 | **COUNCIL-APP** | M4.A4b, M4.A4c | `runtime/CouncilService`, `ui/council` | M4 |
+| 9 | **TEACH-WEB** | M4.E0, M4.E1, M4.E2, M4.E3 | `core/automation` schemas, `assets/picker`, `ui/teach` | M4 |
+| 10 | **TEACH-APP** | M4.E4, M4.E5, M4.E6 | `automation/NodeInspector`, healing, `ui/workflow` pickers | M4 |
+| 10 | **UC-CORE** | M3.C2, M5.A1, M5.C2 | CRM, brainstorm, generic plans | M5 |
+| 10 | **ONBOARDING** | M3.7.C2, M6.5 | `ui/onboarding`, `ui/help`, permission centre | M6 |
+| 11 | **UC-JOBS** | M5.B1 | jobs flow | M5 |
+| 11 | **UC-CONTENT** | M5.C1, M5.C1a, M5.C1b | content, metrics, media, image gen | M5 |
+| 11 | **HARDEN** | M6.1, M6.2, M6.3, M6.4 | recovery, diagnostics, backup, app lock | M6 |
+| 12 | **QUALITY** | M6.6, M6.7, M6.10 | lint strict, coverage sweep, accessibility audit | M6 |
+| — | lead inline | M0.R2 fixes, M6.8 docs, M6.9 acceptance, every milestone MCP, small fixes | — | all |
+
+**Total:** 34 package agents, plus one review agent per milestone (7), instead of ~160 task agents.
+
+**Merge order to `main`:**
+- M0 now
+- M1 after waves 1–2 (UI-KIT, LLM, HUB, CHAT)
+- M2 after VOICE, VOICE-SURFACES, SPEED
+- M3, M4, M5, M6 as their packages land
+
 # PART 1 — M0 Foundation (`milestone/M0`)
 
 ### [x] M0.0 Commit the plan

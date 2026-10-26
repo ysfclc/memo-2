@@ -854,6 +854,11 @@ User requirement (2026-10-26): "I want to see the real state on the screen in th
 
 ### Parallelism
 - At most 3 Haiku agents at once, only on tasks with disjoint file ownership and no unmet dependencies (see `deps`).
+- **Work packages (2026-10-26, supersedes one agent per task):** tasks that touch the same area, or that share a priority, are bundled into 34 work packages. The waves and the mapping are in `docs/TASKS.md` §0.9.
+  - One agent per package.
+  - One commit per task ID.
+  - LVG once per package.
+  - Small items are done inline by the lead.
 
 ---
 
