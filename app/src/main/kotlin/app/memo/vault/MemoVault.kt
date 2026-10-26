@@ -1,10 +1,9 @@
 package app.memo.vault
 
-import app.memo.core.Limits
 import app.memo.core.codec.SynCodec
 import app.memo.core.registry.Workspace
 
-/** Durable workspace snapshot codec boundary. */
+/** Durable workspace snapshot codec boundary (SYN envelope, strict parse). */
 object MemoVault {
     fun save(workspace: Workspace, out: java.io.OutputStream) {
         val json = SynCodec.serialize(workspace, System.currentTimeMillis())
@@ -16,19 +15,5 @@ object MemoVault {
             is SynCodec.ParseOutcome.Ok -> result.workspace
             is SynCodec.ParseOutcome.Rejected -> null
         }
-    }
-
-    fun ioFile(context: android.content.Context, name: String): java.io.File =
-        java.io.File(context.filesDir, name)
-
-    object SnapshotKinds {
-        const val PEOPLE = "people"
-        const val COMPANIES = "companies"
-        const val TASKS = "tasks"
-        const val DRAFTS = "drafts"
-        const val POSTS = "posts"
-        const val SAMPLES = "samples"
-        const val APPLICATIONS = "applications"
-        const val JOB_POSTINGS = "job_postings"
     }
 }
