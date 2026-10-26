@@ -98,3 +98,18 @@ Chronological notes kept by the lead while building. They cover what the user as
 - M2.B0a verified (run 40382823007 green on fca665e; contrast test pairs checked; no `Color(0x` outside `ui/theme`) and merged into milestone/M0.
 - User: bundle tasks by area and priority; don't run 160+ agents; do small things inline. → 34 work packages in TASKS.md §0.9.
 - Wave 1 launched on `milestone/M1` (branched from milestone/M0 be83c7e): WP UI-KIT, WP LLM, WP HUB. M0.R2 second review running in parallel.
+- M0.R2 second review (Sonnet): 10 of the first 11 issues are fully or mostly fixed; #7 is partly fixed. New findings:
+  - HIGH: a vetoed capture still saves (DATA_PERSIST is not skipped on veto). Confirmed by the lead in WorkflowEngine veto branch.
+  - MEDIUM:
+    - no run driver (RetryLater and recovered runs hang)
+    - side-effect auto-retry uses a new idempotency key
+    - JSON exception text echoes user data into logs/UI
+    - no vault escape hatch
+    - policy bypass via Hangul fillers / Cc / Cyrillic confusables
+    - vocabulary gaps (donate, share, reply…)
+  - LOW: ASCII-only slugs, unknown enums default silently, backup rotation copies a corrupt primary, preview tag can start with '-', libc++ pickFirst, 16 KB pages, no dotprod.
+- Fix routing:
+  - preview tag regex fixed inline by the lead
+  - 16 KB / libc++ / dotprod sent to WP LLM
+  - everything else in M0.F5 (one agent, groups A engine, B data hygiene, C policy, D app runtime)
+- Deferred: ModelStore init I/O on the main thread → WP HUB (owns ModelStore). Unpinned action SHAs + build attestation → lead at M2.5.
