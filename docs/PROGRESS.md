@@ -87,4 +87,4 @@ Chronological notes kept by the lead while building. They cover what the user as
   - M0.F3 (quarantine preserved, router switches/pins, policy hardening)
   - M0.F2 (app persistence and runtime) after F1
   - `publish-preview.yml` fixed by the lead
-- Local run: Memo installed and launched on the emulator (`Memo_API34`, WHPX acceleration) with no crash. Settings shows "0 outbound entries · chain verified", so the vault load works on a real Android 14 system. Launcher: `Desktop\gptun-memo-emulator.cmd`.
+- Local run: Memo installed and launched on the emulator (`Memo_API34`, WHPX acceleration) with no crash. Settings shows "0 outbound entries · chain verified", so the vault load works on a real Android 14 system. Launcher: `Desktop/gpt/run-memo-emulator.cmd`.
