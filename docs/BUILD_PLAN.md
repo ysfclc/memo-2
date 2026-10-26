@@ -870,6 +870,88 @@ User requirement (2026-10-26): "a professional UI/UX enhancement where necessary
   - app shortcuts (launcher long press): New chat, Voice, Capture, Today
 - **Accessibility:** every custom component has semantics, 48 dp targets, a visible focus ring and TalkBack labels (M6.10).
 
+## 2q. Data, automations, trackers, analytics and improvement paths
+
+User requirement (2026-10-26): "data, and ability to create automations, e.g. to track LinkedIn activity, browse social media, start a session with X app or web; more importantly their analytics and data; improvement paths and all."
+
+### Pipeline
+Memo turns what it sees (web, apps, exports, manual entry) into **owned, versioned, analysable data**. It then turns that data into **insights → goals → experiments → plans**:
+
+```
+source (web/app session, official export, notification, manual)
+  → Tracker (what to observe, how often, with which ExtractionSchema §2m)
+  → Observation rows (typed, provenance + evidence snapshot)
+  → Dataset (versioned schema, time-series + tables, encrypted, on-device)
+  → Analytics (metrics, trends, anomalies, comparisons, attribution)
+  → Insights (evidence-cited, local AI; council review for big calls §2n)
+  → Goals + Experiments + Improvement plan (gated tasks/workflows)
+  → measured again (closed loop)
+```
+
+### Automations (user-creatable, editable, versioned)
+- **Automation** = trigger + conditions + a workflow (§2e editor) + an output (dataset rows, a digest, notification or tasks). It is a registry kind with semver, built in the workflow editor or by voice ("every morning check my LinkedIn post stats").
+- **Triggers:**
+  - schedule (cron-like, with quiet hours)
+  - interval with jitter (the humanizer, §2d)
+  - after an event (post published → +1h/+24h/+72h/+7d)
+  - a notification from app X (NotificationListener, opt-in, package allow-list)
+  - an app opened, a location or Wi-Fi, charging + idle
+  - manual (button, voice, palette, widget)
+- **Session launcher:** "Start a session with X" is one tap from Favourites (§2p), the palette or voice. It opens the web profile or device app inside Memo with a goal, a timer, the live view (§2o) and a capture tray. Captures go straight into the matching dataset.
+- **Recipe gallery** (seed templates, editable copies, en/pl/tr):
+  - Track my LinkedIn activity: profile views, followers, post impressions/reactions/comments/reposts, search appearances, SSI if available.
+  - Track my posts on X / Instagram / YouTube / TikTok / Threads.
+  - Daily social browse digest: read-only scroll of chosen feeds or lists, summarised, saved as Sources.
+  - Competitor/peer watch: public profiles the user lists.
+  - Job market watch: saved searches → JobPostings (UC-3).
+  - Inbox/notification digest: from an opt-in notification listener.
+  - Weekly review: all datasets → a report + improvement plan.
+- **Data source priority** (most reliable and safest first):
+  1. official exports and analytics downloads: LinkedIn data export and post analytics XLSX/CSV, X analytics CSV, YouTube Studio CSV, Instagram "download your information"; parsed by import adapters
+  2. the platform's own analytics pages in the user's session (read-only extraction schemas, §2m)
+  3. the app via accessibility (§2c)
+  4. manual entry
+  Each row records its source and an evidence snapshot.
+
+### Datasets (core, pure model; app storage encrypted)
+- `Dataset {id, name, schemaRef (ExtractionSchema/CustomSchema semver), grain (event | daily | weekly), keys, retention, provenance}`. Rows are append-only with `observedAt`, `sourceRef` and `evidenceRef`.
+- Corrections create new rows, never edits in place. An audit of changes is kept.
+- Schema evolution through §2m migrations, so old rows stay readable after an extraction schema heals or changes.
+- **Storage:** an on-device columnar store per dataset (SQLite via the encrypted vault key, SQLCipher-equivalent through Android Keystore-wrapped keys). Retention and purge are per dataset.
+- **Export:** CSV, JSON and XLSX (gated: it leaves the app only by a user action). **Import:** CSV/XLSX mapping wizard.
+
+### Analytics engine (core, pure, deterministic, tested)
+- **Metrics:** totals, deltas, rates (engagement rate = interactions/impressions), rolling averages (7/28 d), growth (followers per week), percentiles per post, time-to-peak, decay curves.
+- **Trends:** linear and robust (Theil–Sen) slopes with confidence. **Seasonality:** day-of-week and hour-of-day heatmaps, giving the best time to post. **Anomalies:** robust z-score/MAD spikes and drops, each with its likely cause from the event log (post published, profile change).
+- **Comparisons:** post vs. own median; format (text/carousel/video) vs. format; topic vs. topic (topics tagged by the local model, evidence-checked); you vs. watched peers (public data only).
+- **Attribution (simple, honest):** compare matched windows before and after an action, labelled "correlation, not proof".
+- **Goals:** a target metric, baseline, target, deadline and progress, with an on-track/off-track forecast.
+
+### Insights and improvement paths
+- **Insight generator:** the local model writes short insights from analytics results only. Each one cites the numbers and rows behind it, and the fabrication guard (§2l) rejects unsupported claims.
+  - Example: "Carousels got 2.3× your median impressions over 6 posts (rows …)."
+  - For strategy changes, the council (§2n) can review the evidence: skeptic plus domain expert.
+- **Improvement plan:** a list of hypotheses ("post carousels on Tue 8–9am"), each with an **Experiment**:
+  - variant, metric, duration, minimum sample, stop rule
+  - It is scheduled as tasks and workflows, with drafts via UC-4, and measured automatically.
+  - Results update the ContentPreference and Capability Experience (§2k), so Memo learns what works for this user.
+- **Weekly and monthly review:** a generated report (Studio artifact, PDF export) covering what changed, why that's likely, what to try next, and progress on goals.
+
+### UI ("Insights" destination; also inside Work/Studio)
+- **Dashboards:** build-your-own cards (KPI tile, line, bar, heatmap, table, funnel) per dataset. Seed dashboards come per recipe. Cards are reorderable and their filters persist (§2p). Tap a point to see the exact rows and evidence snapshot. All charts follow the design tokens and motion (§2i): draw-in, crossfade on filter change.
+- **Tracker manager:** list, status (last run, next run, health, rows added), pause, edit, run now, history. Failures are explained, and self-healing (§2m) is offered.
+- **Goals and experiments board:** progress rings with real numbers only, an experiment timeline and a results verdict.
+
+### Safety and platform rules
+- **Read-only by default.** Trackers never like, follow, comment or post. Any write is a gated side effect (§2e, §2a envelope).
+- **Respect platform terms and limits:**
+  - the user's own account and session only, human pacing (§2d)
+  - per-site daily caps (strict defaults: LinkedIn ≤ 2 tracker runs/day, ≤ 30 page views per run), no parallel sessions on one account, back-off on any challenge or CAPTCHA (takeover, §2o)
+  - official exports preferred
+  - peer watch is limited to public pages and low frequency
+  - The UI states that automated access may conflict with a platform's terms, and the user decides per tracker (consent recorded).
+- Datasets never leave the device without an explicit export. Frontier consults over analytics get aggregated, redacted numbers, not raw rows, unless the user allows it per run.
+
 ## 3. Process (applies to every task)
 
 ### Roles

@@ -187,7 +187,50 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Files: `ui/components/{SwipeRow,ContextMenu,MultiSelect,StickyHeader,FastScroller,ErrorState,OfflineBanner}.kt`; migrate Work/Studio lists; "Jump back in" row on Live
 - Tests: `MultiSelectStateTest`, `SwipeThresholdTest` (pure)
 
-**Total:** 35 package agents, plus one review agent per milestone (7), instead of ~160 task agents.
+**Data, automations and analytics packages [§2q]:**
+
+| Wave | WP | Tasks bundled | Area | Milestone |
+|---|---|---|---|---|
+| 5 | **DATA-CORE** | M3.10.A1, M3.10.A2, M3.10.A3 | `core/data` (datasets, analytics, goals/experiments), `platform/android/data` store | M3 |
+| 7 | **AUTOMATIONS** | M3.10.B1, M3.10.B2, M3.10.B3 | `core/automation/Automation`, triggers, session launcher, tracker manager | M4 |
+| 8 | **INSIGHTS** | M3.10.C1, M3.10.C2, M3.10.C3 | insight generator, improvement plans, dashboards, review report | M4 |
+| 10 | **SOCIAL** | M3.10.D1, M3.10.D2 | export importers, recipe gallery + seed extraction schemas | M5 |
+
+### [ ] M3.10.A1 Datasets (core + store) · deps M0.A4, M4.E0 (schema refs; until then CustomSchema-lite)
+- Files: `core/.../data/{Dataset,ObservationRow,Retention,DatasetCodec}.kt`, `app/.../platform/android/data/DatasetStore.kt` (SQLite, key from Keystore-wrapped secret, per-dataset tables), CSV/JSON/XLSX export + CSV/XLSX import mapper
+- Tests: `DatasetCodecTest`, `AppendOnlyCorrectionTest` (correction = new row, history kept), `RetentionPurgeTest`, `SchemaEvolutionReadTest` (old rows readable after semver bump), `CsvImportMappingTest`, `XlsxExportStructureTest`
+### [ ] M3.10.A2 Analytics engine (pure) · deps M3.10.A1
+- Files: `core/.../data/analytics/{Metrics,Rolling,Trend,Seasonality,Anomaly,Compare,Attribution}.kt`
+- Tests: golden fixtures per function: engagement rate, 7/28 d rolling, Theil–Sen vs known slope, day×hour heatmap, MAD anomaly on injected spike, before/after window, empty/sparse series behaviour (no NaN, honest "not enough data")
+### [ ] M3.10.A3 Goals + experiments (pure) · deps M3.10.A2
+- Tests: `GoalForecastTest` (on/off track), `ExperimentStopRuleTest` (min sample, duration, verdict: better/worse/inconclusive)
+
+### [ ] M3.10.B1 Automation model + triggers · deps M3.5.B2, M3.7.A1
+- Files: `core/.../automation/{Automation,Trigger,TriggerEval}.kt`, `app/.../platform/android/automation/{TriggerScheduler,NotificationTrigger(NotificationListenerService, opt-in allow-list),AppOpenedTrigger,PlaceTrigger}.kt`
+- Tests: `TriggerEvalTest` (cron next fire, jitter bounds, quiet hours, after-event offsets, charging+idle), `AutomationCodecTest`
+### [ ] M3.10.B2 Session launcher · deps M4.A1, M4.D1, M4.L2, M2.U2
+- Mini-tasks: one tap from Favourites/palette/voice → web profile or app session with goal, timer, live view, capture tray → dataset rows
+- Tests: `SessionGoalTimerTest`; emulator: launch fixture session, capture element → row in dataset
+### [ ] M3.10.B3 Tracker manager + safety caps · deps M3.10.B1, M4.A2
+- Files: `ui/trackers/*`, `core/.../automation/SitePolicy.kt` (per-site caps, read-only default, back-off on challenge, consent record)
+- Tests: `SitePolicyTest` (LinkedIn caps enforced, write action refused without gate, challenge → back-off + takeover, consent required)
+
+### [ ] M3.10.C1 Insight generator · deps M3.10.A2, M3.A4, M3.9.B2 (fabrication guard)
+- Tests: `InsightGroundingTest` (every number in the text exists in the analytics result; unsupported claim rejected), council-review hook test
+### [ ] M3.10.C2 Improvement plans + review report · deps M3.10.A3, M3.10.C1, M3.5.B2
+- Tests: `ImprovementPlanTest` (hypothesis → experiment → scheduled tasks/workflows pass `validateSpec`), report PDF page structure test
+### [ ] M3.10.C3 Dashboards UI · deps M3.10.A2, M2.B0c, M2.U4
+- Files: `ui/insights/*` (KPI, line, bar, heatmap, table, funnel cards; tap → rows + evidence)
+- Tests: `ChartScaleTest`, `HeatmapBinningTest` (pure); emulator screenshots
+
+### [ ] M3.10.D1 Official export importers · deps M3.10.A1
+- Files: `app/.../data/import/{LinkedInExport,LinkedInPostAnalyticsXlsx,XAnalyticsCsv,YouTubeStudioCsv,InstagramDyi}.kt` + fixtures (synthetic, structure from the platforms' documented formats; verify current column names at implementation time and log them)
+- Tests: one fixture test per importer, unknown/renamed columns → mapping wizard, never silent drop
+### [ ] M3.10.D2 Recipe gallery + seed schemas · deps M3.10.B1, M4.E2, M3.10.C3
+- Files: `core/src/main/resources/recipes/*.json` (LinkedIn activity, X/IG/YouTube/TikTok/Threads post tracking, social browse digest, peer watch, job watch, notification digest, weekly review) with seed ExtractionSchemas (TRIAL trust, self-healing)
+- Tests: every recipe loads, validates, has a seed dashboard and a site policy; device check: LinkedIn activity tracker against the user's own account (watched live, §2o)
+
+**Total:** 39 package agents, plus one review agent per milestone (7), instead of ~160 task agents.
 
 **Merge order to `main`:**
 - M0 now

@@ -252,6 +252,21 @@ Legend:
 - [ ] U11 Customisation: theme incl. AMOLED, accent, density, Live cards order/visibility · UX-SHELL, EDITORS
 - [ ] U12 Launcher app shortcuts, tablet keyboard shortcuts, optional edge swipe · UX-SHELL
 
+## V. Data, automations, analytics, improvement paths (§2q)
+- [ ] V1 User-created Automations: trigger + conditions + workflow + output, versioned, by editor or voice · AUTOMATIONS
+- [ ] V2 Triggers: schedule, jittered interval, after-event, app notification (opt-in), app opened, location/Wi-Fi, charging+idle, manual · AUTOMATIONS
+- [ ] V3 Session launcher: start a goal-timed session with any web profile or device app inside Memo, with live view and capture tray · AUTOMATIONS
+- [ ] V4 Recipe gallery: LinkedIn activity, X/Instagram/YouTube/TikTok/Threads post tracking, social browse digest, peer watch, job watch, notification digest, weekly review · SOCIAL
+- [ ] V5 Official export importers (LinkedIn export + post analytics, X analytics, YouTube Studio, Instagram DYI) + CSV/XLSX mapping wizard · SOCIAL, DATA-CORE
+- [ ] V6 Datasets: versioned schema, append-only rows with provenance + evidence, corrections as new rows, retention/purge, encrypted on-device store · DATA-CORE
+- [ ] V7 Analytics engine: rates, rolling averages, growth, robust trends, day/hour heatmaps (best time to post), anomalies with likely cause, comparisons, honest before/after attribution · DATA-CORE
+- [ ] V8 Goals with forecast; experiments with variant, metric, sample, stop rule · DATA-CORE, INSIGHTS
+- [ ] V9 Evidence-cited insights (fabrication guard), optional council review; improvement plan → scheduled tasks/workflows → measured · INSIGHTS
+- [ ] V10 Weekly/monthly review report (PDF) · INSIGHTS
+- [ ] V11 Dashboards (KPI, line, bar, heatmap, table, funnel), tap-to-evidence, seed dashboards per recipe · INSIGHTS
+- [ ] V12 Tracker manager: status, health, next run, run now, pause, edit, history, self-heal · AUTOMATIONS
+- [ ] V13 Safety: read-only by default, strict per-site caps, own session only, back-off on challenges, recorded consent, export only by user action · AUTOMATIONS, SOCIAL
+
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)
 - [x] K2 Build directly on GitHub (no zip/YAML deliverables); merge each green milestone · in effect since PR #2
