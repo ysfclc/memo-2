@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import app.memo.core.catalog.ModelCatalog
 import app.memo.core.catalog.ModelEntry
 import app.memo.models.ModelStore
+import app.memo.ui.theme.MemoTheme
 import java.io.File
 
 /**
@@ -87,7 +88,7 @@ fun ModelsScreen(models: ModelStore) {
                 Text(
                     "Scan app storage for model files, or pick one you downloaded yourself. " +
                         "Only files whose SHA-256 matches a pinned model are loaded.",
-                    color = MemoColors.MutedInk,
+                    color = MemoTheme.colors.inkMuted,
                     fontSize = 13.sp,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -124,7 +125,7 @@ fun ModelsScreen(models: ModelStore) {
                 Text(
                     if (found.isEmpty()) "No model files found in app storage." else "Found ${found.size} file(s)",
                     modifier = Modifier.padding(horizontal = 20.dp),
-                    color = MemoColors.MutedInk,
+                    color = MemoTheme.colors.inkMuted,
                     fontSize = 13.sp,
                 )
             }
@@ -135,7 +136,7 @@ fun ModelsScreen(models: ModelStore) {
                             Text(file.name, style = MaterialTheme.typography.titleMedium, fontSize = 14.sp)
                             Text(
                                 "${mb(file.sizeBytes)}" + if (file.matchesCatalogId != null) " · size matches a pinned model" else "",
-                                color = MemoColors.MutedInk,
+                                color = MemoTheme.colors.inkMuted,
                                 fontSize = 12.sp,
                             )
                         }
@@ -158,11 +159,11 @@ private fun ModelCard(entry: ModelEntry, models: ModelStore) {
             Pill(entry.role.name.lowercase())
         }
         Spacer(Modifier.height(4.dp))
-        Text(entry.description, color = MemoColors.MutedInk, fontSize = 13.sp)
+        Text(entry.description, color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
         Spacer(Modifier.height(4.dp))
         Text(
             "${mb(entry.sizeBytes)} · ${entry.repo}",
-            color = MemoColors.MutedInk,
+            color = MemoTheme.colors.inkMuted,
             fontSize = 12.sp,
         )
 
@@ -177,7 +178,7 @@ private fun ModelCard(entry: ModelEntry, models: ModelStore) {
             Spacer(Modifier.height(8.dp))
             Text(
                 state.message,
-                color = if (state.status == ModelStore.Status.FAILED) MemoColors.Amber else MemoColors.MutedInk,
+                color = if (state.status == ModelStore.Status.FAILED) MemoTheme.colors.attention else MemoTheme.colors.inkMuted,
                 fontSize = 13.sp,
             )
         }
