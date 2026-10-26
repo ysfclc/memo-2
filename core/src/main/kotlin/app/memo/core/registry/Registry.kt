@@ -67,8 +67,19 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
 
     data class Quarantined(val kind: String, val reason: String, val raw: String)
 
+    companion object {
+        /** Quarantine cap per registry; the oldest quarantined row is dropped first. */
+        const val MAX_QUARANTINED_ROWS: Int = 200
+    }
+
     private val byId = LinkedHashMap<String, T>()
     private val quarantined = mutableListOf<Quarantined>()
+
+    /** Adds a quarantined row, dropping the oldest once the cap is reached. */
+    private fun addQuarantined(row: Quarantined) {
+        quarantined += row
+        while (quarantined.size > MAX_QUARANTINED_ROWS) quarantined.removeAt(0)
+    }
 
     val size: Int get() = byId.size
 
@@ -84,7 +95,7 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
      * until the user fixes and releases them with [releaseQuarantined].
      */
     internal fun restoreQuarantined(rows: List<Quarantined>) {
-        quarantined += rows.map { it.copy(kind = kind) }
+        rows.forEach { addQuarantined(it.copy(kind = kind)) }
     }
 
     /**
@@ -118,7 +129,7 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
     fun upsert(item: T, now: Long): Put<T> {
         val id = scheme.id(item)
         if (id.isBlank()) {
-            quarantined += Quarantined(kind, "blank natural key", scheme.toJson(item).toString())
+            addQuarantined(Quarantined(kind, "blank natural key", scheme.toJson(item).toString()))
             return Put.Failed("blank natural key")
         }
         if (byId.size >= Limits.MAX_ENTRIES_PER_REGISTRY && id !in byId) {
@@ -145,27 +156,29 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
         for (i in 0 until rows.length()) {
             val raw = rows.optJSONObject(i)
             if (raw == null) {
-                quarantined += Quarantined(kind, "row $i not an object", rows.optString(i))
+                addQuarantined(Quarantined(kind, "row $i not an object", rows.optString(i)))
                 continue
             }
             val decoded = scheme.fromJson(raw)
             if (decoded == null) {
-                quarantined += Quarantined(kind, "row $i structurally invalid", raw.toString())
+                addQuarantined(Quarantined(kind, "row $i structurally invalid", raw.toString()))
                 continue
             }
             val id = scheme.id(decoded)
             if (id.isBlank()) {
-                quarantined += Quarantined(kind, "row $i blank natural key", raw.toString())
+                addQuarantined(Quarantined(kind, "row $i blank natural key", raw.toString()))
                 continue
             }
             val existing = byId[id]
             if (existing == null) {
                 byId[id] = decoded
             } else if (scheme.contentSignature(decoded) != scheme.contentSignature(existing)) {
-                quarantined += Quarantined(
-                    kind,
-                    "row $i conflicts with already-loaded row $id",
-                    raw.toString(),
+                addQuarantined(
+                    Quarantined(
+                        kind,
+                        "row $i conflicts with already-loaded row $id",
+                        raw.toString(),
+                    ),
                 )
             }
         }

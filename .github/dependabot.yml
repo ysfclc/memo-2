@@ -1,0 +1,30 @@
+# Keeps dependencies fresh (AGENTS.md rule 9). PRs target main; the lead merges on green CI.
+# A 14-day cooldown means only releases at least two weeks old are proposed.
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+    groups:
+      androidx:
+        patterns: ["androidx.*"]
+      kotlin:
+        patterns: ["org.jetbrains.kotlin*", "org.jetbrains.kotlinx*"]
+      google:
+        patterns: ["com.google.*"]
+    ignore:
+      # Pinned deliberately and bumped only with a D-### entry.
+      - dependency-name: "com.google.ai.edge.litertlm:*"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 3

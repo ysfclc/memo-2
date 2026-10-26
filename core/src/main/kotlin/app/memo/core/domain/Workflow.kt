@@ -138,9 +138,10 @@ data class StepSpec(
     companion object {
         fun fromJson(raw: JSONObject): StepSpec? {
             val id = raw.optString("id")
+            // An unknown kind is never defaulted: the row is unparseable.
             val kind = runCatching {
                 StepKind.valueOf(raw.optString("kind"))
-            }.getOrDefault(StepKind.REASON)
+            }.getOrNull() ?: return null
             if (id.isBlank()) return null
             val branches = raw.optJSONArray("branches")?.let { arr ->
                 buildList {
@@ -247,9 +248,10 @@ data class StepState(
         fun fromJson(raw: JSONObject): StepState? {
             val specRaw = raw.optJSONObject("spec") ?: return null
             val spec = StepSpec.fromJson(specRaw) ?: return null
+            // An unknown status is never defaulted: the row is unparseable.
             val status = runCatching {
-                StepStatus.valueOf(raw.optString("status", "PENDING"))
-            }.getOrDefault(StepStatus.PENDING)
+                StepStatus.valueOf(raw.optString("status"))
+            }.getOrNull() ?: return null
             val evd = raw.optJSONArray("evidence") ?: JSONArray()
             return StepState(
                 spec = spec,
@@ -313,8 +315,8 @@ data class AgentRun(
             val spec = WorkflowSpec.fromJson(specRaw)
             if (id.isBlank() || spec.steps.isEmpty()) return null
             val status = runCatching {
-                RunStatus.valueOf(raw.optString("status", "PENDING"))
-            }.getOrDefault(RunStatus.PENDING)
+                RunStatus.valueOf(raw.optString("status"))
+            }.getOrNull() ?: return null
             val stepsArr = raw.optJSONArray("steps") ?: JSONArray()
             val rebuilt = buildList {
                 for (i in 0 until stepsArr.length()) {
@@ -322,6 +324,10 @@ data class AgentRun(
                     add(StepState.fromJson(item) ?: continue)
                 }
             }
+            // Unknown or malformed step rows are dropped by the list builders above;
+            // a count mismatch against the raw spec means the row is unparseable.
+            val rawStepCount = specRaw.optJSONArray("steps")?.length() ?: 0
+            if (spec.steps.size != rawStepCount) return null
             if (rebuilt.size != spec.steps.size) return null
             return AgentRun(
                 id = id,

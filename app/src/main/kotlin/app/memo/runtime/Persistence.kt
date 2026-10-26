@@ -66,12 +66,12 @@ class Persistence(
     private val unreadable = linkedMapOf<String, String>()
 
     /**
-     * Describes the most recent vault read that had to use a backup copy, or null.
+     * Entries read from a backup copy this session, one line each (empty when none).
      * A read from a backup can be a silent rollback, so the runtime treats such a
      * session as read-only until the user confirms.
      */
-    val lastRecovery: String?
-        get() = (vault as? KeystoreVault)?.lastRecovery
+    val lastRecovery: List<String>
+        get() = (vault as? KeystoreVault)?.lastRecovery.orEmpty()
 
     init {
         listOf(WORKSPACE, RUNS, AUDIT, MARKER).forEach { VaultName.validate(it) }
@@ -174,7 +174,7 @@ class Persistence(
             }
             importLegacy()
         } catch (e: Exception) {
-            fail("legacy import did not complete (${e.message ?: e.javaClass.simpleName}); plaintext kept", e)
+            fail("legacy import did not complete (${SynCodec.safeMessage(e)}); plaintext kept", e)
         }
     }
 
@@ -212,22 +212,33 @@ class Persistence(
     }
 
     /**
-     * Chooses the legacy workspace: the primary file when it parses, otherwise the
-     * temp file when that parses. An unparseable temp file never fails the import.
-     * When the primary exists but neither file parses, the import fails.
+     * Chooses the legacy workspace. When both the primary and the temp file parse, the
+     * newer one (by modification time) wins: a temp file left by an interrupted save can
+     * hold the latest state. When only one parses, that one is used. An unparseable temp
+     * file never fails the import. When the primary exists but neither file parses, the import fails.
      */
     private fun pickLegacyWorkspace(): ParsedWorkspace? {
         val primary = legacyWorkspace.takeIf { it.exists() }
         val primaryResult = primary?.let { runCatching { parseLegacyWorkspace(it) } }
-        primaryResult?.getOrNull()?.let { return it }
+        val tmpResult = legacyWorkspaceTmp.takeIf { it.exists() }?.let { runCatching { parseLegacyWorkspace(it) } }
+        tmpResult?.exceptionOrNull()?.let {
+            log("ignoring unparseable ${legacyWorkspaceTmp.name}: ${SynCodec.safeMessage(it)}")
+        }
+        val primaryParsed = primaryResult?.getOrNull()
+        val tmpParsed = tmpResult?.getOrNull()
 
-        if (legacyWorkspaceTmp.exists()) {
-            val tmpResult = runCatching { parseLegacyWorkspace(legacyWorkspaceTmp) }
-            tmpResult.getOrNull()?.let {
-                log("using ${legacyWorkspaceTmp.name}: ${legacyWorkspace.name} is missing or unparseable")
-                return it
+        if (primaryParsed != null && tmpParsed != null && primary != null) {
+            return if (legacyWorkspaceTmp.lastModified() > primary.lastModified()) {
+                log("using newer ${legacyWorkspaceTmp.name} over ${legacyWorkspace.name}")
+                tmpParsed
+            } else {
+                primaryParsed
             }
-            log("ignoring unparseable ${legacyWorkspaceTmp.name}: ${tmpResult.exceptionOrNull()?.message}")
+        }
+        primaryParsed?.let { return it }
+        tmpParsed?.let {
+            log("using ${legacyWorkspaceTmp.name}: ${legacyWorkspace.name} is missing or unparseable")
+            return it
         }
         primaryResult?.exceptionOrNull()?.let { throw it }
         return null
@@ -243,7 +254,7 @@ class Persistence(
             try {
                 secureDeleteIfPresent(file)
             } catch (e: Exception) {
-                failures += "${file.name}: ${e.message ?: e.javaClass.simpleName}"
+                failures += "${file.name}: ${SynCodec.safeMessage(e)}"
             }
         }
         return failures
