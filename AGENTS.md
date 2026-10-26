@@ -2,6 +2,8 @@
 
 This file is loaded into every AI session working in this repo. Obey it without being asked.
 
+**Build plan:** `docs/BUILD_PLAN.md` is the single source of truth for what to build, in which order, and how each task is verified. Read it before starting any task.
+
 ## Standing rule 1 — Engineering notebook (permanent)
 
 Every meaningful thing learned or decided while working here goes into `docs/ENGINEERING_LOG.md` **in the same commit** as the work that produced it.
