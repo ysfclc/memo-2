@@ -12,13 +12,13 @@ Legend:
 ## A. Product core (original spec)
 - [ ] A1 Voice-first intent capture, including from a locked phone · M2.A3, M2.C1, M2.C2
 - [ ] A2 Intent → typed workflow, **generated dynamically by the local orchestrator** (never hardcoded per use case) · M3.A1
-- [~] A3 Workflow DSL with step kinds reason, browser_automation, app_automation, human_approval, data_persist, metric_collect, branch, retry · core v1 done (tested); async steps M0.A1 in verification
+- [x] A3 Workflow DSL with step kinds reason, browser_automation, app_automation, human_approval, data_persist, metric_collect, branch, retry, plus async external steps (`Attempt.Pending`/`deliverExternal`) · M0.A1, M0.A8 · CI run 40374975745
 - [~] A4 Workflows persisted, resumable, versioned, re-runnable · runs persisted (plaintext, 2b43e36); encryption M0.C2; versioned templates M0.A4; re-run M3.5.B2
 - [ ] A5 Route each step: local orchestration / frontier AI (web or app) / browser automation / app automation / human gate · M0.A6, M4.*
 - [ ] A6 Local agent is capable (tool-using, advanced work); frontier AIs reached via their apps or web UIs (no API keys assumed); routing per task class is a user setting · M0.A6, M3.A1, M3.A4, M4.A2, M4.B3
 - [ ] A7 Pluggable `ModelRouter` that picks the frontier target per step and records which one and why · M0.A6, M4.C2
 - [~] A8 Fill the artifact before approval; approvals show the **completed** artifact · gates bound to content hash (core); JSON view only today; renderers M3.B1
-- [~] A9 Approvals checkpointed, persisted and auditable · core done; audit wiring fixed in M0.A1 (verification)
+- [x] A9 Approvals checkpointed, persisted and auditable (hash-bound gates; outbound events now recorded in the audit chain) · M0.A1 · CI run 40374975745
 - [ ] A10 Execute approved workflows end to end, checkpointing at each gate · M3.A3, M4.*, M5.*
 - [ ] A11 Instrument everything: logs, tracking, metrics feeding back into planning · M5.C1, M3.A2, M6.2
 - [~] A12 Versioned schema and artifact registry with semantic versions, reuse-first, first-class migrations · registry v1 done; v2 entities M0.A3 (verification); semver + migration M0.A4
@@ -38,7 +38,7 @@ Legend:
 - [ ] C4 Frontier AI consults inside Memo (ChatGPT, Claude, Gemini, Grok, DeepSeek, Perplexity, Le Chat, Copilot) with robust inject/send/complete/extract · M4.A2
 - [ ] C5 **Native device apps operated by Memo** (SynthOS Runtime pattern): launch app, accessibility service drives it, Memo console on top · M4.B1, M4.D1
 - [ ] C6 App automation: node traversal, tap/type/scroll/swipe gestures, wait/read, screenshot + OCR fallback · M4.B1, M4.B2
-- [ ] C7 Safety guards: destructive-action filter, lock and wrong-app pause, password/OTP never touched, bounded retries, commit never auto-retried · M0.A5, M4.A0, M4.B1
+- [~] C7 Safety guards (ActionPolicy + ChannelSwitches done, M0.A5): destructive-action filter, lock and wrong-app pause, password/OTP never touched, bounded retries, commit never auto-retried · M0.A5, M4.A0, M4.B1
 - [ ] C8 Agent loop OBSERVE→DECIDE→CHECK→ACT→VERIFY→RECORD, with a closed action vocabulary and strict locators · M4.A0
 - [ ] C9 Approved action envelope bound to the gate hash; any deviation → takeover or re-approval · M4.A0
 - [ ] C10 **Human-like actions to avoid bans**: timing, typing cadence, curved gestures, pacing, daily caps, working hours, ban-signal backoff · §2d, M3.5.A2
@@ -90,7 +90,7 @@ Legend:
 - [~] H3 Redaction before anything leaves the device · core Redactor done; wired into consults in M4.A2
 - [~] H4 User-auditable outbound log (hash-chained) · chain exists; wiring fixed in M0.A1; viewer M6.2
 - [~] H5 Kill switch · basic "stop all runs" done; global/per-channel M0.A5, M3.5.C1
-- [ ] H6 Per-channel enable/disable · M0.A5, M4.C2
+- [~] H6 Per-channel enable/disable · core ChannelSwitches done (M0.A5); UI M4.C2
 - [ ] H7 Scoped permissions with rationale (permission centre) · M6.5
 - [ ] H8 App lock (biometric), FLAG_SECURE option, encrypted backup/export · M6.3, M6.4
 
@@ -111,8 +111,8 @@ Legend:
 - [ ] J2 Rate limiting per provider/app · M0.A6, §2d
 - [ ] J3 Error recovery: retry/backoff, takeover, NEEDS_REVIEW · core + M4.*
 - [ ] J4 Observability: local diagnostics, crash log, run journal (no analytics) · M6.2
-- [ ] J5 Platform boundary (`core/platform`) for a later desktop build · M0.A7
-- [~] J6 CI produces a clean APK on every merge · ✅ main green; core tests added to CI in M0 (verification)
+- [x] J5 Platform boundary (`core/platform`) for a later desktop build: LLM, speech, vault, web/app channels, device, scheduler interfaces · M0.A7 · CI run 40374975745
+- [x] J6 CI produces a clean APK on every merge, and now runs **all** core tests (7 hidden failures found and fixed) · M0.A8 · CI run 40374975745
 - [ ] J7 Lint strict, test sweep · M6.6, M6.7
 
 ## L. Languages
@@ -120,7 +120,7 @@ Legend:
 - [ ] L2 Voice in pl/tr: Whisper ASR + Piper TTS voices; English via Zipformer + Kokoro · M3.6.C1
 - [ ] L3 Voice and text commands understood in pl/tr (grammar + agent) · M3.6.A1, M3.A4
 - [ ] L4 Agent replies, and asks frontier AIs to reply, in the user's language · M3.A4, M4.A2
-- [~] L5 Safety terms and automation labels in pl/tr · ActionPolicy in M0.A5 (in progress); adapters M4.A2
+- [~] L5 Safety terms and automation labels in pl/tr · ActionPolicy with en/pl/tr/de/es/fr done (M0.A5, CI run 40374975745; native-speaker review pending); adapters M4.A2
 
 ## M. Everyday product (§2j)
 - [ ] M1 Reminders: exact, recurring, snooze, notification actions, survive reboot, private on lock screen · M3.7.A1
