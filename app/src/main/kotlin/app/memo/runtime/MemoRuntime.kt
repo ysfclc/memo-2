@@ -14,6 +14,7 @@ import app.memo.core.domain.Company
 import app.memo.core.domain.ContentDraft
 import app.memo.core.domain.Person
 import app.memo.core.domain.RunStatus
+import app.memo.core.domain.StepStatus
 import app.memo.core.domain.Task
 import app.memo.core.domain.WorkflowSpec
 import app.memo.core.engine.ArtifactBuilder
@@ -41,6 +42,16 @@ import java.util.concurrent.Executors
  * legacy import, so construction never blocks the main thread. Until that load
  * finishes the workspace is empty. If storage cannot be read or written, the
  * app keeps running in memory and [Snapshot.storageError] says why.
+ *
+ * Read-only mode applies while a load or import problem is set, or while a vault
+ * recovery from a backup is waiting for [confirmRecovery]. In that mode nothing is
+ * written, the engine checkpoint throws so side effects are refused, and approvals
+ * that lead to later side effects are not delivered.
+ *
+ * Crash safety: the engine checkpoints a run synchronously before every side-effect
+ * executor. Runs are persisted before the audit chain, both in [persistAll] and in the
+ * audit sink. At bootstrap, runs that were mid side effect are recovered with
+ * `WorkflowEngine.recoverAfterRestart`, which lands them in NEEDS_REVIEW.
  *
  * All mutations run on one background thread; UI state is published on the
  * main thread as an immutable [Snapshot].
@@ -73,6 +84,12 @@ class MemoRuntime(context: Context) {
     /** Why storage is read-only for this session (failed import or load). Empty when writable. */
     private var loadProblem: String = ""
 
+    /**
+     * Set when the vault had to be restored from a backup at load. Writes stay off until
+     * [confirmRecovery] clears it. Null when there is nothing to confirm.
+     */
+    private var pendingRecovery: String? = null
+
     /** Failed saves by entry name. An entry is removed on its next successful save. */
     private val saveErrors = linkedMapOf<String, String>()
 
@@ -97,6 +114,7 @@ class MemoRuntime(context: Context) {
         ),
         packetProvider = { PacketBuilder.build(workspace) },
         audit = OutboundAudit { event -> auditChain.append(event, System.currentTimeMillis()) },
+        checkpoint = { run -> checkpointRun(run) },
     )
 
     /** Local model downloads, verification, import and discovery. */
@@ -126,10 +144,18 @@ class MemoRuntime(context: Context) {
         return "Planned \"${spec.title}\". Review it in Live."
     }
 
-    /** Approve or veto a waiting gate. The artifact hash is re-read on the runtime thread. */
+    /**
+     * Approve or veto a waiting gate. The artifact hash is re-read on the runtime thread.
+     * While storage is read-only, an approval whose run has later side effects is not delivered.
+     */
     fun decide(runId: String, stepId: String, approve: Boolean) {
         exec.execute {
-            val state = engine.run(runId)?.stepById(stepId)
+            val run = engine.run(runId)
+            if (approve && readOnly() && run != null && hasSideEffectAfter(run, stepId)) {
+                publish(READ_ONLY_APPROVAL)
+                return@execute
+            }
+            val state = run?.stepById(stepId)
             if (state != null) {
                 runCatching {
                     engine.deliverGate(
@@ -144,6 +170,22 @@ class MemoRuntime(context: Context) {
             }
             persistAll()
             publish(if (approve) "Approved." else "Vetoed.")
+        }
+    }
+
+    /**
+     * Accepts a vault recovery from a backup, so writes resume. The primary is then
+     * written from the recovered state on the next save. Does nothing when there is no pending recovery.
+     */
+    fun confirmRecovery() {
+        exec.execute {
+            if (pendingRecovery != null) {
+                pendingRecovery = null
+                persistAll()
+                publish("Recovery confirmed.")
+            } else {
+                publish("")
+            }
         }
     }
 
@@ -163,11 +205,14 @@ class MemoRuntime(context: Context) {
 
     /**
      * Runs once on the runtime thread before any command: legacy import, then
-     * loads. A failure leaves the app usable in memory with writes disabled.
+     * loads, then recovery of runs that were mid side effect. A failure leaves the
+     * app usable in memory with writes disabled.
      */
     private fun bootstrap() {
         persistence.migrateLegacyPlaintext()
-        persistence.migrationProblem?.let { loadProblem = appendProblem(loadProblem, "legacy import: $it") }
+        // A plaintext cleanup failure after a completed import is reported, but does not block the load.
+        persistence.migrationProblem?.takeIf { !persistence.migrationFinished }
+            ?.let { loadProblem = appendProblem(loadProblem, "legacy import: $it") }
 
         if (loadProblem.isEmpty()) {
             loadOrNull("workspace") { persistence.loadWorkspace() }?.let { workspace = it }
@@ -178,7 +223,32 @@ class MemoRuntime(context: Context) {
                 restored = restoredAudit,
             )
         }
+        // Set before recovery, so a restored backup keeps the session read-only until confirmed.
+        pendingRecovery = persistence.lastRecovery
+        if (loadProblem.isEmpty()) recoverInterruptedRuns()
         publish("")
+    }
+
+    /**
+     * Runs restored as RUNNING or INTERRUPTED that have a RUNNING step go through the
+     * engine's crash-recovery rules: a side effect becomes NEEDS_REVIEW, never a re-run.
+     * Nothing is advanced here. Changed runs are persisted when writes are allowed.
+     */
+    private fun recoverInterruptedRuns() {
+        val interrupted = engine.runs().filter { run ->
+            (run.status == RunStatus.RUNNING || run.status == RunStatus.INTERRUPTED) &&
+                run.steps.any { it.status == StepStatus.RUNNING }
+        }
+        if (interrupted.isEmpty()) return
+        interrupted.forEach { run ->
+            try {
+                engine.recoverAfterRestart(run.id)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not recover run ${run.id}", e)
+                loadProblem = appendProblem(loadProblem, "run ${run.id} could not be recovered")
+            }
+        }
+        persistAll()
     }
 
     private fun <T> loadOrNull(what: String, block: () -> T): T? =
@@ -192,6 +262,32 @@ class MemoRuntime(context: Context) {
 
     private fun appendProblem(current: String, next: String): String =
         if (current.isEmpty()) next else "$current · $next"
+
+    /** True while writes are refused: a load or import problem, or an unconfirmed recovery. */
+    private fun readOnly(): Boolean = loadProblem.isNotEmpty() || pendingRecovery != null
+
+    /** True when a step after the gate [stepId] is a side effect. */
+    private fun hasSideEffectAfter(run: AgentRun, stepId: String): Boolean {
+        val index = run.steps.indexOfFirst { it.spec.id == stepId }
+        return index >= 0 && run.steps.drop(index + 1).any { it.spec.isSideEffect }
+    }
+
+    /**
+     * Engine checkpoint, called synchronously on the runtime thread right before a
+     * side-effect executor runs. Writes the full runs list with [run] in place. Throws when
+     * read-only or when the write fails, so the engine refuses the side effect.
+     */
+    private fun checkpointRun(run: AgentRun) {
+        check(!readOnly()) { READ_ONLY_REASON }
+        try {
+            persistence.saveRunsWith(run, engine.runs())
+            saveErrors.remove("runs")
+        } catch (e: Exception) {
+            Log.w(TAG, "could not checkpoint run ${run.id}", e)
+            saveErrors["runs"] = e.message ?: e.javaClass.simpleName
+            throw e
+        }
+    }
 
     private fun startRun(spec: WorkflowSpec) {
         val result = runCatching {
@@ -253,35 +349,50 @@ class MemoRuntime(context: Context) {
         if (loadProblem.isNotEmpty()) {
             parts += "Storage is read-only this session: $loadProblem"
         }
+        pendingRecovery?.let { parts += "$it. Saving is paused until you confirm." }
+        if (persistence.migrationFinished) {
+            persistence.migrationProblem?.let { parts += "Legacy plaintext cleanup incomplete: $it" }
+        }
         saveErrors.forEach { (what, reason) -> parts += "Could not save $what ($reason)" }
         return parts.joinToString(" · ")
     }
 
-    /** Saves the workspace and the runs. Skipped entirely while storage is read-only. */
+    /** Saves the workspace, the runs and the audit chain, in that order. Skipped entirely while read-only. */
     private fun persistAll() {
-        if (loadProblem.isNotEmpty()) return
+        if (readOnly()) return
         save("workspace") { persistence.saveWorkspace(workspace) }
         save("runs") { persistence.saveRuns(engine.runs()) }
+        save("audit") { persistence.saveAudit(auditChain.entries()) }
     }
 
-    /** Audit sink: receives the full chain after every append. */
+    /**
+     * Audit sink: receives the full chain after every append. Runs are written first.
+     * If that fails, the audit is not written, so the trail never gets ahead of the runs.
+     */
     private fun writeAudit(entries: List<AuditEntry>) {
-        if (loadProblem.isNotEmpty()) return
-        save("audit") { persistence.saveAudit(entries) }
-    }
-
-    private fun save(what: String, block: () -> Unit) {
-        try {
-            block()
-            saveErrors.remove(what)
-        } catch (e: Exception) {
-            Log.w(TAG, "could not save $what", e)
-            saveErrors[what] = e.message ?: e.javaClass.simpleName
+        if (readOnly()) return
+        if (save("runs") { persistence.saveRuns(engine.runs()) }) {
+            save("audit") { persistence.saveAudit(entries) }
         }
     }
 
+    /** Runs [block] and records a failure in [saveErrors]. Returns true on success. */
+    private fun save(what: String, block: () -> Unit): Boolean =
+        try {
+            block()
+            saveErrors.remove(what)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "could not save $what", e)
+            saveErrors[what] = e.message ?: e.javaClass.simpleName
+            false
+        }
+
     private companion object {
         const val TAG = "MemoRuntime"
+        const val READ_ONLY_REASON = "storage is read-only this session; side effects are refused"
+        const val READ_ONLY_APPROVAL =
+            "Storage is read-only; approvals that lead to outbound actions are disabled until storage is fixed"
         val TERMINAL = setOf(RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED)
     }
 }
