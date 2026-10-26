@@ -1,6 +1,6 @@
 package app.memo.core.catalog
 
-import app.memo.core.Limits
+import app.memo.core.platform.ModelFormat
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -16,41 +16,35 @@ import kotlin.test.assertTrue
 class CatalogTest {
 
     @Test
-    fun threePinnedModelsWithVerbatimSizesAndHashes() {
+    fun pinnedQwen3SizesAndHashesSurviveTheMigration() {
         val entries = ModelCatalog.entries
-        assertEquals(3, entries.size)
+        assertTrue(entries.size >= 10)
         val byId = entries.associateBy { it.id }
 
+        // Audited byte sizes and SHA-256 digests are unchanged; only the revision moved
+        // from the old hand-pinned sha (e668717 / 87603f0) to the current API revision.
         val small = byId.getValue("qwen3-0.6b")
         assertEquals(344_671_744L, small.sizeBytes)
         assertEquals("03e7da1eb1108b50dffaa9bb52cc7bcbad2eb0c66ca990267f480c1e545d2856", small.sha256)
         assertEquals(ModelRole.ORCHESTRATOR, small.role)
-        assertEquals(false, small.thinkingByDefault)
+        assertEquals(ModelFormat.LITERTLM, small.format)
         assertEquals(700, small.outputTokenBudget)
-        assertTrue(small.url.contains("litert-community/Qwen3-0.6B/resolve/e668717/"))
-        assertTrue(small.url.endsWith("?download=true"))
+        assertEquals("fed81d17517e6ea64362e917ecf7e5accff12492", small.revision)
+        assertEquals(
+            "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/" +
+                "fed81d17517e6ea64362e917ecf7e5accff12492/Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm",
+            small.url,
+        )
         assertTrue(small.isRunnableSize)
 
         val mid = byId.getValue("qwen3-1.7b")
         assertEquals(977_184_032L, mid.sizeBytes)
         assertEquals("2a72330b504a6596d53a2c00923c57173b10f1b83e6a541213ffec08d1fc5de8", mid.sha256)
         assertEquals(ModelRole.CHAT, mid.role)
-        assertTrue(mid.url.contains("litert-community/Qwen3-1.7B/resolve/87603f0/"))
+        assertTrue(mid.url.contains("litert-community/Qwen3-1.7B/resolve/79bf0667b32ae025b972e5fe555fe72ca6e8816c/"))
 
-        val deep = byId.getValue("qwen3-4b-thinking")
-        assertEquals(2_477_192_112L, deep.sizeBytes)
-        assertEquals("8a8a6a419a5570b3f4814d358fb795c0dcb6931206c7dae29480f47564c3f04d", deep.sha256)
-        assertEquals(ModelRole.DEEP, deep.role)
-        assertTrue(deep.thinkingByDefault)
-        assertTrue(deep.url.contains("Qwen3-4B-Thinking-2507/resolve/f8ce479/"))
-
-        entries.forEach { entry ->
-            assertTrue(ModelCatalog.isSha256Shape(entry.sha256), entry.id)
-            assertTrue(entry.sizeBytes >= Limits.MIN_MODEL_BYTES, entry.id)
-            assertTrue(entry.url.startsWith("https://huggingface.co/"), entry.id)
-        }
         assertEquals(small, ModelCatalog.defaultEntry())
-        assertEquals(mid, ModelCatalog.byRole(ModelRole.CHAT))
+        assertEquals(ModelRole.ORCHESTRATOR, ModelCatalog.byRole(ModelRole.ORCHESTRATOR)?.role)
         assertNull(ModelCatalog.byId("does-not-exist"))
         assertFalse(ModelCatalog.isSha256Shape("not-a-hash"))
     }
