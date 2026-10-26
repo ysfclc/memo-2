@@ -104,6 +104,33 @@ class PersistenceTest {
     }
 
     @Test
+    fun newerParseableTmpWins() {
+        writeLegacy(dir) // primary holds "Ada"
+        val tmp = File(dir, "workspace.syn.json.tmp")
+        tmp.writeText(v1Envelope(workspaceWith("Grace")))
+        tmp.setLastModified(System.currentTimeMillis() + 60_000L)
+        val persistence = Persistence(MemoryVault(), dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertNull(persistence.migrationProblem)
+        assertEquals(listOf("Grace"), persistence.loadWorkspace().people.items().map { it.fullName })
+    }
+
+    @Test
+    fun olderParseableTmpLosesToPrimary() {
+        writeLegacy(dir) // primary holds "Ada"
+        val tmp = File(dir, "workspace.syn.json.tmp")
+        tmp.writeText(v1Envelope(workspaceWith("Grace")))
+        tmp.setLastModified(System.currentTimeMillis() - 60_000L)
+        val persistence = Persistence(MemoryVault(), dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertEquals(listOf("Ada"), persistence.loadWorkspace().people.items().map { it.fullName })
+    }
+
+    @Test
     fun missingPrimaryImportsGoodTmp() {
         writeLegacy(dir)
         File(dir, "workspace.syn.json").delete()

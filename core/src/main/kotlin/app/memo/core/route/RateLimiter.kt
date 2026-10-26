@@ -61,6 +61,7 @@ class RateLimiter(
 
     fun check(targetId: String, now: Long): RateDecision {
         val limit = limitFor(targetId)
+        clampFuture(targetId, now)
         if (limit.dailyCap > 0) {
             val inWindow = windowAt[targetId].orEmpty().filter { it > now - RateLimit.WINDOW_MS }
             if (inWindow.size >= limit.dailyCap) {
@@ -73,6 +74,15 @@ class RateLimiter(
             return RateDecision.Wait(last + limit.minIntervalMs)
         }
         return RateDecision.Allowed
+    }
+
+    /**
+     * Clock moved back: a stored action time after [now] is repaired to [now], so it blocks at
+     * most one interval or window from now instead of until the stored future time.
+     */
+    private fun clampFuture(targetId: String, now: Long) {
+        lastAt[targetId]?.let { if (it > now) lastAt[targetId] = now }
+        windowAt[targetId]?.replaceAll { minOf(it, now) }
     }
 
     fun record(targetId: String, now: Long) {

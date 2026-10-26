@@ -1,12 +1,23 @@
 package app.memo.runtime
 
 import app.memo.platform.android.vault.BackupRotationPolicy
+import app.memo.platform.android.vault.VaultDataPolicy
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** JVM-only checks for the storage safety rules that do not need Android. */
 class RuntimeSafetyTest {
+
+    @Test
+    fun leftoverTempFilesDoNotCountAsVaultData() {
+        assertFalse(VaultDataPolicy.countsAsVaultData("workspace.syn.tmp"))
+        assertFalse(VaultDataPolicy.countsAsVaultData("runs.json.tmp"))
+        assertTrue(VaultDataPolicy.countsAsVaultData("workspace.syn"))
+        assertTrue(VaultDataPolicy.countsAsVaultData("workspace.syn.bak1"))
+        assertTrue(VaultDataPolicy.countsAsVaultData("migration.v1"))
+    }
+
 
     private val last = 1_700_000_000_000L
 

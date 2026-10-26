@@ -1,6 +1,8 @@
 package app.memo.core.registry
 
 import app.memo.core.util.Sha256Hex
+import java.text.Normalizer
+import java.util.Locale
 
 /**
  * Deterministic natural-key builders (AGENTS.md rule 2 — reuse first).
@@ -128,14 +130,28 @@ object NaturalKeys {
 
     fun digitsOnly(contact: String): String = contact.filter { it.isDigit() }
 
-    fun slug(text: String): String =
-        text.trim().lowercase()
-            .map { if (it.isWhitespace()) ' ' else it }
-            .filter { it in 'a'..'z' || it in '0'..'9' || it == ' ' }
-            .joinToString("")
-            .replace(Regex(" +"), "-")
-            .take(48)
-            .trim('-')
+    /**
+     * Human-readable key part: NFKC, lowercase with Locale.ROOT (so Turkish locales
+     * do not change it), dotted-i sequences folded to "i", then only letters and
+     * decimal digits kept (any Unicode script). Whitespace becomes "-". At most 48
+     * code points. ASCII input yields the same slug as before this rule set.
+     */
+    fun slug(text: String): String {
+        val folded = Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)
+            .lowercase(Locale.ROOT)
+            .replace("i\u0307", "i")
+        val kept = StringBuilder()
+        folded.codePoints().forEach { cp ->
+            when {
+                Character.isWhitespace(cp) -> kept.append(' ')
+                Character.isLetter(cp) || Character.getType(cp) == Character.DECIMAL_DIGIT_NUMBER.toInt() ->
+                    kept.appendCodePoint(cp)
+            }
+        }
+        val dashed = kept.toString().replace(Regex(" +"), "-").codePoints().toArray()
+        val cut = dashed.copyOf(minOf(dashed.size, 48))
+        return String(cut, 0, cut.size).trim('-')
+    }
 
     fun normalizeName(name: String): String = name.trim().lowercase().replace(Regex("\\s+"), " ")
 
