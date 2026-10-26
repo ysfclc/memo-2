@@ -22,14 +22,13 @@ private fun isPlanJson(text: String): Boolean {
 
 /**
  * A reusable plan the user has run or saved. Natural key = slug(name).
- * useCount tracks reuse; it is content, so a bump is a real change.
+ * Usage stats for templates live with run history, not on the template row.
  */
 data class WorkflowTemplate(
     val name: String = "",
     val description: String = "",
     val intentExamples: List<String> = emptyList(),
     val planJson: String = "",        // {"title": "...", "steps": [...]}
-    val useCount: Int = 0,
     val createdAt: Long = 0,
     val updatedAt: Long = 0,
     val version: Int = 1,
@@ -39,7 +38,6 @@ data class WorkflowTemplate(
         .put("description", description)
         .put("intentExamples", JSONArray(intentExamples))
         .put("planJson", planJson)
-        .put("useCount", useCount)
         .put("createdAt", createdAt)
         .put("updatedAt", updatedAt)
         .put("version", version)
@@ -58,8 +56,7 @@ data class WorkflowTemplate(
             listInvalid(intentExamples, Limits.MAX_TITLE_CHARS) ||
             planJson.isBlank() ||
             planJson.length > Limits.MAX_JSON_PAYLOAD_CHARS ||
-            !isPlanJson(planJson) ||
-            useCount < 0
+            !isPlanJson(planJson)
 
     companion object {
         fun fromJson(raw: JSONObject): WorkflowTemplate? {
@@ -71,7 +68,6 @@ data class WorkflowTemplate(
                 description = raw.optString("description"),
                 intentExamples = jsonStringList(raw.optJSONArray("intentExamples")),
                 planJson = planJson,
-                useCount = raw.optInt("useCount", 0).coerceAtLeast(0),
                 createdAt = raw.optLong("createdAt", 0L),
                 updatedAt = raw.optLong("updatedAt", 0L),
                 version = raw.optInt("version", 1).coerceAtLeast(1),
