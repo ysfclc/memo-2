@@ -113,3 +113,6 @@ Chronological notes kept by the lead while building. They cover what the user as
   - 16 KB / libc++ / dotprod sent to WP LLM
   - everything else in M0.F5 (one agent, groups A engine, B data hygiene, C policy, D app runtime)
 - Deferred: ModelStore init I/O on the main thread → WP HUB (owns ModelStore). Unpinned action SHAs + build attestation → lead at M2.5.
+- M0.F5 verified by the lead (run 40405257386 green on 9167f22; engine veto/persist diff read) and merged.
+- Open decision "non-ASCII re-key", resolved by the lead: `Registry.load` derives every natural key from row content (`scheme.id(decoded)`); keys are not stored. Rows re-key on load and no migration is needed. Rows that previously had a blank key were quarantined, and can now be released with `releaseQuarantined`.
+- UI follow-ups from F5 (reset confirmation, review/resume buttons, displayed-hash `decide`) are lead inline on milestone/M1 after M0 merges in.
