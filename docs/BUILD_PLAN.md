@@ -359,6 +359,11 @@ The user doesn't operate anything; the agent works on its own and only surfaces 
 4. If anything fails, send it back to the same agent (SendMessage) with the exact defects. Repeat until it passes.
 5. Merge into `milestone/Mx` once the gate passes.
 
+### Feature checklist
+- `docs/FEATURES.md` lists every requirement with its task IDs.
+- The lead updates it on every task merge (status + evidence link).
+- At milestone close the lead checks that every item mapped to that milestone is ticked or explicitly carried over.
+
 ### Milestone close
 - Integrate all tasks into `milestone/Mx`, CI green, then a code-review subagent pass and fixes.
 - Open a PR to `main`; merge on green.
@@ -961,6 +966,20 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   5. Auto-provision METRIC_COLLECT runs via WorkManager at +1h/+24h/+72h/+7d, with a manual entry fallback.
   6. Studio: per-post charts plus strategy hints fed back into the packet.
 - acceptance: E2E test + CI green.
+
+**M5.C1b — UC-4 media assets (image / carousel / video)**
+- deps: M5.C1, M4.A2, M2.A2
+- files: `core/.../content/MediaSpec.kt` (asset specs: image prompt, carousel slides, video storyboard with scenes, captions, duration), `app/.../platform/android/media/CarouselRenderer.kt` (slides rendered from design tokens to PNG + PDF), `app/.../platform/android/media/VideoComposer.kt` (MediaCodec/MediaMuxer H.264 slideshow with Ken-Burns motion, captions, Kokoro voice-over), `app/.../runtime/ImageGeneration.kt` (frontier image generation via the in-Memo web runtime; the downloaded image is saved as an artifact), tests
+- steps:
+  1. The draft step chooses the asset type from ContentPreference.
+  2. Carousels and videos are rendered locally.
+  3. Images come from a frontier web consult (gated like any consult) or from user-supplied files.
+  4. The gate shows the actual rendered assets plus target channels.
+  5. Publishing uploads the files through the web/app adapter.
+- acceptance:
+  - tests for the spec → slides/storyboard mapping
+  - CI green
+  - device check: a carousel PDF and an MP4 render
 
 **M5.C2 — UC-5 arbitrary plans**
 - deps: M5.C1, M4.B2

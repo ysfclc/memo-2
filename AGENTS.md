@@ -2,7 +2,7 @@
 
 This file is loaded into every AI session working in this repo. Obey it without being asked.
 
-**Build plan:** `docs/BUILD_PLAN.md` is the single source of truth for what to build, in which order, and how each task is verified. Read it before starting any task.
+**Build plan:** `docs/BUILD_PLAN.md` is the single source of truth for what to build, in which order, and how each task is verified. Read it before starting any task. `docs/FEATURES.md` is the feature checklist; the lead keeps it current.
 
 ## Standing rule 1 — Engineering notebook (permanent)
 
