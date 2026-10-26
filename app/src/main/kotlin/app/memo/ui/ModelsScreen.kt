@@ -4,30 +4,21 @@ import android.database.Cursor
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,13 +26,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.memo.core.catalog.ModelCatalog
 import app.memo.core.catalog.ModelEntry
 import app.memo.models.ModelStore
+import app.memo.ui.components.IndeterminateProgressRing
+import app.memo.ui.components.MemoButton
+import app.memo.ui.components.MemoButtonStyle
+import app.memo.ui.components.MemoCard
+import app.memo.ui.components.Pill
+import app.memo.ui.components.ProgressRing
+import app.memo.ui.components.ScreenHeader
+import app.memo.ui.nav.SharedKind
+import app.memo.ui.nav.sharedElement
 import app.memo.ui.theme.MemoTheme
 import java.io.File
 
@@ -83,7 +82,7 @@ fun ModelsScreen(models: ModelStore) {
 
         item {
             MemoCard(Modifier.padding(horizontal = 20.dp)) {
-                Text("Already on this device", style = MaterialTheme.typography.titleMedium)
+                Text("Already on this device", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Scan app storage for model files, or pick one you downloaded yourself. " +
@@ -93,7 +92,7 @@ fun ModelsScreen(models: ModelStore) {
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
+                    MemoButton(
                         onClick = {
                             scanning = true
                             models.discover { found ->
@@ -102,12 +101,16 @@ fun ModelsScreen(models: ModelStore) {
                             }
                         },
                         enabled = !scanning,
+                        style = MemoButtonStyle.SECONDARY,
                     ) {
                         Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(6.dp))
                         Text(if (scanning) "Scanning" else "Scan device")
                     }
-                    OutlinedButton(onClick = { importPicker.launch(arrayOf("*/*")) }) {
+                    MemoButton(
+                        onClick = { importPicker.launch(arrayOf("*/*")) },
+                        style = MemoButtonStyle.SECONDARY,
+                    ) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(6.dp))
                         Text("Pick file")
@@ -115,7 +118,7 @@ fun ModelsScreen(models: ModelStore) {
                 }
                 if (scanning) {
                     Spacer(Modifier.height(10.dp))
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    IndeterminateProgressRing(contentDescription = "Scanning app storage", size = 20.dp, strokeWidth = 2.dp)
                 }
             }
         }
@@ -133,16 +136,17 @@ fun ModelsScreen(models: ModelStore) {
                 MemoCard(Modifier.padding(horizontal = 20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(file.name, style = MaterialTheme.typography.titleMedium, fontSize = 14.sp)
+                            Text(file.name, style = MemoTheme.typography.subtitle, fontSize = 14.sp, color = MemoTheme.colors.ink)
                             Text(
                                 "${mb(file.sizeBytes)}" + if (file.matchesCatalogId != null) " · size matches a pinned model" else "",
                                 color = MemoTheme.colors.inkMuted,
                                 fontSize = 12.sp,
                             )
                         }
-                        TextButton(onClick = {
-                            models.importFrom({ File(file.path).inputStream() }, file.name)
-                        }) { Text("Verify & import") }
+                        MemoButton(
+                            onClick = { models.importFrom({ File(file.path).inputStream() }, file.name) },
+                            style = MemoButtonStyle.QUIET,
+                        ) { Text("Verify & import") }
                     }
                 }
             }
@@ -153,9 +157,14 @@ fun ModelsScreen(models: ModelStore) {
 @Composable
 private fun ModelCard(entry: ModelEntry, models: ModelStore) {
     val state = models.state(entry)
-    MemoCard(Modifier.padding(horizontal = 20.dp)) {
+    MemoCard(Modifier.padding(horizontal = 20.dp).sharedElement(SharedKind.MODEL, entry.id)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(entry.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Text(
+                entry.displayName,
+                style = MemoTheme.typography.subtitle,
+                color = MemoTheme.colors.ink,
+                modifier = Modifier.weight(1f),
+            )
             Pill(entry.role.name.lowercase())
         }
         Spacer(Modifier.height(4.dp))
@@ -169,9 +178,10 @@ private fun ModelCard(entry: ModelEntry, models: ModelStore) {
 
         if (state.status == ModelStore.Status.DOWNLOADING || state.status == ModelStore.Status.VERIFYING) {
             Spacer(Modifier.height(10.dp))
-            LinearProgressIndicator(
-                progress = { state.progress },
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+            ProgressRing(
+                progress = state.progress,
+                contentDescription = "${entry.displayName} download progress",
+                size = 36.dp,
             )
         }
         if (state.message.isNotBlank()) {
@@ -192,17 +202,19 @@ private fun ModelCard(entry: ModelEntry, models: ModelStore) {
                     if (active) {
                         Pill("Active", emphasis = true)
                     } else {
-                        OutlinedButton(onClick = { models.activeId = entry.id }) { Text("Use this model") }
+                        MemoButton(onClick = { models.activeId = entry.id }, style = MemoButtonStyle.SECONDARY) {
+                            Text("Use this model")
+                        }
                     }
                 }
                 state.status == ModelStore.Status.DOWNLOADING -> {
-                    OutlinedButton(onClick = { models.cancel(entry) }) { Text("Pause") }
+                    MemoButton(onClick = { models.cancel(entry) }, style = MemoButtonStyle.SECONDARY) { Text("Pause") }
                 }
                 state.status == ModelStore.Status.VERIFYING -> {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    IndeterminateProgressRing(contentDescription = "Verifying ${entry.displayName}", size = 18.dp, strokeWidth = 2.dp)
                 }
                 else -> {
-                    Button(onClick = { models.download(entry) }) {
+                    MemoButton(onClick = { models.download(entry) }, style = MemoButtonStyle.PRIMARY) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(6.dp))
                         Text(if (state.message.startsWith("Partial")) "Resume" else "Download")

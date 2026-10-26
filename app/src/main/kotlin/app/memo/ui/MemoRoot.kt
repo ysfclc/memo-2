@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,29 +21,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Send
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,100 +48,61 @@ import app.memo.core.domain.StepKind
 import app.memo.core.domain.StepStatus
 import app.memo.runtime.MemoRuntime
 import app.memo.runtime.Planner
+import app.memo.ui.components.EmptyState
+import app.memo.ui.components.MemoButton
+import app.memo.ui.components.MemoButtonStyle
+import app.memo.ui.components.MemoCard
+import app.memo.ui.components.Pill
+import app.memo.ui.components.ScreenHeader
+import app.memo.ui.components.StatTile
+import app.memo.ui.nav.MemoNavShell
+import app.memo.ui.nav.NavState
+import app.memo.ui.nav.Route
+import app.memo.ui.nav.SharedKind
+import app.memo.ui.nav.sharedElement
 import app.memo.ui.theme.MemoTheme
 import org.json.JSONObject
 
-enum class Tab(val label: String, val icon: ImageVector) {
-    LIVE("Live", Icons.Outlined.Home),
-    TALK("Talk", Icons.Outlined.Mic),
-    WORK("Work", Icons.Outlined.Person),
-    STUDIO("Studio", Icons.Outlined.Edit),
-    MODELS("Models", Icons.Outlined.Download),
-    SETTINGS("Settings", Icons.Outlined.Settings),
-}
-
+/** The root of the app. Navigation state lives here; the shell owns animation and back handling. */
 @Composable
 fun MemoRoot(runtime: MemoRuntime) {
-    var tab by rememberSaveable { mutableStateOf(Tab.LIVE) }
+    var route by rememberSaveable { mutableStateOf(Route.LIVE) }
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
     val snap by runtime.snapshot
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                Tab.entries.forEach { t ->
-                    NavigationBarItem(
-                        selected = tab == t,
-                        onClick = { tab = t },
-                        icon = { Icon(t.icon, contentDescription = t.label) },
-                        label = { Text(t.label, fontSize = 11.sp) },
-                    )
-                }
-            }
+    MemoNavShell(
+        state = NavState(route = route, sheetOpen = sheetOpen),
+        onStateChange = { next ->
+            route = next.route
+            sheetOpen = next.sheetOpen
         },
-    ) { pad ->
-        Box(Modifier.fillMaxSize().padding(pad)) {
-            when (tab) {
-                Tab.LIVE -> LiveScreen(
-                    runs = snap.runs,
-                    auditCount = snap.auditCount,
-                    auditOk = snap.auditOk,
-                    draftCount = snap.drafts.size,
-                    onApprove = { run, step -> runtime.decide(run, step, true) },
-                    onVeto = { run, step -> runtime.decide(run, step, false) },
-                    onStopAll = { runtime.stopEverything() },
-                    message = snap.lastReply,
-                )
-                Tab.TALK -> TalkScreen(runtime = runtime)
-                Tab.WORK -> WorkScreen(snap.people, snap.companies, snap.tasks)
-                Tab.STUDIO -> StudioScreen(snap.drafts)
-                Tab.MODELS -> ModelsScreen(runtime.models)
-                Tab.SETTINGS -> SettingsScreen(
-                    auditCount = snap.auditCount,
-                    auditOk = snap.auditOk,
-                    quarantined = snap.quarantined,
-                    storageError = snap.storageError,
-                    recoveryPending = snap.recoveryPending,
-                    onConfirmRecovery = { runtime.confirmRecovery() },
-                    onStopAll = { runtime.stopEverything() },
-                )
-            }
+    ) { current ->
+        when (current) {
+            Route.LIVE -> LiveScreen(
+                runs = snap.runs,
+                auditCount = snap.auditCount,
+                auditOk = snap.auditOk,
+                draftCount = snap.drafts.size,
+                onApprove = { run, step -> runtime.decide(run, step, true) },
+                onVeto = { run, step -> runtime.decide(run, step, false) },
+                onStopAll = { runtime.stopEverything() },
+                message = snap.lastReply,
+            )
+            Route.TALK -> TalkScreen(runtime = runtime)
+            Route.WORK -> WorkScreen(snap.people, snap.companies, snap.tasks)
+            Route.STUDIO -> StudioScreen(snap.drafts)
+            Route.BROWSER -> BrowserScreen()
+            Route.MODELS -> ModelsScreen(runtime.models)
+            Route.SETTINGS -> SettingsScreen(
+                auditCount = snap.auditCount,
+                auditOk = snap.auditOk,
+                quarantined = snap.quarantined,
+                storageError = snap.storageError,
+                recoveryPending = snap.recoveryPending,
+                onConfirmRecovery = { runtime.confirmRecovery() },
+                onStopAll = { runtime.stopEverything() },
+            )
         }
-    }
-}
-
-// ----------------------------------------------------------------- shared
-
-@Composable
-fun ScreenHeader(title: String, subtitle: String) {
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(4.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MemoTheme.colors.inkMuted)
-    }
-}
-
-@Composable
-fun MemoCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.padding(16.dp)) { content() }
-    }
-}
-
-@Composable
-fun Pill(text: String, emphasis: Boolean = false) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (emphasis) MemoTheme.colors.accentSoft else MemoTheme.colors.outline)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(text, fontSize = 12.sp, color = MemoTheme.colors.ink)
     }
 }
 
@@ -169,7 +113,6 @@ private fun pretty(json: String): String =
 
 // ------------------------------------------------------------------- Live
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveScreen(
     runs: List<AgentRun>,
@@ -193,10 +136,10 @@ fun LiveScreen(
             Modifier.padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            StatTile("Running", active.toString(), Modifier.weight(1f))
-            StatTile("Approvals", waiting.size.toString(), Modifier.weight(1f))
-            StatTile("Drafts", draftCount.toString(), Modifier.weight(1f))
-            StatTile("Audit", if (auditOk) "$auditCount ✓" else "$auditCount !", Modifier.weight(1f))
+            StatTile("Running", active, Modifier.weight(1f))
+            StatTile("Approvals", waiting.size, Modifier.weight(1f))
+            StatTile("Drafts", draftCount, Modifier.weight(1f))
+            StatTile("Audit", auditCount, Modifier.weight(1f), suffix = if (auditOk) " ✓" else " !")
         }
         if (message.isNotBlank()) {
             Spacer(Modifier.height(10.dp))
@@ -210,14 +153,14 @@ fun LiveScreen(
             modifier = Modifier.weight(1f),
         ) {
             if (waiting.isNotEmpty()) {
-                item { Text("Waiting for you", style = MaterialTheme.typography.titleMedium) }
+                item { Text("Waiting for you", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink) }
                 items(waiting, key = { (run, step) -> run.id + step.spec.id }) { (run, step) ->
                     MemoCard {
-                        Text(run.spec.title, style = MaterialTheme.typography.titleMedium)
+                        Text(run.spec.title, style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                         Spacer(Modifier.height(4.dp))
                         Text("Review the filled artifact before it is saved.", color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
                         Spacer(Modifier.height(10.dp))
-                        Box(
+                        Column(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
@@ -233,15 +176,19 @@ fun LiveScreen(
                         }
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(
+                            MemoButton(
                                 onClick = { onApprove(run.id, step.spec.id) },
                                 enabled = step.artifact.isNotBlank(),
+                                style = MemoButtonStyle.PRIMARY,
                             ) {
                                 Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.size(6.dp))
                                 Text("Approve")
                             }
-                            OutlinedButton(onClick = { onVeto(run.id, step.spec.id) }) {
+                            MemoButton(
+                                onClick = { onVeto(run.id, step.spec.id) },
+                                style = MemoButtonStyle.SECONDARY,
+                            ) {
                                 Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.size(6.dp))
                                 Text("Veto")
@@ -251,7 +198,7 @@ fun LiveScreen(
                 }
             }
 
-            item { Text("Recent runs", style = MaterialTheme.typography.titleMedium) }
+            item { Text("Recent runs", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink) }
             if (runs.isEmpty()) {
                 item {
                     Text(
@@ -262,14 +209,15 @@ fun LiveScreen(
                 }
             }
             items(runs.sortedByDescending { it.createdAt }.take(30), key = { it.id }) { run ->
-                MemoCard {
+                MemoCard(Modifier.sharedElement(SharedKind.RUN, run.id)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             run.spec.title,
                             modifier = Modifier.weight(1f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MemoTheme.typography.subtitle,
+                            color = MemoTheme.colors.ink,
                         )
                         Pill(humanize(run.status.name), emphasis = run.status == RunStatus.COMPLETED)
                     }
@@ -282,23 +230,12 @@ fun LiveScreen(
 
             if (active > 0) {
                 item {
-                    TextButton(onClick = onStopAll) { Text("Stop all active runs", color = MemoTheme.colors.attention) }
+                    MemoButton(onClick = onStopAll, style = MemoButtonStyle.QUIET, contentColor = MemoTheme.colors.attention) {
+                        Text("Stop all active runs")
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
-    ) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontSize = 20.sp)
-        Text(label, fontSize = 11.sp, color = MemoTheme.colors.inkMuted)
     }
 }
 
@@ -336,19 +273,22 @@ fun TalkScreen(runtime: MemoRuntime) {
         )
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { submit(text) }, enabled = text.isNotBlank()) {
-                Icon(Icons.Outlined.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+            MemoButton(onClick = { submit(text) }, enabled = text.isNotBlank(), style = MemoButtonStyle.PRIMARY) {
+                Icon(Icons.AutoMirrored.Outlined.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
                 Text("Plan")
             }
-            OutlinedButton(onClick = {
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a Memo command")
-                }
-                runCatching { voice.launch(intent) }
-                    .onFailure { reply = "Voice recognition is not available on this device." }
-            }) {
+            MemoButton(
+                onClick = {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a Memo command")
+                    }
+                    runCatching { voice.launch(intent) }
+                        .onFailure { reply = "Voice recognition is not available on this device." }
+                },
+                style = MemoButtonStyle.SECONDARY,
+            ) {
                 Icon(Icons.Outlined.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
                 Text("Speak")
@@ -356,11 +296,13 @@ fun TalkScreen(runtime: MemoRuntime) {
         }
         Spacer(Modifier.height(16.dp))
         if (reply.isNotBlank()) {
-            MemoCard { Text(reply, fontSize = 15.sp) }
+            MemoCard(Modifier.sharedElement(SharedKind.MESSAGE_ARTIFACT, reply.hashCode().toString())) {
+                Text(reply, fontSize = 15.sp, color = MemoTheme.colors.ink)
+            }
             Spacer(Modifier.height(12.dp))
         }
         MemoCard {
-            Text("Examples", style = MaterialTheme.typography.titleMedium)
+            Text("Examples", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
             Spacer(Modifier.height(6.dp))
             Text(Planner.helpText(), color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
         }
@@ -381,32 +323,37 @@ fun WorkScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         item { ScreenHeader("Work", "People, companies and tasks you approved.") }
-        item { Text("People (${people.size})", modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.titleMedium) }
+        item { SectionTitle("People (${people.size})") }
         if (people.isEmpty()) item { EmptyLine("No people yet. Try \"Add … to my CRM\".") }
         items(people, key = { it.fullName + it.phone }) { p ->
-            MemoCard(Modifier.padding(horizontal = 20.dp)) {
-                Text(p.fullName, style = MaterialTheme.typography.titleMedium)
+            MemoCard(Modifier.padding(horizontal = 20.dp).sharedElement(SharedKind.RECORD, p.fullName + p.phone)) {
+                Text(p.fullName, style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                 if (p.notes.isNotBlank()) Text(p.notes, color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
             }
         }
-        item { Text("Companies (${companies.size})", modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.titleMedium) }
+        item { SectionTitle("Companies (${companies.size})") }
         if (companies.isEmpty()) item { EmptyLine("Companies appear here once captured.") }
         items(companies, key = { it.domain }) { c ->
-            MemoCard(Modifier.padding(horizontal = 20.dp)) {
-                Text(c.displayName.ifBlank { c.domain }, style = MaterialTheme.typography.titleMedium)
+            MemoCard(Modifier.padding(horizontal = 20.dp).sharedElement(SharedKind.RECORD, c.domain)) {
+                Text(c.displayName.ifBlank { c.domain }, style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
             }
         }
-        item { Text("Tasks (${tasks.size})", modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.titleMedium) }
+        item { SectionTitle("Tasks (${tasks.size})") }
         if (tasks.isEmpty()) item { EmptyLine("No tasks yet. Try \"Add task …\".") }
         items(tasks, key = { it.title + it.createdAt }) { t ->
             MemoCard(Modifier.padding(horizontal = 20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(t.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Text(t.title, modifier = Modifier.weight(1f), style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                     Pill(humanize(t.state.name))
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(text, modifier = Modifier.padding(horizontal = 20.dp), style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
 }
 
 @Composable
@@ -428,13 +375,36 @@ fun StudioScreen(drafts: List<app.memo.core.domain.ContentDraft>) {
         items(drafts, key = { it.title + it.createdAt }) { d ->
             MemoCard(Modifier.padding(horizontal = 20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(d.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        d.title,
+                        modifier = Modifier.weight(1f),
+                        style = MemoTheme.typography.subtitle,
+                        color = MemoTheme.colors.ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Pill(humanize(d.kind.name))
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(d.body, color = MemoTheme.colors.inkMuted, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- Browser
+
+/** The in-Memo browser is not built yet. The screen says so and why, and nothing is loaded. */
+@Composable
+fun BrowserScreen() {
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader("Browser", "Websites Memo works in, inside the app.")
+        EmptyState(
+            title = "The in-Memo browser arrives with channels",
+            body = "Channels will let Memo open the sites you approve in its own hardened view, " +
+                "so web steps run without leaving the app. Nothing is loaded here yet.",
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
     }
 }
 
@@ -460,17 +430,19 @@ fun SettingsScreen(
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (storageError.isNotEmpty()) {
                 MemoCard {
-                    Text("Storage", style = MaterialTheme.typography.titleMedium, color = MemoTheme.colors.attention)
+                    Text("Storage", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.attention)
                     Spacer(Modifier.height(4.dp))
                     Text(storageError, color = MemoTheme.colors.ink, fontSize = 13.sp)
                     if (recoveryPending) {
                         Spacer(Modifier.height(10.dp))
-                        OutlinedButton(onClick = onConfirmRecovery) { Text("I reviewed my data, resume saving") }
+                        MemoButton(onClick = onConfirmRecovery, style = MemoButtonStyle.SECONDARY) {
+                            Text("I reviewed my data, resume saving")
+                        }
                     }
                 }
             }
             MemoCard {
-                Text("Audit trail", style = MaterialTheme.typography.titleMedium)
+                Text("Audit trail", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "$auditCount outbound entries · chain " + if (auditOk) "verified" else "BROKEN",
@@ -482,14 +454,14 @@ fun SettingsScreen(
                 }
             }
             MemoCard {
-                Text("Kill switch", style = MaterialTheme.typography.titleMedium)
+                Text("Kill switch", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                 Spacer(Modifier.height(4.dp))
                 Text("Stops every active run. Side effects already approved are not undone.", color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
-                OutlinedButton(onClick = onStopAll) { Text("Stop all runs") }
+                MemoButton(onClick = onStopAll, style = MemoButtonStyle.SECONDARY) { Text("Stop all runs") }
             }
             MemoCard {
-                Text("Data", style = MaterialTheme.typography.titleMedium)
+                Text("Data", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Workspace, runs, audit and models live in app-private storage. Nothing leaves the device except pinned model downloads you start.",

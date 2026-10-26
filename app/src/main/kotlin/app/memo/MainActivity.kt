@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import app.memo.ui.MemoRoot
+import app.memo.ui.motion.MotionSettings
+import app.memo.ui.motion.ProvideMotionSettings
 import app.memo.ui.theme.MemoTheme
 
 class MainActivity : ComponentActivity() {
@@ -14,7 +16,10 @@ class MainActivity : ComponentActivity() {
         val runtime = (application as MemoApp).runtime
         setContent {
             MemoTheme {
-                MemoRoot(runtime)
+                // The settings package will replace these defaults with the stored user preferences.
+                ProvideMotionSettings(MotionSettings()) {
+                    MemoRoot(runtime)
+                }
             }
         }
     }
