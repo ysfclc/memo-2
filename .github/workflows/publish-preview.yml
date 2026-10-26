@@ -1,0 +1,60 @@
+name: Publish preview APK
+
+# Publishes the APK artifact of an existing, green "Build Memo APK" run as a
+# GitHub pre-release, so it can be downloaded directly on a phone. Runs
+# server-side: nothing is uploaded from a developer machine.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run id of a successful Build Memo APK run"
+        required: true
+      tag:
+        description: "Pre-release tag, e.g. preview-m0"
+        required: true
+      title:
+        description: "Release title"
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify source run succeeded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh run view "${{ inputs.run_id }}" -R "${{ github.repository }}" --json conclusion -q .conclusion)"
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::error::Run ${{ inputs.run_id }} concluded '$conclusion', refusing to publish."
+            exit 1
+          fi
+
+      - name: Download APK artifact from the source run
+        uses: actions/download-artifact@v4
+        with:
+          name: memo-apk
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: apk
+
+      - name: Create pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk="apk/app-debug.apk"
+          [[ -s "$apk" ]] || { echo "::error::APK missing"; exit 1; }
+          cp "$apk" "apk/memo-${{ inputs.tag }}.apk"
+          sha="$(sha256sum "apk/memo-${{ inputs.tag }}.apk" | cut -d' ' -f1)"
+          notes="Preview build from run ${{ inputs.run_id }}. SHA-256: ${sha}. Debug build for testing; install by opening the APK on the phone and allowing installs from this source."
+          gh release delete "${{ inputs.tag }}" -R "${{ github.repository }}" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "${{ inputs.tag }}" "apk/memo-${{ inputs.tag }}.apk" \
+            -R "${{ github.repository }}" --prerelease \
+            --title "${{ inputs.title }}" --notes "$notes" --target "${{ github.sha }}"
