@@ -115,7 +115,7 @@ class RegistryTest {
         assertTrue(overflow.reason.contains("full"))
         // Natural keys of non-ASCII names are deterministic too.
         val slug = NaturalKeys.slug("Héllo  Wörld")
-        assertEquals("hllo-wrld", slug)
+        assertEquals("héllo-wörld", slug) // non-ASCII letters are kept since the second review (M0.F5)
     }
 
     // ---- Semantic versions ------------------------------------------------
