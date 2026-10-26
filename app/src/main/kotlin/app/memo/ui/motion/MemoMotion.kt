@@ -4,6 +4,7 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.InfiniteRepeatableSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -74,6 +75,9 @@ object MemoMotion {
     /** One pulse of a running step node (scale 1.0 to 1.08). */
     const val PULSE_MS: Int = 1100
 
+    /** One full turn of the indeterminate progress ring. */
+    const val SPIN_MS: Int = 1000
+
     /** Pressed scale for MemoButton and other touchables. */
     const val PRESS_SCALE: Float = 0.965f
 
@@ -107,7 +111,7 @@ object MemoMotion {
  * The spec for a family, after reduce-motion is applied. Springs and tweens are used when live,
  * and [snap] when reduced. Ambient families must check [resolveMotion] before looping.
  */
-fun <T> motionSpec(family: MotionFamily, reduced: Boolean): AnimationSpec<T> =
+fun <T> motionSpec(family: MotionFamily, reduced: Boolean): FiniteAnimationSpec<T> =
     when (resolveMotion(family, reduced)) {
         ResolvedMotion.SPRING -> {
             val token = MemoMotion.springOf(family)
@@ -121,7 +125,7 @@ fun <T> motionSpec(family: MotionFamily, reduced: Boolean): AnimationSpec<T> =
     }
 
 /** Exit spec: emphasized acceleration over a short tween, or snap when reduced. */
-fun <T> exitSpec(reduced: Boolean): AnimationSpec<T> =
+fun <T> exitSpec(reduced: Boolean): FiniteAnimationSpec<T> =
     if (reduced) snap() else tween(durationMillis = MemoMotion.SHORT_MS, easing = MemoMotion.emphasizedAccelerate)
 
 /** A looping spec for ambient motion. Only call when [resolveMotion] returns [ResolvedMotion.TWEEN]. */
