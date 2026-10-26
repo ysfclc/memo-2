@@ -464,6 +464,81 @@ The user doesn't operate anything; the agent works on its own and only surfaces 
   - `androidx.profileinstaller` in the app
 - **Benchmarks in CI** (emulator): startup and frame-timing macrobenchmarks, with results posted to the run summary and regressions flagged.
 
+## 2j. Everyday product completeness
+
+These are the capabilities a full product needs that the spec implied but didn't list, plus everything found in the reference apps (cross-checked in `docs/FEATURES.md` §R).
+
+### Notifications, reminders, timers, alarms
+- **Reminders:**
+  - exact alarms (`SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM` with a rationale flow, falling back to inexact with a visible note)
+  - one-off and recurring (daily, weekdays, weekly, custom RRULE subset)
+  - snooze (5/10/30 min, custom); actions Done / Snooze / Open
+  - re-armed after boot (`BOOT_COMPLETED`) and after time or zone changes
+  - lock-screen privacy: content hidden unless the user allows it
+- **Timers and stopwatches:** by voice ("timer 10 minutes" in en/pl/tr) or UI; foreground countdown notification with a live chronometer; alarm sound with full-screen intent on the lock screen (`USE_FULL_SCREEN_INTENT`); multiple concurrent timers.
+- **Alarms:** wake-up alarms with sound and vibration, dismiss/snooze (full-screen).
+- **Notification channels** (user-configurable): Reminders, Timers & alarms, Approvals, Takeover needed, Background work, Downloads, Digest, Wake word.
+- **Approvals and takeovers** notify with deep links. **Daily digest** and **"since you were away"** are notifications too.
+- **Quiet hours and nudge caps:** at most N interruptions per hour (configurable); approvals queue during quiet hours, except alarms and timers.
+- Reminders and timers are also exposed to the agent and workflows as a `notify` step via `Scheduler`/`Notifier`.
+
+### Capture into Memo from anywhere
+- **Share target:** `SEND` / `SEND_MULTIPLE` for text, URLs, images, PDFs and files (bounded sizes). The user picks: chat about it, add to project, CRM, task, or source.
+- **"Ask Memo" on selected text** (`PROCESS_TEXT`) in any app.
+- **Camera capture:**
+  - business-card or badge scan → OCR → filled Person/Company → gate (UC-2 fast path)
+  - document/whiteboard photo → note
+- **Clipboard helper** in the console (explicit tap only; never background clipboard reads).
+- **Share out:** export a draft, note or artifact (text, PDF, image, MP4) through the Android share sheet.
+
+### Knowledge: Sources, Memory, Search, Today
+- **Sources:**
+  - import files and notes (SAF document picker, user-chosen documents; this is not used for AI discovery)
+  - web pages captured in the in-Memo browser
+  - chat transcripts
+  - consult answers
+  - all with provenance, deduplicated by content hash, chunked and indexed
+- **Memory graph:** a visual graph of linked records (people ↔ companies ↔ projects ↔ notes ↔ jobs ↔ posts) with an explanation of each link ("from source X, quote Y"). Facts, inferences and sources are kept distinct.
+- **Global search:** across every registry, chats, sources and runs. On-device full-text index, plus semantic search with an embedding model (EmbeddingGemma via LiteRT-LM, from the Hub).
+- **Today:** the one thing to move now; due tasks and reminders; waiting approvals; running work; yesterday's outputs; metric movements.
+- **Briefings:** a morning briefing (spoken or as a notification).
+- **Driving mode:** voice-only, large UI, no visual approvals; side effects queue.
+
+### Multi-AI collaboration modes
+Council modes in UC-1/UC-5 consults:
+- **compare** (independent answers)
+- **critique & refine** (chained: first answer → skeptic → refiner)
+- **converge** (proposal → critique → reconcile)
+
+The local agent synthesises an agreement/disagreement map. **Entities are extracted from answers only when backed by verbatim evidence** (`OutcomeParser`), then reuse-first into the registry.
+
+### Optional API channel (opt-in)
+For users who *do* have keys, an `API_OPTIN` channel supports OpenAI-compatible endpoints and Anthropic/Gemini official APIs (keys in the vault). Requirements: HTTPS only, explicit per-run cloud consent, redaction plus audit, and never the default. The router treats it as another frontier target.
+
+### App capability map
+When Memo operates a device app (§2c), it records an **AppCapability** profile: screens seen, actions that worked, field locators, versioned. Future runs reuse it (reuse-first). The user can view and edit it in Settings → Channels.
+
+### Onboarding, help, updates
+- **First run:**
+  1. language
+  2. what Memo is (short motion intro)
+  3. permissions centre (each with its rationale; skippable)
+  4. pick and download a local model (recommended for this phone)
+  5. voice setup (download ASR/TTS for the chosen language, voice sample)
+  6. wake word opt-in
+  7. floating console opt-in
+  8. optional sign-in to services in the in-Memo browser
+- **Help:** contextual tips plus a "What can Memo do?" gallery of ready workflow templates.
+- **In-app updates:**
+  - Memo checks the repo's latest GitHub **release** for a newer signed APK (CI publishes releases on `v*` tags)
+  - it shows the changelog, downloads, verifies the SHA-256 and signer, and installs via `PackageInstaller` (`REQUEST_INSTALL_PACKAGES`)
+  - the update check is opt-in, with no telemetry
+
+### Memo's own accessibility and quality
+- TalkBack labels, a 48 dp minimum touch target, font scaling up to 200%, contrast-checked colours, and RTL-safe layouts.
+- Every screen has empty, loading, error and offline states. Errors are human-readable with a recovery action.
+- Contacts import into the CRM (`READ_CONTACTS`, opt-in) and an optional place tag for "met at P" (coarse location, opt-in).
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -994,6 +1069,81 @@ Split into small tasks, all following §2i.
 - files: `app/.../platform/android/voice/VoiceModels.kt` (Whisper multilingual + Piper pl/tr entries, pinned), `SherpaAsr.kt` / `SherpaTts.kt` (language routing)
 - steps: per-language ASR/TTS model selection, a voice picker per language, and VAD-segmented Whisper "live" mode.
 - acceptance: CI green; device check holds a Polish and a Turkish live conversation.
+
+### M3.7 — Everyday product (§2j)
+
+**M3.7.A1 — Reminders, timers, alarms engine**
+- deps: M0.C2, M0.A7
+- files: `core/.../time/Recurrence.kt` (RRULE subset, next-occurrence, DST and zone safe), `core/.../time/TimerModel.kt`, tests, `app/.../platform/android/notify/{AlarmScheduler,ReminderReceiver,BootReceiver,TimerService,AlarmActivity}.kt`, `NotificationChannels.kt`, manifest permissions
+- steps: implement everything in §2j "Notifications, reminders, timers, alarms", including exact-alarm permission flow, snooze, boot/time-change re-arm, full-screen alarms, concurrent timers and channels.
+- acceptance:
+  - recurrence/DST tests
+  - CI green
+  - device check: a reminder fires with the screen off, snooze works, a 1-minute timer rings on the lock screen, and the reminder survives a reboot
+
+**M3.7.A2 — Voice and agent hooks for time**
+- deps: M3.7.A1, M3.6.A1
+- files: `CommandGrammar` time intents (timer, alarm, reminder, recurring, in en/pl/tr), the agent tool `set_reminder` / `start_timer`, and the workflow `notify` step via `Scheduler`
+- acceptance: grammar tests in 3 languages.
+
+**M3.7.B1 — Capture from anywhere**
+- deps: M3.B1
+- files: `app/.../capture/{ShareReceiverActivity,ProcessTextActivity,CameraCapture,CardScanner}.kt`, manifest intent filters
+- steps: share target (bounded), PROCESS_TEXT, camera business-card scan → OCR → Person/Company gate, document photo → note, share-out export.
+- acceptance: CI green; a unit test for the card-text → Person parser (en/pl/tr formats).
+
+**M3.7.B2 — Sources + global search + embeddings**
+- deps: M1.A1, M0.C2
+- files: `core/.../knowledge/{Source,Chunker,Index}.kt`, `app/.../platform/android/search/{FtsIndex,EmbeddingIndex}.kt`, `app/.../ui/sources/*`, `app/.../ui/search/*`
+- steps: source import with provenance, hash dedupe and chunking; FTS index; EmbeddingGemma embeddings via the Hub; global search UI with filters.
+- acceptance: tests for the chunker, dedupe and ranking; CI green.
+
+**M3.7.B3 — Memory graph view**
+- deps: M3.7.B2, M2.B0c
+- files: `app/.../ui/memory/*`
+- steps: force-directed graph (Canvas, spring physics), link explanations with evidence, tap a node → shared-element transition to the record.
+- acceptance: CI green.
+
+**M3.7.C1 — Today, briefings, driving mode, quiet hours**
+- deps: M3.B2, M3.7.A1, M2.A3
+- files: `app/.../ui/today/*`, `app/.../runtime/Briefing.kt`, `app/.../runtime/AttentionPolicy.kt` (nudge caps, quiet hours), `app/.../ui/drive/*`
+- acceptance: tests for the attention policy; CI green.
+
+**M3.7.C2 — Onboarding + help + templates gallery**
+- deps: M2.B0d, M1.B3, M2.A2
+- files: `app/.../ui/onboarding/*`, `app/.../ui/help/*`
+- steps: the §2j first-run flow plus contextual tips and a templates gallery.
+- acceptance: CI green; the device check walks a fresh install.
+
+**M3.7.C3 — In-app updates**
+- deps: M2.5.A1
+- files: `app/.../update/{UpdateChecker,UpdateInstaller}.kt`, `.github/workflows/release.yml` (on a `v*` tag: build the signed release, create a GitHub release with the APK, SHA-256 and changelog)
+- acceptance: CI release dry-run; a unit test for the version compare and SHA check.
+
+**M3.7.C4 — Contacts import + place tag**
+- deps: M3.5.B1
+- files: `app/.../platform/android/contacts/ContactsImport.kt`, `app/.../platform/android/location/PlaceTag.kt`
+- steps: opt-in, reuse-first merge into Person/Company.
+- acceptance: CI green.
+
+**M4.A4 — Council modes + evidence-backed entity extraction**
+- deps: M4.A2, M3.A4
+- files: `core/.../agent/Council.kt`, `core/.../agent/EntityExtraction.kt`, tests
+- steps: compare / critique-refine / converge orchestration, an agreement map, and extraction accepted only with verbatim evidence.
+- acceptance: tests including a rejected-unsupported-claim case.
+
+**M4.A5 — Optional API channel**
+- deps: M0.C1, M0.A6
+- files: `app/.../platform/android/api/{OpenAiCompatibleClient,AnthropicClient,GeminiClient}.kt`, Settings section
+- steps: HTTPS only, keys in the vault, per-run consent, redaction + audit, router integration (never the default).
+- acceptance: tests for request building and redaction; CI green.
+
+**M4.B4 — App capability map**
+- deps: M4.B1, M0.A3
+- files: `core/.../domain/AppCapability.kt` (+ registry scheme), `app/.../platform/android/automation/CapabilityRecorder.kt`, the Settings view and editor
+- acceptance: tests + CI green.
+
+**M6.10 — Memo's own accessibility audit:** TalkBack pass, touch targets, 200% font scale, contrast; fix everything found. Every screen has empty, loading, error and offline states.
 
 ### M4 — Channels
 

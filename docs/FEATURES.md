@@ -122,6 +122,70 @@ Legend:
 - [ ] L4 Agent replies, and asks frontier AIs to reply, in the user's language · M3.A4, M4.A2
 - [~] L5 Safety terms and automation labels in pl/tr · ActionPolicy in M0.A5 (in progress); adapters M4.A2
 
+## M. Everyday product (§2j)
+- [ ] M1 Reminders: exact, recurring, snooze, notification actions, survive reboot, private on lock screen · M3.7.A1
+- [ ] M2 Timers & stopwatch: voice or UI, live countdown notification, rings on the lock screen, several at once · M3.7.A1, M3.7.A2
+- [ ] M3 Alarms with full-screen dismiss/snooze · M3.7.A1
+- [ ] M4 Notification channels (user-configurable); approvals, takeovers and digest notifications · M3.7.A1, M2.C3
+- [ ] M5 Quiet hours + interruption caps · M3.7.C1
+- [ ] M6 Share into Memo (text, links, images, PDFs, files) and "Ask Memo" on selected text · M3.7.B1
+- [ ] M7 Camera: business-card scan → CRM, document photo → note · M3.7.B1
+- [ ] M8 Share out / export drafts, notes and media · M3.7.B1
+- [ ] M9 Sources library with provenance · M3.7.B2
+- [ ] M10 Global search (full-text + semantic embeddings) · M3.7.B2
+- [ ] M11 Memory graph with explained links · M3.7.B3
+- [ ] M12 Today view, morning briefing, driving mode · M3.7.C1
+- [ ] M13 Onboarding (language, permissions, model, voice, wake word, console) + help + templates gallery · M3.7.C2
+- [ ] M14 In-app updates from GitHub releases (signed, verified) · M3.7.C3
+- [ ] M15 Contacts import and "met at" place tag (opt-in) · M3.7.C4
+- [ ] M16 Council modes (compare / critique & refine / converge) + evidence-backed entity extraction · M4.A4
+- [ ] M17 Optional API channel (OpenAI-compatible / Anthropic / Gemini keys), opt-in only · M4.A5
+- [ ] M18 App capability map (learned per device app, reusable, editable) · M4.B4
+- [ ] M19 Memo's own accessibility (TalkBack, font scale, contrast) + empty/loading/error/offline states everywhere · M6.10
+
+## R. Reference cross-check (every capability found in the reference apps)
+| Reference app | Capability | Covered by |
+|---|---|---|
+| Fieldwork | On-device LLM (LiteRT-LM, GPU→CPU) | E3, E4 |
+| Fieldwork | In-app browser sessions for frontier AIs (consult/compare, critique/refine) | C2–C4, M16 |
+| Fieldwork | Local orchestrator brief + agreement map + evidence-checked entity extraction | M16, E7 |
+| Fieldwork | Council of models (analyst/skeptic/practitioner/reviewer, synthesizer fallback) | M16 |
+| Fieldwork | OpenAI-compatible remote endpoint with encrypted key, consent | M17 |
+| Fieldwork | Encrypted vault, biometric lock | H1, H8 |
+| Fieldwork | Share target (text) | M6 |
+| Fieldwork | Model download with backup swap | E1, E5 |
+| Fieldwork | Google sign-in warning → open externally | C3 (takeover/login flow) |
+| Pocket | Floating capture bubble | D1 (console, more than capture) |
+| Pocket | Share target for many types + multiple; attachment import limits | M6 |
+| Pocket | Share-out handoff to chosen app | M8 |
+| Pocket | Mission/council brief composer (collaborate/compete/converge) | M16 |
+| Pocket | Backup codec with schema migration | H8, A12 |
+| Pocket | FLAG_SECURE, 60 s relock | H8 |
+| Threadline | Tasks, projects, reminders (+ boot re-arm, daily nudge) | G1, M1, M12 |
+| Threadline | Studio drafts | B4, I7 |
+| Threadline | Floating voice assistant + conversational TTS | D1, F4, F5 |
+| Threadline | Screen observation / OCR capture | C6, D1 ("act on this screen") |
+| Threadline | Source folder mirror (SAF) | M9 (user-picked documents) |
+| Threadline | Model catalogue worker (new-model notifications) | E2, M4 |
+| Threadline | Translate | L4 (agent translation) |
+| Threadline | Today screen, nudge caps, quiet hours, driving mode | M5, M12 |
+| Threadline | PROCESS_TEXT | M6 |
+| Threadline | Career pipeline, outreach | B3, B5 |
+| SynthOS Runtime | Launch device app + accessibility automation + floating inspector | C5, C6, D1 |
+| SynthOS Runtime | Lock and wrong-app pause, policy filter, verified-only success | C7, C9 |
+| SynthOS Runtime | App capability mapping / surface snapshot | M18 |
+| SynthOS Runtime | Versioned skill registry | A12 (PromptTemplate), E7 |
+| SynthOS Runtime | Job compiler (installed apps + snapshot as context) | A2, M3.A2 |
+| SynthOS Runtime | Run history with verification status | A4, J4 |
+| SynthOS Runtime | Remote ADB guest runner | intentionally excluded: everything runs inside Memo (C1) |
+| memo-v2 prototype | Conversation with context chips + entity cards | F1, I8 |
+| memo-v2 prototype | Work ledger with resumable task states | A4, G1 |
+| memo-v2 prototype | Browser runtime with "talk about this page" | C2, M9 |
+| memo-v2 prototype | Memory graph with link provenance | M11 |
+| memo-v2 prototype | Sources and ingestion pipeline | M9, M10 |
+| memo-v2 prototype | Models + routing trace view | E1–E6, A7 (trace shown per step) |
+| memo-v2 prototype | "How Memo works" explainer | M13 (motion intro, help) |
+
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)
 - [x] K2 Build directly on GitHub (no zip/YAML deliverables); merge each green milestone · in effect since PR #2
