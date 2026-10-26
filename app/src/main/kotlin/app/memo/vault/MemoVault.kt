@@ -13,22 +13,7 @@ import app.memo.core.Limits
  */
 object MemoVault {
 
-    /** Serializable snapshot of the whole work graph. */
-    data class Snapshot(
-        val people: SynCodec.Workspace.PersonSnapshot,
-        val companies: SynCodec.Workspace.CompanySnapshot,
-        val tasks: SynCodec.Workspace.TaskSnapshot,
-        val drafts: SynCodec.Workspace.DraftSnapshot,
-        val posts: SynCodec.Workspace.PostSnapshot,
-        val samples: SynCodec.Workspace.SampleSnapshot,
-        val applications: SynCodec.Workspace.ApplicationSnapshot,
-        val jobPostings: SynCodec.Workspace.JobPostingSnapshot,
-    )
-
-    /** Write the current Workspace to a Syn envelope file.
-     *  Every append hands the full chain to the audit sink — the app’s
-     *  persistent sink must grow as [1,2,3,…,n].
-     */
+    /** Write the current Workspace to a Syn envelope file. */
     fun save(workspace: Workspace, out: java.io.OutputStream) {
         val json = SynCodec.serialize(workspace, Limits.EXPORTED_AT)
         out.write(json.toByteArray(Charsets.UTF_8))
@@ -44,14 +29,11 @@ object MemoVault {
         val result = SynCodec.parse(json)
         return when (result) {
             is SynCodec.ParseOutcome.Ok<Workspace> -> result.workspace
-            is SynCodec.ParseOutcome.Rejected -> {
-                // keep old workspace; the app must not silently merge bad data
-                null
-            }
+            is SynCodec.ParseOutcome.Rejected -> null
         }
     }
 
-    /** Convenient DTOs for the SYN serialization (kept in sync with Workspace). */
+    /** Registry kind labels used by the app layer. */
     object SnapshotKinds {
         const val PEOPLE = "people"
         const val COMPANIES = "companies"
@@ -63,73 +45,3 @@ object MemoVault {
         const val JOB_POSTINGS = "job_postings"
     }
 }
-
-/** Minimal SYN snapshot types that the app can read/write without pulling
- * the whole core dependency graph.  The app only needs these DTOs to
- * persist/restore the work graph between launches. */
-private use:java.io.Serializable data class PersonSnapshot(
-    val fullName: String,
-    val email: String,
-    val phone: String,
-    val companyKey: String,
-    val role: String,
-    val notes: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class CompanySnapshot(
-    val domain: String,
-    val displayName: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class TaskSnapshot(
-    val title: String,
-    val role: String,
-    val url: String,
-    val summary: String,
-    val notes: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class DraftSnapshot(
-    val kind: String,
-    val title: String,
-    val body: String,
-    val state: String,
-    val audienceKey: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class PostSnapshot(
-    val url: String,
-    val audienceKey: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class SampleSnapshot(
-    val postKey: String,
-    val metric: String,
-    val capturedAt: Long,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class ApplicationSnapshot(
-    val companyKey: String,
-    val role: String,
-    val url: String,
-    val summary: String,
-    val notes: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-) private use:java.io.Serializable data class JobPostingSnapshot(
-    val companyKey: String,
-    val role: String,
-    val url: String,
-    val summary: String,
-    val notes: String,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val version: Int,
-)
