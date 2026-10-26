@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+*/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+local.properties
+.DS_Store
+
+# Kotlin/Native
+.kotlin/
+
+# local secrets — never commit
+*.keystore
+*.jks
+gradle.properties.local
+.env
