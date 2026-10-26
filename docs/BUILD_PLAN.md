@@ -626,6 +626,62 @@ Memo proposes updates *to* the website or LinkedIn from the Self Model (e.g. a n
 - **Versioning:** every generated CV and letter is a versioned artifact linked to its JobPosting and JobApplication. UC-3 gates show the job, the tailored CV, the cover letter and the exact form fields.
 - **Editing:** a rich editor for generated artifacts. Edits can be written back to the Self Model as new facts (with confirmation).
 
+## 2m. Teach & Select: DOM and app-element selection tools for workflow creation, plus versioned, regenerable automation schemas
+
+**Requirement (user):** workflow creation needs proper DOM and element selection tools. What the user selects or demonstrates becomes **versioned schemas** that are reused, and that the **local AI can regenerate** when a site or app changes.
+
+### Artifacts (registry kinds, semver, reuse-first, user-editable)
+- **`ExtractionSchema`:**
+  - target entity schema (e.g. `job_posting`, `person`, `metric`, or a custom schema)
+  - field rules: field → locator set (multi-strategy, §2a), transform (trim, number parse via `OutcomeParser`, date parse, URL absolutise, regex capture), required flag, type validation
+  - list mode: container locator + item locator, so one selected item generalises to its repeating siblings, with pagination ("next" locator or scroll-to-load)
+  - sample values (for validation and self-healing)
+  - DOM or a11y **structural fingerprint**
+  - target host or package
+- **`ActionRecipe`:**
+  - an ordered list of steps in the closed action vocabulary (§2a), each with a locator set, **parameters** (`{{cover_letter}}`, `{{cv_file}}`, `{{post_text}}`), wait conditions and postconditions
+  - the commit step marked explicitly
+  - target host or package, and preconditions (logged in, on page X)
+- **`CustomSchema`:** user-defined entity schemas (fields, types, required), so the user can extract things Memo didn't ship with. They are versioned, and migrations are generated when fields change.
+
+All are linked from `ProviderAdapter` / `AppCapability` and usable from any workflow ("Run recipe", "Extract with schema") and from the Capability Compiler as `ToolSpec`/`DataBinding` components.
+
+### Web element picker (in the in-Memo browser)
+- **Inspect mode toggle.** An injected, isolated picker script highlights the element under the finger with a box, label and size. The selection is made from a **visual tap plus a breadcrumb** (ancestors), with expand/shrink-selection controls (parent/child) and "select similar" for lists.
+- **Locator generation:** produces a multi-strategy locator set (test id, role + accessible name, label, placeholder, text, stable attributes, CSS path). Each candidate is scored for stability. Unstable signals (generated class names, positional indices) are penalised. A **live match count** shows "1 match" (green) or "N matches" (list), and ambiguous single-target locators are rejected.
+- **Field mapping panel:** choose a schema field for the selection, see the extracted value preview live, and pick a transform. In list mode, every item is previewed in a table.
+- **Shadow DOM and iframes:** the picker traverses open shadow roots and same-origin iframes. Cross-origin iframes are reported as not selectable; there is no workaround hack.
+- **Secure:** the picker never captures password field values, and it is removed when inspect mode ends. Picker scripts are data-driven, with no `eval` of model output.
+
+### App element picker (device apps, §2c)
+- In a native-app session, an **overlay inspector** draws the accessibility node bounds of the target app. Tap a node to see resource-id, text, content-description, class, clickable/editable flags and its ancestor chain. Selection works the same way (expand/shrink, similar siblings).
+- Generates the app locator set (view id → text/desc → class + position-within-parent as a last resort) with a live match count.
+- Password or secure fields are shown as "protected" with no value.
+
+### "Show Memo" recorder (teach by demonstration)
+- In the in-Memo browser or in a native-app session, the user performs the task once. Memo records the actions (click, input, select, navigation, scroll) as recipe steps, with locator sets resolved at record time. Typed values become **parameters**, with a suggested name and the value as an example.
+- The **local AI generalises the recording:**
+  - it names steps
+  - it detects the commit action
+  - it proposes waits and postconditions
+  - it parameterises values
+  - it removes noise (accidental taps)
+- The user reviews and edits everything in the workflow editor, then saves the recipe as a version.
+
+### Self-healing and regeneration (local AI)
+1. When a locator fails at runtime, or a structural fingerprint changes, the step pauses. **The commit action is never retried silently.**
+2. The **regenerator** gives the local agent the stored schema or recipe step (field meaning, sample values, previous locators, fingerprint) plus a fresh observation. The agent proposes new locator candidates.
+3. Core validates the candidates deterministically: match count, the extracted value type-checks against the field, and the samples still parse.
+4. A passing set becomes a new **patch version** with `TRIAL` trust. It applies automatically for read-only extraction steps if autonomy allows. Action and commit steps need user approval of the new version.
+5. Every regeneration is recorded as Experience. A repeatedly failing schema is flagged for re-teaching.
+6. When a site or app changes too much, Memo asks the user to re-select only the broken fields, not to rebuild the workflow.
+
+### Workflow editor integration (§2e)
+- In any web or app step: "Pick on page" / "Pick in app" opens the picker in context and returns the locator set to the step.
+- "Extract…" opens the schema builder.
+- "Record…" starts Show Memo.
+- Steps show their recipe or schema version, trust badge and last success, and can be upgraded or pinned to a version.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -1470,6 +1526,54 @@ Split into small tasks, all following §2i.
   - CI green
   - emulator test: the overlay is shown over the test target activity, and "act on this screen" runs a safe fill action with approval
   - the lead reviews the diff line by line against §2a and §2b
+
+### M4.E — Teach & Select (§2m)
+
+**M4.E0 — Schemas in core**
+- deps: M4.A0, M0.A4
+- files: `core/.../automation/{ExtractionSchema,ActionRecipe,CustomSchema,LocatorSet,Fingerprint,Transforms}.kt` + registry schemes + migration, tests
+- steps:
+  - strict validation
+  - semver
+  - locator-set stability scoring
+  - transform functions
+  - CustomSchema field-change → migration generation
+- acceptance: round-trip, validation, scoring, transform and migration tests.
+
+**M4.E1 — Web element picker + locator generator**
+- deps: M4.A1, M4.E0
+- files: `app/src/main/assets/picker/picker.js` (isolated, data-driven), `app/.../platform/android/browser/PickerBridge.kt`, `app/.../ui/browser/InspectMode.kt`, an androidTest fixture page, and instrumented tests
+- steps: everything in §2m "Web element picker". Results return only through `evaluateJavascript` polling; there is no JS interface.
+- acceptance: emulator tests on fixtures: a single element gets a unique locator; a list item generalises to N siblings; the shadow DOM element is selectable; the password value is never captured; the live match count is correct.
+
+**M4.E2 — Schema builder UI (field mapping + list mode + preview)**
+- deps: M4.E1
+- files: `app/.../ui/teach/SchemaBuilder*.kt`
+- acceptance: the emulator test builds a JobPosting extraction schema on a fixture list page and extracts all items correctly.
+
+**M4.E3 — Web "Show Memo" recorder**
+- deps: M4.E1, M3.A4
+- files: `app/src/main/assets/picker/recorder.js`, `app/.../platform/android/browser/Recorder.kt`, `core/.../automation/RecordingGeneralizer.kt` (deterministic part) + agent prompt, tests
+- acceptance: the emulator test records a fixture form fill, producing a recipe with parameterised values and a detected commit step; replay passes.
+
+**M4.E4 — App element picker + recorder**
+- deps: M4.B1, M4.D1, M4.E0
+- files: `app/.../platform/android/automation/{NodeInspector,AppRecorder}.kt`, `app/.../ui/teach/AppInspectOverlay.kt`
+- acceptance: the emulator test against the test target activity covers node selection, the locator set, recording and replay, and the protected password field.
+
+**M4.E5 — Self-healing regenerator**
+- deps: M4.E0, M3.A4, M3.8.A4
+- files: `core/.../automation/{Regenerator,CandidateValidator}.kt`, `app/.../runtime/HealingService.kt`, tests + emulator fixture where the DOM changes between versions
+- acceptance:
+  - core tests for candidate validation
+  - emulator test: the fixture v2 changes class names, and a read-only schema heals to a new TRIAL patch version automatically
+  - the commit step requires approval
+  - Experience is recorded
+
+**M4.E6 — Workflow editor integration**
+- deps: M4.E2, M4.E3, M4.E4, M3.5.B2
+- files: `app/.../ui/workflow/*` (step pickers, recipe/schema version badges, upgrade/pin)
+- acceptance: CI green; the device check builds a workflow by picking on a real page.
 
 **Humanizer:** every web and app executor action goes through `Humanizer` (§2d), and the emulator tests assert non-constant timing.
 

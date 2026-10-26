@@ -206,6 +206,16 @@ Legend:
 - [ ] O7 Cover letters, bios, LinkedIn headline/about, portfolio one-pager, intro emails · M3.9.B3
 - [ ] O8 UC-3 job applications use the tailored CV + letter, shown at the gate · M5.B1, M3.9.B2
 
+## P. Teach & Select (§2m)
+- [ ] P1 Web element picker in Memo's browser: tap-highlight, breadcrumb, expand/shrink, select similar, live match count, stable multi-strategy locators · M4.E1
+- [ ] P2 Extraction schema builder: map elements to schema fields, transforms, list mode with pagination, live preview · M4.E2
+- [ ] P3 Custom user-defined schemas, versioned with generated migrations · M4.E0
+- [ ] P4 "Show Memo" recorder (web): demonstrate once, get a parameterised, reviewable recipe · M4.E3
+- [ ] P5 App element picker + recorder for device apps (accessibility nodes) · M4.E4
+- [ ] P6 Versioned ExtractionSchema / ActionRecipe artifacts, reusable in any workflow and by the Capability Compiler · M4.E0
+- [ ] P7 Self-healing: the local AI regenerates broken locators from the stored schema; validated; new patch version; commit steps need approval · M4.E5
+- [ ] P8 Workflow editor: Pick on page / Pick in app / Extract / Record, with version badges, upgrade and pin · M4.E6
+
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)
 - [x] K2 Build directly on GitHub (no zip/YAML deliverables); merge each green milestone · in effect since PR #2
