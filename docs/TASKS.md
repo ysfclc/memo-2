@@ -134,6 +134,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 | 2 | **CHAT** | M1.C1, M1.C2, M1.B3 | `core/chat`, `ui/chat`, `ui/models` | M1 |
 | 2 | **VOICE** | M2.A1, M2.A2, M2.A3, M3.6.C1 | `platform/android/voice`, `core/voice` | M2 |
 | 2 | **AUTO-CORE** | M3.5.A1, M3.5.A2, M4.A0, M4.L1 | `core/policy/Autonomy`, `core/automation` (pure) | M3 |
+| 3 | **UX-SHELL** [§2p] | M2.U1, M2.U2, M2.U3, M2.U4, M2.U5 | `ui/nav`, `ui/palette`, `core/domain/Favorite`, `runtime/UiStateStore`, kit list/state components | M1 |
 | 3 | **VOICE-SURFACES** | M2.B1, M2.C1, M2.C2, M2.C3 | `ui/voice`, `platform/android/assist`, `surface` | M2 |
 | 3 | **BRAIN** | M3.A1, M3.A4, M3.A2 | `core/plan`, `core/agent`, `core/prompts`, `runtime/Planner*` | M3 |
 | 3 | **SPEED** | M2.5.A1, M2.5.A2, M2.5.A3, M3.7.C3 | build, `:baselineprofile`, `update/`, `release.yml` | M2 |
@@ -164,7 +165,29 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 | 12 | **QUALITY** | M6.6, M6.7, M6.10 | lint strict, coverage sweep, accessibility audit | M6 |
 | — | lead inline | M0.R2 fixes, M6.8 docs, M6.9 acceptance, every milestone MCP, small fixes | — | all |
 
-**Total:** 34 package agents, plus one review agent per milestone (7), instead of ~160 task agents.
+**UX-SHELL tasks [§2p]:**
+
+### [ ] M2.U1 Adaptive nav shell · deps M2.B0d
+- Mini-tasks: [ ] 4 user-chosen primary destinations + More sheet · [ ] long-press drag reorder; Settings → Navigation · [ ] WindowSizeClass: rail (medium), permanent drawer + list–detail (expanded) · [ ] launcher app shortcuts (New chat, Voice, Capture, Today) · [ ] tablet keyboard shortcuts (Ctrl+K, Ctrl+N)
+- Tests: `NavConfigTest` (pure: exactly 4 primaries, More holds the rest, invalid config → defaults, migration from the 7-tab state), `AdaptiveLayoutTest` (size class → layout)
+
+### [ ] M2.U2 Favourites + recents (core + store) · deps M0.A4
+- Files: `core/.../domain/Favorite.kt` + scheme + Workspace registration (v2 additive, no migration break), `core/.../domain/Recents.kt` (bounded per kind)
+- Tests: `FavoriteCodecTest`, `FavoriteOrderTest` (reorder stable, dedupe by kind+target), `RecentsTest` (cap 10 per kind, most recent first)
+
+### [ ] M2.U3 Command palette / universal search · deps M2.U2
+- Files: `ui/palette/*`, `core/.../search/PaletteIndex.kt` (pure ranking over destinations, settings, actions, records, favourites, recents)
+- Tests: `PaletteRankingTest` (prefix > fuzzy, favourites boosted, recents boosted, Turkish/Polish folding)
+
+### [ ] M2.U4 State restoration + drafts · deps M2.B0d
+- Files: `runtime/UiStateStore.kt` (encrypted, vault-backed), screen hooks
+- Tests: `UiStateStoreTest` (round-trip, size cap, corrupt → defaults); emulator: kill process (`adb shell am kill`) → reopen → same tab, scroll and draft
+
+### [ ] M2.U5 List and state kit · deps M2.B0c
+- Files: `ui/components/{SwipeRow,ContextMenu,MultiSelect,StickyHeader,FastScroller,ErrorState,OfflineBanner}.kt`; migrate Work/Studio lists; "Jump back in" row on Live
+- Tests: `MultiSelectStateTest`, `SwipeThresholdTest` (pure)
+
+**Total:** 35 package agents, plus one review agent per milestone (7), instead of ~160 task agents.
 
 **Merge order to `main`:**
 - M0 now
@@ -651,7 +674,15 @@ Every task in M4.A1–M4.L4 also passes the **automation gate**: its §2a emulat
 - Mini-tasks: auto-open on user-started runs · attach/detach real WebView · `PreviewCapturer` (≤4 fps, 0 when hidden, off main thread) · `TargetRects` + ghost cursor + highlight ring · visible typing · narration strip · step timeline with masked snapshots · pause/step/take over/stop · touch auto-pause · inline approvals
 - Tests: `PreviewThrottleTest` (pure scheduler); emulator `LiveHighlightTest` (ring at target rect ±4 dp), `LiveAttachNoReloadTest`, `TouchPausesAgentTest`, `MaskedSnapshotTest` (password field pixels masked)
 
-### [ ] M4.A3 Browser tab · deps M4.A1 — tabs per profile, HTTPS-only address bar, capture page, discuss in chat, takeover banner, sign-in status. Test: `AddressBarPolicyTest`.
+### [ ] M4.A3 Browser tab [§2p] · deps M4.A1, M2.U2
+- Mini-tasks:
+  - [ ] tabs per profile: tab strip + overview grid with live thumbnails, drag to reorder
+  - [ ] saved tab groups (save/rename/reopen, attach as workflow context, auto-restore after restart)
+  - [ ] recently closed + undo; searchable history per profile, clear; ephemeral profile
+  - [ ] bookmarks with folders/tags → Favorites; start page with favourites
+  - [ ] HTTPS-only address bar; capture page as Source; discuss in chat; takeover banner; sign-in status
+  - [ ] agent sessions shown as tabs with a "Memo is working" badge → live view (§2o)
+- Tests: `AddressBarPolicyTest`, `TabGroupCodecTest`, `TabRestoreTest` (pure: restore order, dedupe, ephemeral never persisted), `HistorySearchTest`
 
 ### [ ] M4.B1 Accessibility service · deps M0.A5, M0.A1
 - Tests: `A11yGuardsTest` (pure guard logic: lock pause, wrong app, policy classify, password field, retry bound ≤18 @450 ms); emulator `TestTargetActionsTest` (tap/type/scroll/wait-text on TestTargetActivity)
@@ -659,7 +690,7 @@ Every task in M4.A1–M4.L4 also passes the **automation gate**: its §2a emulat
 ### [ ] M4.B2 Screenshot + OCR · deps M4.B1 — Tests: `OcrTapPolicyTest` (OCR tap only when no node matches and policy allows; never with password present).
 ### [ ] M4.B3 AI-app adapters · deps M4.B1, M4.C1 — Tests: `AppAdapterPackTest`.
 ### [ ] M4.B4 App capability map · deps M4.B1, M0.A3 — Tests: codec, reuse-first.
-### [ ] M4.C1 Device-wide AI discovery · deps M0.A7 — Tests: `SignatureRegistryTest`; lead spot-checks 5 package ids on Play.
+### [ ] M4.C1 Device-wide AI discovery + favourite apps dock [§2p] · deps M0.A7, M2.U2 — discovery feeds the favourite-apps dock (Live, Overlay, workflow editor) with capability badge, last used, sign-in state, long-press Act on it / Open in session / Capability map / Unpin. Tests: `SignatureRegistryTest`, `AppDockModelTest`; lead spot-checks 5 package ids on Play.
 ### [ ] M4.C2 Channels settings + router wiring · deps M4.C1, M0.A6 — Test: `RouteRationaleTest` (shown text matches decision).
 
 ### [ ] M4.D1 Native-app sessions [§2c] · deps M4.B1, M2.C3 — Tests: emulator `ScreenSessionTest` (launch target, console visible, refuses when console hidden, returns to Memo).

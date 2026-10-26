@@ -804,6 +804,72 @@ User requirement (2026-10-26): "I want to see the real state on the screen in th
 - Preview capture is throttled (≤ 4 fps when visible, 0 fps when no preview is on screen) and done off the main thread.
 - Live view attach/detach takes < 150 ms, without reloading the page.
 
+## 2p. Professional UX layer: favourites, saved tabs, pins, recents, fast navigation
+
+User requirement (2026-10-26): "a professional UI/UX enhancement where necessary, e.g. saved tabs, favorite apps and so on."
+
+**Principles:**
+- Memo remembers where you were and what you use.
+- Everything frequent is one tap away.
+- Every list can be pinned, reordered, searched and multi-selected.
+- Nothing is lost: undo everywhere, and state is restored after process death.
+
+### Navigation shell (replaces the 7-tab bar)
+- The bottom bar has **4 user-chosen primary destinations + More**. The defaults are Live · Talk · Work · Browser.
+  - The user reorders or swaps destinations with long press → drag, or in Settings → Navigation.
+  - On tablets and foldables (WindowSizeClass medium and expanded) the bar becomes a navigation rail or a permanent drawer showing every destination, with list–detail panes.
+- **Command palette / universal search:** pull down on any screen, or tap the search pill. It searches:
+  - destinations, settings and actions ("new reminder", "start council")
+  - records, chats, runs, sources and models
+  - recent items
+  - It runs typed commands through CommandGrammar (en/pl/tr).
+- **State restoration:** every screen keeps its scroll position, open sheet, filters and drafts across tab switches and process death (`rememberSaveable` + a small encrypted `UiStateStore`). On launch Memo resumes the last screen, unless a run needs attention; in that case it opens that run.
+
+### Favourites and pins (one model, everywhere)
+`Favorites` is a registry kind: `{kind, targetId, label, icon, order, pinnedAt}`. It is versioned, user-editable and synced into the command palette. Favourites cover:
+- **Favourite apps:** device apps Memo can drive (§2c) or open inside a session.
+  - Shown as an app dock in Live, in the Memo Overlay (§2b) and in the workflow editor's "Pick in app".
+  - Each one shows its capability badge from the AppCapability map, its last-used time and its sign-in state.
+  - Long-press actions: Act on it, Open in session, Capability map, Unpin.
+- **Favourite web destinations:** bookmarks with folders, tags and per-profile assignment. They're shown in the Browser start page and the palette.
+- **Favourite models:** quick switch in the chat model picker.
+- **Favourite prompts and workflows:** shown on the Talk empty state and in the palette, and each can be run with voice ("run my weekly review").
+- **Favourite contacts, projects and councils:** pinned to the top of their lists.
+
+### Saved tabs and sessions (Browser, §2b/§2o)
+- **Tabs per profile:** a live tab strip, plus a tab overview grid with live thumbnails. Tabs can be dragged to reorder.
+- **Saved tab groups:** "Job search", "Content research". Each group can be saved, renamed, reopened in one tap, shared with a workflow as its starting context, and auto-restored after a restart.
+- **Recently closed:** a list with restore and undo.
+- **History:** per profile and searchable, with a one-tap clear. Incognito-style ephemeral profile: no cookies or history persisted.
+- **Reading list / capture:** any page can be saved as a Source (§2j) with one tap.
+- Agent sessions appear as tabs with a "Memo is working" badge. The user can watch any of them, which opens the live view (§2o).
+
+### Recents and continuity
+- A "Jump back in" row on Live: the last chats, records, runs, tabs and apps.
+- **Per-entity recents:** the last 10 people, companies, projects and so on, at the top of pickers.
+- **Drafts never lost:** composer and editor drafts autosave, encrypted.
+
+### Interaction quality
+- **Lists:**
+  - swipe actions (archive, pin, done), each with undo
+  - long-press context menus
+  - multi-select with bulk actions
+  - sticky section headers and fast scroll
+  - pull to refresh where data is remote
+- **States:** skeleton loading, never blank; meaningful empty states with one primary action; inline errors with retry; an offline banner.
+- **Feedback:** haptics on commit actions. Snackbars with undo for every destructive or bulk action; a confirm dialog only for irreversible actions.
+- **Customisation:**
+  - theme (system, light, dark, AMOLED black)
+  - accent choice from the token palette
+  - density (comfortable or compact)
+  - font scale preview
+  - Live dashboard cards that can be reordered and hidden
+- **Gestures and shortcuts:**
+  - edge swipe between adjacent primary destinations: optional, off by default
+  - keyboard shortcuts on tablets and ChromeOS (Ctrl+K palette, Ctrl+N new chat)
+  - app shortcuts (launcher long press): New chat, Voice, Capture, Today
+- **Accessibility:** every custom component has semantics, 48 dp targets, a visible focus ring and TalkBack labels (M6.10).
+
 ## 3. Process (applies to every task)
 
 ### Roles

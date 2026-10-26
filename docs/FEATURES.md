@@ -238,6 +238,20 @@ Legend:
 - [ ] T6 Controls: pause, step mode, take over and hand back, stop; the user's touch auto-pauses the agent; inline approvals · M4.L2, M4.L3
 - [ ] T7 App sessions show the HUD, target highlight and narration on top of the real app · M4.L3
 
+## U. Professional UX layer (§2p)
+- [ ] U1 Bottom bar with 4 user-chosen destinations + More; reorder/swap; nav rail/drawer + list–detail on tablets and foldables · UX-SHELL
+- [ ] U2 Command palette / universal search (destinations, settings, actions, records, chats, runs, models; typed commands en/pl/tr) · UX-SHELL
+- [ ] U3 State restoration everywhere (scroll, sheets, filters, drafts) + resume last screen · UX-SHELL
+- [ ] U4 Favourites model (versioned registry) shared by apps, web, models, prompts, workflows, contacts, projects, councils · UX-SHELL
+- [ ] U5 Favourite apps dock (Live, Overlay, workflow editor) with capability badge, last used, long-press actions · APPS/DISCOVERY + UX-SHELL
+- [ ] U6 Browser: tab strip + tab overview with live thumbnails, saved tab groups, recently closed, history, ephemeral profile, bookmarks with folders, save page as Source · WEB
+- [ ] U7 Agent sessions as tabs with a "Memo is working" badge → live view · WEB + LIVE-VIEW
+- [ ] U8 "Jump back in" recents row; per-entity recents in pickers; autosaved encrypted drafts · UX-SHELL, CHAT
+- [ ] U9 List quality: swipe actions + undo, context menus, multi-select bulk actions, sticky headers, fast scroll · UX-SHELL (kit) + each screen
+- [ ] U10 States: skeletons, empty states with one action, inline errors with retry, offline banner · UX-SHELL (kit) + each screen
+- [ ] U11 Customisation: theme incl. AMOLED, accent, density, Live cards order/visibility · UX-SHELL, EDITORS
+- [ ] U12 Launcher app shortcuts, tablet keyboard shortcuts, optional edge swipe · UX-SHELL
+
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)
 - [x] K2 Build directly on GitHub (no zip/YAML deliverables); merge each green milestone · in effect since PR #2
