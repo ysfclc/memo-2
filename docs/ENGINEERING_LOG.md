@@ -38,6 +38,8 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 ---
 
+**D-016 · 2026-10-26 · Full-product build plan adopted (`docs/BUILD_PLAN.md`).** Supersedes the M2/M3 scope in D-010 and M2_DESIGN where they conflict. Key choices: (1) local inference via BOTH LiteRT-LM 0.18.0 (`.litertlm`) and llama.cpp b11460 via JNI (GGUF), with live Hugging Face discovery pinned by revision + per-file SHA-256 from the tree API; (2) fully local voice via sherpa-onnx v1.13.8 (streaming Zipformer/Whisper ASR, Kokoro/Piper TTS, Silero VAD, keyword spotter). The system `RecognizerIntent` pop-up and default TTS are rejected by the user; (3) locked-screen path = default-assistant role (VoiceInteractionService) + opt-in "Hey Memo" keyword spotter in a microphone foreground service, which refines D-010; (4) engine gains `Attempt.Pending` + `deliverExternal` for async browser/app steps, and the missing `audit.record` wiring is fixed; (5) implementation by Haiku subagents, one small task each, with every task verified by the lead before merge. Alternatives considered: LiteRT-only (rejected: GGUF ecosystem coverage), system speech (rejected by user), porting reference apps (rejected: poor implementations, API evidence only). Consequences: NDK/CMake in CI, bigger APK (arm64-v8a + x86_64 only), milestone merges M0…M6.
+
 ## CONSTRAINTS
 
 **C-001 · Build machine has no JDK / no Android SDK / no Gradle** (`java`, `gradle` absent; `ANDROID_HOME` unset; `%LOCALAPPDATA%\Android\Sdk` missing). All compilation happens on GitHub Actions («ubuntu-latest»). Working loop = careful code + push + `gh run watch` → read logs → fix → push. Local APK impossible here; APKs come from CI artifacts.
