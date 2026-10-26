@@ -49,17 +49,60 @@ enum class ControlRole { BUTTON, LINK, INPUT, SUBMIT, OTHER }
 // top-level initialisers in textual order, so each constant must precede its users.
 // ---------------------------------------------------------------------------
 
-private val FORMAT_CHARS = Regex("\\p{Cf}+")
 private val COMBINING_MARKS = Regex("\\p{Mn}+")
 private val NON_WORD = Regex("[^\\p{L}\\p{Nd}]+")
 private val WHITESPACE = Regex("\\s+")
+
+/** ASCII control characters that separate words; every other Cc character is removed like Cf. */
+private val ASCII_SPACE_CONTROLS: Set<Int> = setOf(0x09, 0x0A, 0x0B, 0x0C, 0x0D)
+
+/**
+ * Default_Ignorable_Code_Point characters that are not category Cf: the Hangul
+ * fillers (Lo, so \p{L} would keep them), the combining grapheme joiner, Khmer
+ * vowel inherents, the Mongolian and general variation selectors, and the
+ * invisible operators. A hostile label can hide a word behind them.
+ */
+private val IGNORABLE_CODE_POINTS: Set<Int> = setOf(
+    0x034F, 0x115F, 0x1160, 0x17B4, 0x17B5, 0x2065, 0x3164, 0xFFA0,
+)
+private val IGNORABLE_RANGES: List<IntRange> = listOf(
+    0x180B..0x180F, 0xFE00..0xFE0F, 0xFFF0..0xFFF8, 0xE0000..0xE0FFF,
+)
+
+/** Removed without inserting a space: "pa\u0001y" and "Pa\u3164y" both read as "pay". */
+private fun isIgnorable(cp: Int): Boolean {
+    if (cp in IGNORABLE_CODE_POINTS || IGNORABLE_RANGES.any { cp in it }) return true
+    val type = Character.getType(cp)
+    if (type == Character.FORMAT.toInt()) return true
+    return type == Character.CONTROL.toInt() && cp !in ASCII_SPACE_CONTROLS
+}
+
+private fun stripIgnorable(text: String): String {
+    val out = StringBuilder(text.length)
+    text.codePoints().forEach { if (!isIgnorable(it)) out.appendCodePoint(it) }
+    return out.toString()
+}
+
+/**
+ * Lowercase look-alikes from Cyrillic and Greek, mapped to the Latin letter they
+ * imitate. Applied only to a label that already mixes Latin with one of those
+ * scripts inside a token (see [classifyText]).
+ */
+private val CONFUSABLES: Map<Int, Char> = mapOf(
+    // Cyrillic
+    0x0430 to 'a', 0x0435 to 'e', 0x043E to 'o', 0x0440 to 'p', 0x0441 to 'c', 0x0443 to 'y',
+    0x0445 to 'x', 0x0456 to 'i', 0x0458 to 'j', 0x0455 to 's', 0x0501 to 'd',
+    // Greek
+    0x03BF to 'o', 0x03B1 to 'a', 0x03C1 to 'p', 0x03BD to 'v', 0x03B9 to 'i', 0x03BA to 'k',
+    0x03C4 to 't', 0x03C5 to 'u', 0x03C7 to 'x', 0x03B5 to 'e',
+)
 
 /** Token that no rule can match. Guard phrases are overwritten with it before matching. */
 private const val MASKED: String = "\u0000"
 
 internal fun normalise(raw: String): String {
     val compatible = Normalizer.normalize(raw, Normalizer.Form.NFKC)
-    val visible = FORMAT_CHARS.replace(compatible, "")
+    val visible = stripIgnorable(compatible)
     val lowered = visible.replace('İ', 'i').lowercase(Locale.ROOT)
     val decomposed = Normalizer.normalize(lowered, Normalizer.Form.NFD)
     val unmarked = COMBINING_MARKS.replace(decomposed, "")
@@ -141,26 +184,50 @@ private val RULES: List<Rule> = listOf(
             "top up", "add card", "add a card", "add payment method", "subscribe to premium",
             "subscribe and pay", "start subscription", "upgrade to premium", "paypal",
             "continue with paypal", "google pay", "gpay", "apple pay",
+            "donate", "donation", "tip", "place bid", "place a bid", "bid now", "redeem*",
+            "start free trial", "confirm order",
             // Turkish
             "öde", "ode", "ödeme*", "satın al", "satın alın", "satın almayı tamamla",
             "ödemeyi tamamla", "sipariş ver", "siparişi ver", "şimdi öde", "ödeme yöntemi ekle",
             "paypal ile devam et",
+            "bağış yap", "bagis yap", "bağış", "bahşiş", "bahsis", "teklif ver", "şimdi teklif ver",
+            "siparişi onayla", "ücretsiz denemeyi başlat", "ucretsiz denemeyi baslat",
             // German
             "bezahl*", "zahlen", "zahlung*", "kaufen*", "jetzt kaufen", "zur kasse",
             "jetzt bestellen", "bestellung aufgeben", "kauf abschließen",
             "mit paypal fortfahren", "zahlungsmethode hinzufügen",
+            "spenden*", "trinkgeld", "gebot abgeben", "jetzt bieten", "einlos*",
+            "kostenlose testversion starten", "bestellung bestätigen",
             // Spanish
             "pagar*", "pago*", "comprar*", "comprar ahora", "pagar ahora", "finalizar compra",
             "completar compra", "realizar pedido", "hacer pedido", "pedir ahora",
             "continuar con paypal", "añadir método de pago",
+            "donar", "propina", "pujar", "pujar ahora", "canjear*", "empezar prueba gratuita",
+            "confirmar pedido",
             // French
             "payer*", "paiement*", "acheter*", "achat*", "acheter maintenant", "payer maintenant",
             "passer la commande", "commander maintenant", "finaliser l achat",
             "continuer avec paypal", "ajouter un moyen de paiement", "ajouter un mode de paiement",
+            "faire un don", "pourboire", "enchérir", "enchérir maintenant", "placer une enchère",
+            "commencer l'essai gratuit", "confirmer la commande", "confirmer commande",
             // Polish
             "zaplac*", "zaplat*", "platnosc*", "kup", "kup teraz", "zamow", "zamow teraz",
             "złóż zamówienie", "przelew*", "wyplac*", "wyplat*", "zakończ zakup",
             "kontynuuj z paypal", "dodaj metodę płatności",
+            "wesprzyj", "darowizn*", "napiwek", "licytuj*", "licytuj teraz", "zrealizuj*",
+            "potwierdź zamówienie",
+        ),
+    ),
+    // ---- NEEDS_APPROVAL: PAYMENT (upsell and trial entry points) ----
+    Rule(
+        ActionClass.NEEDS_APPROVAL, PolicyCategory.PAYMENT,
+        listOf(
+            "upgrade", "try free", "get premium",
+            "ücretsiz dene", "ucretsiz dene", "premium al", "yükselt*", "yukselt*",
+            "kostenlos testen", "premium holen",
+            "probar gratis", "obtener premium",
+            "essayer gratuitement", "obtenir premium",
+            "ulepsz*", "wypróbuj za darmo", "wyprobuj za darmo",
         ),
     ),
     // ---- BLOCKED: ACCOUNT_SECURITY ----
@@ -231,24 +298,33 @@ private val RULES: List<Rule> = listOf(
         listOf(
             "post", "publish", "share publicly", "tweet", "send", "submit", "apply", "book",
             "confirm", "accept", "connect", "follow", "invite", "subscribe",
+            "share", "reply", "comment", "like", "repost", "retweet", "send message", "message",
             // Turkish
             "gönder", "gonder", "gönderin", "gonderin", "yayınla", "yayinla", "paylaş",
             "paylas", "başvur", "basvur", "başvuru yap", "basvuru yap", "onayla", "kabul et",
             "rezervasyon yap", "takip et", "davet et", "abone ol",
+            "yanıtla", "yanitla", "yorum yap", "beğen*", "begen*", "mesaj gönder", "mesaj gonder", "mesaj",
             // German
             "senden", "absenden", "veröffentlichen", "veroffentlichen", "bewerben",
             "bewerbung absenden", "buchen", "bestätigen", "bestatigen", "folgen",
             "einladen", "posten",
+            "antworten", "kommentieren*", "gefällt mir", "gefallt mir", "teilen", "retweeten",
+            "nachricht senden", "nachricht",
             // Spanish
             "enviar", "publicar", "solicitar", "enviar solicitud", "reservar", "confirmar",
             "aceptar", "seguir", "invitar", "compartir",
+            "responder", "comentar*", "me gusta", "republicar", "retuitear*", "enviar mensaje", "mensaje",
             // French
             "envoyer", "publier", "postuler", "soumettre", "envoyer la candidature",
             "réserver", "reserver", "confirmer", "accepter", "suivre", "inviter", "partager",
+            "répondre", "repondre", "commenter*", "j'aime", "republier", "retweeter",
+            "envoyer un message", "message",
             // Polish
             "wyślij", "wyslij", "wysłać", "wyslac", "opublikuj", "udostępnij",
             "udostepnij", "aplikuj", "złóż wniosek", "zloz wniosek", "potwierdź",
             "potwierdz", "zarezerwuj",
+            "odpowiedz*", "skomentuj*", "polub*", "lubię to", "lubie to", "retweetuj*",
+            "wyślij wiadomość", "wyslij wiadomosc", "wiadomość", "wiadomosc",
         ),
     ),
     // ---- NEEDS_APPROVAL: DESTRUCTIVE ----
@@ -390,9 +466,47 @@ private fun classifyFolded(folded: String): Classification {
  * two results wins, and on a tie the label's result is kept.
  */
 fun classify(label: String, context: String = ""): Classification {
-    val fromLabel = classifyFolded(normalise(label))
-    val fromContext = classifyFolded(normalise(context))
+    val fromLabel = classifyText(label)
+    val fromContext = classifyText(context)
     return if (fromContext.cls.ordinal > fromLabel.cls.ordinal) fromContext else fromLabel
+}
+
+/**
+ * Classifies one text. A token that mixes Latin letters with Cyrillic or Greek
+ * letters is a likely spoof ("Рay", "Ԁelete"): the text is also classified with
+ * the look-alikes folded to Latin, the more severe result wins, and a spoof that
+ * matches nothing is still NEEDS_APPROVAL.
+ */
+private fun classifyText(raw: String): Classification {
+    val folded = normalise(raw)
+    val direct = classifyFolded(folded)
+    if (!hasMixedScriptToken(folded)) return direct
+    val spoofed = classifyFolded(foldConfusables(folded))
+    val worst = if (spoofed.cls.ordinal > direct.cls.ordinal) spoofed else direct
+    return if (worst.cls == ActionClass.SAFE) Classification(ActionClass.NEEDS_APPROVAL) else worst
+}
+
+/** True when some token holds both a Latin letter and a Cyrillic or Greek letter. */
+private fun hasMixedScriptToken(folded: String): Boolean = folded.split(' ').any { token ->
+    var latin = false
+    var other = false
+    token.codePoints().forEach { cp ->
+        when (Character.UnicodeScript.of(cp)) {
+            Character.UnicodeScript.LATIN -> latin = true
+            Character.UnicodeScript.CYRILLIC, Character.UnicodeScript.GREEK -> other = true
+            else -> Unit
+        }
+    }
+    latin && other
+}
+
+private fun foldConfusables(folded: String): String {
+    val out = StringBuilder(folded.length)
+    folded.codePoints().forEach { cp ->
+        val latin = CONFUSABLES[cp]
+        if (latin != null) out.append(latin) else out.appendCodePoint(cp)
+    }
+    return out.toString()
 }
 
 /**
@@ -426,13 +540,17 @@ private fun inForm(context: String): Boolean =
     normalise(context).split(' ').any { it in FORM_CONTEXT_TOKENS }
 
 private fun sensitiveInput(label: String, context: String): Classification? {
-    for (text in listOf(label, context)) {
-        val tokens = maskGuards(normalise(text).split(' '))
-        for (term in SENSITIVE_INPUT) {
-            val n = term.tokens.size
-            for (start in 0..tokens.size - n) {
-                if (termAt(tokens, start, term)) {
-                    return Classification(ActionClass.BLOCKED, term.category, term.raw)
+    for (raw in listOf(label, context)) {
+        val folded = normalise(raw)
+        val spellings = if (hasMixedScriptToken(folded)) listOf(folded, foldConfusables(folded)) else listOf(folded)
+        for (text in spellings) {
+            val tokens = maskGuards(text.split(' '))
+            for (term in SENSITIVE_INPUT) {
+                val n = term.tokens.size
+                for (start in 0..tokens.size - n) {
+                    if (termAt(tokens, start, term)) {
+                        return Classification(ActionClass.BLOCKED, term.category, term.raw)
+                    }
                 }
             }
         }

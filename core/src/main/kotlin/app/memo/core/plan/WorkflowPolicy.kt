@@ -26,6 +26,18 @@ object WorkflowPolicy {
     fun validateSideEffects(steps: List<StepSpec>): List<String> {
         val violations = mutableListOf<String>()
         steps.forEachIndexed { index, step ->
+            // Side effects never auto-retry: a retry policy could re-send an action
+            // the human approved once. Failures go to NEEDS_REVIEW instead.
+            if (step.isSideEffect && (step.retry?.attemptsMax ?: 1) > 1) {
+                violations += "side-effect step '${step.id}' must not retry (attemptsMax ${step.retry?.attemptsMax})"
+            }
+            // Declarative RETRY steps are folded onto their target only after this check, so check them here.
+            if (step.kind == StepKind.RETRY) {
+                val target = steps.firstOrNull { it.id == step.target }
+                if (target != null && target.isSideEffect && (step.retry?.attemptsMax ?: 1) > 1) {
+                    violations += "side-effect step '${target.id}' must not retry (RETRY '${step.id}' attemptsMax ${step.retry?.attemptsMax})"
+                }
+            }
             when {
                 step.kind == StepKind.BROWSER_AUTOMATION && !step.isBrowserCapture -> {
                     if (!step.requiresGate) {
@@ -112,12 +124,16 @@ object WorkflowPolicy {
      * the parser would rightly reject as unknown top-level fields.
      */
     fun validateSpec(spec: WorkflowSpec): List<String> {
+        // The parser only keeps retry policies on RETRY declarations, so compiled steps are checked directly.
+        val retriedSideEffects = spec.steps
+            .filter { it.isSideEffect && (it.retry?.attemptsMax ?: 1) > 1 }
+            .map { "side-effect step '${it.id}' must not retry (attemptsMax ${it.retry?.attemptsMax})" }
         val stepsArr = org.json.JSONArray()
         spec.steps.forEach { stepsArr.put(it.toJson()) }
         val projection = org.json.JSONObject()
             .put("title", spec.title)
             .put("steps", stepsArr)
         val outcome = PlanProposalParser.parse(projection.toString(), spec.createdAt)
-        return if (outcome.ok) emptyList() else outcome.violations
+        return retriedSideEffects + if (outcome.ok) emptyList() else outcome.violations
     }
 }

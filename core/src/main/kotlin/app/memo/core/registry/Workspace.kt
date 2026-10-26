@@ -44,6 +44,15 @@ class Workspace {
 
     fun quarantineCount(): Int = all().sumOf { it.quarantinedRows().size }
 
+    /**
+     * Data from a same-version envelope that this build does not understand:
+     * unknown registry arrays, and malformed quarantine entries. Filled by the
+     * codec on parse and written back unchanged on serialize, so a newer or
+     * damaged file is never silently shrunk by an older save.
+     */
+    internal var carriedRegistries: org.json.JSONObject = org.json.JSONObject()
+    internal var carriedQuarantine: org.json.JSONObject = org.json.JSONObject()
+
     fun serialize(exportedAt: Long): String = SynCodec.serialize(this, exportedAt)
 
     companion object {
