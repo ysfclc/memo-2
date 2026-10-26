@@ -3,6 +3,9 @@
 
     <!-- Model downloads from pinned sources. Nothing else leaves the device. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Background generation: InferenceService runs as a specialUse foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".MemoApp"
@@ -26,5 +29,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".platform.android.llm.InferenceService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps an on-device model reply running after the user leaves the app, for replies longer than 10 seconds." />
+        </service>
     </application>
 </manifest>
