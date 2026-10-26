@@ -268,3 +268,12 @@ First CI run of `:core:test` on `milestone/M0` was red: 6 of 119 tests failed. E
 - **Public API (item 7).** Every existing public `MemoRuntime` member is kept. `confirmRecovery()` is added. `Persistence` gained `saveRunsWith`, `unreadableEntries`, `migrationFinished` and `lastRecovery`.
 
 - **Local toolchain (M1.B2).** Gradle configures `:app` only when `ANDROID_HOME` points at the SDK (`%USERPROFILE%\Android\Sdk` here). Without it `:core:test` fails before compiling. Set `JAVA_HOME` to JDK 17 and run `./gradlew --no-daemon :core:test :app:testDebugUnitTest`. Verified locally: both green, and `:app:assembleDebug` green.
+
+### M1 · CHAT (wp/chat) · M1.C1 conversation store
+
+- **Decision · one vault entry per conversation.** Entry `chat_<id>` holds the conversation and its messages (`ConversationDoc`, format v1, strict parse with exact field sets and enum names). Entry `chat_index` holds metadata only, so the list does not decrypt every conversation. Conversation ids are 32 lowercase hex characters from `SecureRandom`, which makes `chat_<id>` a valid `VaultName`. Alternatives: one entry for all chats (rejected: one corrupt write would put every conversation at risk, and the size is unbounded); messages as separate entries (rejected: many small writes and no atomic doc).
+- **Corruption rule.** A conversation entry that fails to read or decode is blocked and reported; saves for that id are refused and the stored bytes are never changed. Deleting it stays available as an explicit action. A corrupt index is kept on disk and the list is rebuilt from entries, but the index is not written again until a later load reads it cleanly. An indexed conversation is listed without decrypting it, so its corruption shows when it is opened, not at load (UNVERIFIED on device).
+- **Writes.** `ChatRepository` writes on one background thread, in order. Reads go through the same thread so they see queued writes.
+- **Titles.** Derived once from the first user message, at most 48 characters, cut at a word boundary, never inside a surrogate pair.
+- **Search.** Folds Turkish dotted and dotless i to `i` and Polish stroked l to `l` before NFD and mark removal. A blank query matches everything.
+- Verified locally: `:core:test` for `app.memo.core.chat.*` (27 tests) and `:app:testDebugUnitTest` for `ChatRepositoryTest` (6 tests), both green.
