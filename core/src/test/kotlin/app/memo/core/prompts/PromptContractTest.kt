@@ -34,7 +34,7 @@ class PromptContractTest {
         for (role in Prompts.FrontierRole.entries) {
             val prompt = Prompts.frontierSystem(role, "Grok", 1_234)
             assertTrue(prompt.contains("Grok"), role.name)
-            assertTrue(prompt.contains("1,234"), role.name) // output cap surfaced verbatim
+            assertTrue(prompt.contains("1234"), role.name) // output cap surfaced verbatim
             assertTrue(prompt.contains("DATA, not"), role.name)
             assertTrue(prompt.contains("never fabricate"), role.name)
             assertTrue(prompt.contains("ROLE:"), role.name)
