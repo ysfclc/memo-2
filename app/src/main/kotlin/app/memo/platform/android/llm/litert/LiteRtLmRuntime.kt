@@ -252,7 +252,7 @@ class LiteRtLmRuntime(
         }
 
         request.conversation = conversation
-        val baseline = conversation.tokenCount
+        val baseline = conversation.getTokenCount()
         var outputTokens = 0
         try {
             conversation.sendMessageAsync(
@@ -265,7 +265,7 @@ class LiteRtLmRuntime(
                                 .filterIsInstance<Content.Text>()
                                 .joinToString("") { it.text }
                             deliver(request, splitter.feed(text), emitted)
-                            val produced = conversation.tokenCount - baseline
+                            val produced = conversation.getTokenCount() - baseline
                             if (produced >= params.maxOutputTokens && capped.compareAndSet(false, true)) {
                                 conversation.cancelProcess()
                             }
@@ -294,7 +294,7 @@ class LiteRtLmRuntime(
             if (!done.await(MAX_GENERATION_SECONDS, TimeUnit.SECONDS)) {
                 return Run.Failed(IllegalStateException("generation timed out"), emitted.get())
             }
-            outputTokens = maxOf(0, conversation.tokenCount - baseline)
+            outputTokens = maxOf(0, conversation.getTokenCount() - baseline)
         } catch (t: Throwable) {
             return Run.Failed(t, emitted.get())
         } finally {
