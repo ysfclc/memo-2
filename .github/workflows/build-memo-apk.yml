@@ -132,7 +132,7 @@ jobs:
           echo "Total APK size: $(stat -c %s "$apk") bytes"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: memo-apk
           path: ${{ steps.apk.outputs.path }}
