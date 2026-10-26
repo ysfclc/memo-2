@@ -115,17 +115,28 @@ data class ExecContext(
  * - strictly sequential; no parallel side effects;
  * - side-effect steps REQUIRE a preceding completed gate (approval binding);
  * - gates re-verify the artifact hash on deliver (mismatch -> NEEDS_REVIEW);
+ * - a side effect binds to the NEAREST preceding HUMAN_APPROVAL step regardless
+ *   of its status; that gate must be COMPLETED, or the side effect is refused
+ *   (D-023). Older approvals never cover a later side effect;
  * - a veto skips side-effect steps up to the NEXT gate only;
  * - interruptions NEVER auto-resume side effects (resumeInterrupted);
+ * - before a side-effect executor runs, the run is checkpointed with the step
+ *   RUNNING and an "inflight:" ticket; a crash mid side effect therefore
+ *   restores as NEEDS_REVIEW, never as PENDING (recoverAfterRestart, D-023);
  * - retry is bounded backoff (4s doubling -> 30s cap);
  * - every step attempt carries an idempotency key runId:stepId:attempt;
  * - the engine NEVER fabricates success: only executor results close steps.
+ *
+ * [checkpoint] is called synchronously with the run, immediately before a
+ * side-effect executor is invoked. The app persists the run there. If it
+ * throws, the executor is NOT invoked and the step fails.
  */
 class WorkflowEngine(
     val routes: ExecutorRoutes,
     private val clock: () -> Long = { System.currentTimeMillis() },
     private val packetProvider: () -> ContextPacket = { ContextPacket.Builder().build() },
     private val audit: OutboundAudit? = null,
+    private val checkpoint: (AgentRun) -> Unit = {},
 ) {
 
     private val runs = LinkedHashMap<String, AgentRun>()
@@ -269,7 +280,7 @@ class WorkflowEngine(
                         }
                         continue
                     }
-                    val outcome = executeStepAt(existing.id, steps, pointer)
+                    val outcome = executeStepAt(existing, steps, pointer)
                     steps[outcome.stepIndex] = outcome.state
                     when (outcome) {
                         is StepOutcome.Done -> {
@@ -425,6 +436,9 @@ class WorkflowEngine(
         }
         require(ticket == state.externalTicket) { "ticket does not match the one issued for step $stepId" }
         require(attempt !is Attempt.Pending) { "deliverExternal takes a final result, not Pending" }
+        check(!state.externalTicket.startsWith(INFLIGHT_PREFIX)) {
+            "step $stepId has an unconfirmed side-effect attempt (checkpoint only); it must be reviewed, not delivered"
+        }
         if (state.spec.isSideEffect) {
             check(approvedHashBefore(existing.steps, index).isNotEmpty()) {
                 "side-effect step $stepId has no approval binding; refusing to settle it"
@@ -467,8 +481,39 @@ class WorkflowEngine(
         check(existing.status == RunStatus.INTERRUPTED || hasExternalWork) {
             "run ${existing.id} is not interrupted (status ${existing.status})"
         }
+        val (steps, needsReview) = recoverSteps(existing.steps)
+        val status = if (needsReview) RunStatus.NEEDS_REVIEW else RunStatus.RUNNING
+        val updated = existing.copy(steps = steps, status = status, updatedAt = clock(), failure = "")
+        runs[runId] = updated
+        return if (status == RunStatus.RUNNING) advance(runId) else updated
+    }
+
+    /**
+     * Crash recovery for a run restored with [putRun]. Applies the same rules
+     * as [resumeInterrupted]: a side effect that was RUNNING with a ticket
+     * (including an "inflight:" checkpoint ticket) or INTERRUPTED becomes
+     * NEEDS_REVIEW; pure steps re-arm as PENDING.
+     *
+     * Unlike [resumeInterrupted] this never calls [advance], so no executor is
+     * invoked here. The app drives [advance] itself when the returned run is
+     * RUNNING. Only RUNNING or INTERRUPTED runs are accepted.
+     */
+    fun recoverAfterRestart(runId: String): AgentRun {
+        val existing = runs[runId] ?: throw IllegalArgumentException("unknown run $runId")
+        check(existing.status == RunStatus.RUNNING || existing.status == RunStatus.INTERRUPTED) {
+            "run ${existing.id} cannot be recovered from status ${existing.status}"
+        }
+        val (steps, needsReview) = recoverSteps(existing.steps)
+        val status = if (needsReview) RunStatus.NEEDS_REVIEW else RunStatus.RUNNING
+        val updated = existing.copy(steps = steps, status = status, updatedAt = clock(), failure = "")
+        runs[runId] = updated
+        return updated
+    }
+
+    /** Shared step-recovery law for [resumeInterrupted] and [recoverAfterRestart]. */
+    private fun recoverSteps(steps: List<StepState>): Pair<List<StepState>, Boolean> {
         var needsReview = false
-        val steps = existing.steps.map { state ->
+        val recovered = steps.map { state ->
             if (state.status == StepStatus.RUNNING && state.externalTicket.isNotEmpty()) {
                 if (state.spec.isSideEffect) {
                     needsReview = true
@@ -493,10 +538,7 @@ class WorkflowEngine(
                 state.copy(status = StepStatus.PENDING, failure = "", resumeAt = 0)
             }
         }
-        val status = if (needsReview) RunStatus.NEEDS_REVIEW else RunStatus.RUNNING
-        val updated = existing.copy(steps = steps, status = status, updatedAt = clock(), failure = "")
-        runs[runId] = updated
-        return if (status == RunStatus.RUNNING) advance(runId) else updated
+        return recovered to needsReview
     }
 
     /** Resolve a NEEDS_REVIEW step: retry=true re-arms it, false skips it. */
@@ -624,7 +666,8 @@ class WorkflowEngine(
         return out
     }
 
-    private fun executeStepAt(runId: String, steps: List<StepState>, index: Int): StepOutcome {
+    private fun executeStepAt(existing: AgentRun, steps: List<StepState>, index: Int): StepOutcome {
+        val runId = existing.id
         val state = steps[index]
         val step = state.spec
         val now = clock()
@@ -650,14 +693,40 @@ class WorkflowEngine(
         )
 
         if (step.isSideEffect && approvedHash.isEmpty()) {
+            val gate = nearestGateBefore(steps, index)
+            val why = if (gate == null) {
+                "no preceding HUMAN_APPROVAL gate"
+            } else {
+                "nearest preceding gate '${gate.spec.id}' is ${gate.status}, not COMPLETED"
+            }
             return StepOutcome.HardFail(
                 index,
-                failState(state, attempt, now, "side-effect step has no approval binding; refusing to execute"),
+                failState(state, attempt, now, "side-effect step has no approval binding ($why); refusing to execute"),
             )
         }
 
+        val cached = attemptResults[idem]
+        if (step.isSideEffect && cached == null) {
+            // Checkpoint BEFORE the executor: a crash after this point restores as
+            // NEEDS_REVIEW (recoverAfterRestart), never as a re-runnable PENDING step.
+            val inflight = state.copy(
+                status = StepStatus.RUNNING,
+                attempts = attempt,
+                externalTicket = INFLIGHT_PREFIX + idem,
+                failure = "",
+                lastAttemptAt = now,
+            )
+            val checkpointError = checkpointInflight(existing, steps, index, inflight)
+            if (checkpointError != null) {
+                return StepOutcome.HardFail(
+                    index,
+                    failState(state, attempt, now, "could not checkpoint before side effect: $checkpointError"),
+                )
+            }
+        }
+
         val result: Attempt = try {
-            attemptResults[idem] ?: runRoute(step, ctx)
+            cached ?: runRoute(step, ctx)
         } catch (t: Throwable) {
             attemptResults[idem] = Attempt.Failed("executor threw: ${t.javaClass.simpleName}: ${t.message}")
             return StepOutcome.Interrupted(
@@ -758,11 +827,51 @@ class WorkflowEngine(
         return StepOutcome.Done(index, completed, advancePointer = true, outbound = outbound)
     }
 
-    /** Content hash bound at the most recent completed gate before [index], or "". */
-    private fun approvedHashBefore(steps: List<StepState>, index: Int): String =
-        steps.subList(0, index).lastOrNull {
-            it.spec.kind == StepKind.HUMAN_APPROVAL && it.status == StepStatus.COMPLETED
-        }?.approvedContentHash.orEmpty()
+    /** The nearest HUMAN_APPROVAL step before [index], whatever its status. */
+    private fun nearestGateBefore(steps: List<StepState>, index: Int): StepState? =
+        steps.subList(0, index).lastOrNull { it.spec.kind == StepKind.HUMAN_APPROVAL }
+
+    /**
+     * Content hash a side effect at [index] is bound to: the approval of the
+     * NEAREST preceding gate, and only when that gate is COMPLETED. An older
+     * COMPLETED gate never covers a later side effect when a newer gate was
+     * skipped by a veto, a branch jump or a failure rescue (D-023). Returns ""
+     * when there is no binding.
+     */
+    private fun approvedHashBefore(steps: List<StepState>, index: Int): String {
+        val gate = nearestGateBefore(steps, index) ?: return ""
+        return if (gate.status == StepStatus.COMPLETED) gate.approvedContentHash else ""
+    }
+
+    /**
+     * Persists the run with [inflight] at [index] before a side-effect executor
+     * runs. Returns null on success, or the failure text if the checkpoint
+     * threw. The run is stored in memory first, so the caller's final store
+     * stays consistent with it.
+     */
+    private fun checkpointInflight(
+        existing: AgentRun,
+        steps: List<StepState>,
+        index: Int,
+        inflight: StepState,
+    ): String? {
+        val snapshot = steps.toMutableList()
+        snapshot[index] = inflight
+        val run = existing.copy(
+            status = RunStatus.RUNNING,
+            steps = snapshot.toList(),
+            pointer = index,
+            updatedAt = clock(),
+            failure = "",
+        )
+        runs[existing.id] = run
+        return try {
+            checkpoint(run)
+            null
+        } catch (t: Throwable) {
+            "${t.javaClass.simpleName}: ${t.message.orEmpty().take(200)}"
+        }
+    }
 
     private fun runRoute(step: StepSpec, ctx: ExecContext): Attempt = when (step.kind) {
         StepKind.REASON -> routes.reason.execute(ctx, step)
@@ -945,6 +1054,9 @@ class WorkflowEngine(
     }
 
     companion object {
+        /** Ticket prefix marking a side-effect attempt checkpointed before its executor ran. */
+        const val INFLIGHT_PREFIX: String = "inflight:"
+
         private val RESUMABLE_STATUSES = setOf(RunStatus.PENDING, RunStatus.RUNNING)
         private val TERMINAL_STATUSES = setOf(
             RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED,
