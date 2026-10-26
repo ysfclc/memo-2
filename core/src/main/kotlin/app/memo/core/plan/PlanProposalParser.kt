@@ -33,7 +33,7 @@ object PlanProposalParser {
     private val KNOWN_STEP_KEYS = setOf(
         "id", "kind", "title", "prompt", "provider", "appPackage", "artifactType",
         "artifactHint", "metricKey", "metricUrl", "requiresGate", "target",
-        "retry", "branches",
+        "retry", "branches", "attemptsMax",
     )
 
     private val STEP_ID_SHAPE = Regex("^[a-z][a-z0-9_]{0,23}$")

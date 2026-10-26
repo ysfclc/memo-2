@@ -294,11 +294,10 @@ class WorkflowEngine(
                             break
                         }
                         is StepOutcome.HardFail -> {
-                            runStatus = RunStatus.FAILED
-                            runFailure = "step '${outcome.state.spec.id}' failed: " +
-                                outcome.state.failure.take(Limits.MAX_GATE_SUMMARY_CHARS)
-                            settled = true
-                            break
+                            // The failed state is already stored at steps[index]. Loop back so
+                            // the FAILED branch above decides: a later branch watching this
+                            // FAILED outcome rescues the run (D-013), otherwise the run fails.
+                            continue
                         }
                         is StepOutcome.Interrupted -> {
                             runStatus = RunStatus.INTERRUPTED

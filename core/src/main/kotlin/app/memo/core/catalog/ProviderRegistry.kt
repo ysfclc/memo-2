@@ -33,9 +33,13 @@ object ProviderRegistry {
 
     fun startUrlFor(id: String): String? = byId[id]?.startUrl
 
-    /** True when a host belongs to this provider's domain family (www./subdomain tolerant). */
+    /**
+     * True when a host belongs to this provider's domain family (www./subdomain
+     * tolerant, case-insensitive on both id and host). Look-alike hosts such as
+     * `evil-grok.com` or `grok.com.evil.example` never pass.
+     */
     fun hostBelongsTo(providerId: String, host: String): Boolean {
-        val provider = byId[providerId] ?: return false
+        val provider = byId[providerId.trim().lowercase()] ?: return false
         val hostLower = host.lowercase().trim().removePrefix("www.")
         return provider.hosts.any { hostLower == it.lowercase() ||
             hostLower.endsWith("." + it.lowercase()) }
