@@ -193,6 +193,40 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
 3. **Real sites and apps:** adapters are versioned registry data and are validated on device through the milestone checklist. A failing adapter pauses for takeover and never improvises.
 4. **Review:** the lead reviews every automation diff line by line. Automation tasks are kept small (one concern each) so Haiku output stays reviewable.
 
+## 2b. Memo stays in control: hosting other apps + the floating console
+
+**User requirement:** apps must open *inside Memo*, never "outside" it. Memo must also have a proper floating surface for taking actions anywhere, not just capture.
+
+### Platform fact (stated to the user)
+Stock Android does not let a third-party app render another installed app's activities inside its own window. Embedding on a private virtual display needs system privileges, and Activity Embedding only covers your own activities or apps that opt in. So Memo provides the closest real equivalent, in this order:
+
+1. **Web-first, truly inside Memo.**
+   - If a service has a usable web app (frontier AIs, LinkedIn, X, job boards, email webmail…), the step runs in a Memo WebView tab: Memo's own window, Memo's own profile.
+   - The router prefers the web channel whenever an adapter exists for it.
+2. **Native app, hosted under Memo's control.**
+   - When a step needs a native app, Memo launches it **adjacent to Memo in split-screen** (`FLAG_ACTIVITY_LAUNCH_ADJACENT | FLAG_ACTIVITY_NEW_TASK`, with Memo resizeable). On devices or orientations without split-screen, the app opens full-screen **underneath the Memo floating console**.
+   - The console stays visible throughout: step HUD (current action, progress, envelope), pause, stop, take over, approve.
+   - When the step ends or is paused, Memo returns itself to the front automatically, using an overlay tap target plus an activity relaunch. The user never has to navigate back.
+3. **No hidden or background launches.** Memo never launches an app the user can't see, and never acts on an app while Memo's console is hidden.
+
+### Floating console ("Memo Overlay")
+- **Collapsed:** a draggable PresenceOrb bubble (`TYPE_APPLICATION_OVERLAY`) showing the live state: idle, listening, thinking, acting, waiting for you. It edge-snaps, and dragging it onto a dismiss target hides it.
+- **Expanded:** a panel over any app, with:
+  - **Talk:** voice (sherpa, no system pop-up) and text chat with Memo. It is the same conversation engine as the Talk tab, so the thread continues there.
+  - **Act on this screen:** Memo observes the *current* foreground app (one-shot consent per invocation) and proposes a plan for it (e.g. "reply to this message", "fill this form", "add this person to CRM"). It runs through the full §2a loop and envelope rules, with approvals shown in the panel.
+  - **Running work:** live step rails of active runs; pause, stop, take over.
+  - **Approvals:** the filled artifact and envelope, with approve/veto in the panel. Side effects need the device unlocked.
+  - **Quick actions:** new task, capture screen/selection to a project, start a workflow template, open the full app.
+  - **Kill switch:** always visible.
+- **While Memo is acting:** the overlay shows the action being taken ("Typing your cover letter into 'Message'"). A single tap pauses. Touch passthrough stays enabled so the user can always intervene.
+- **Lifecycle:**
+  - a `specialUse` foreground service with a clear subtype and a persistent notification
+  - started only from user action (in-app toggle, QS tile, assist session)
+  - survives app switching; stops on the kill switch
+  - the overlay permission is requested with a rationale screen
+  - the overlay hides itself on the lock screen and in secure windows (FLAG_SECURE apps), and never captures password fields
+- **Safety:** the overlay never auto-taps for itself (no tapjacking). Its approve buttons need a deliberate tap plus device unlock for side effects. Action labels come from the envelope, not from the target app's text.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -544,7 +578,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - files: `app/.../platform/android/surface/MemoTileService.kt`, `BubbleService.kt` (overlay, `specialUse`), `LiveNotification.kt`
 - steps:
   1. The tile starts a voice session.
-  2. Bubble: draggable orb; tap opens a mini voice panel.
+  2. Bubble: the collapsed PresenceOrb overlay only (the foundation). The full floating console is M4.D2 (§2b).
   3. Ongoing notification shows running/pending counts with approve actions; side effects require unlock.
 - acceptance: CI green.
 
@@ -723,7 +757,29 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Router decisions are shown on each step ("why this provider").
 - acceptance: CI green.
 
-**Automation acceptance (all of M4.A1–M4.B3):** the §2a emulator tests for that component are green, and the lead has reviewed the diff line by line against §2a.
+**M4.D1 — Native app hosting under Memo's control**
+- deps: M4.B1
+- files: `app/.../platform/android/automation/AppHost.kt`, `app/.../ui/host/HostedStepHud.kt`, manifest (`resizeableActivity`)
+- steps:
+  1. Launch the target app adjacent in split-screen when supported, otherwise full-screen under the overlay console.
+  2. The HUD stays visible for the whole step.
+  3. Bring Memo back to the front when the step completes, pauses or needs approval.
+  4. Refuse to act if Memo's console is not visible.
+- acceptance:
+  - CI green
+  - emulator test: launching the test target activity adjacent, and Memo returning to the front, both work
+  - the lead reviews the code against §2b
+
+**M4.D2 — Memo Overlay console**
+- deps: M2.C3, M3.A3, M3.B1, M4.A0, M4.B1
+- files: `app/.../platform/android/surface/OverlayService.kt`, `app/.../ui/overlay/*` (collapsed orb, expanded panel: Talk, Act on this screen, Running work, Approvals, Quick actions, kill switch)
+- steps: implement §2b's floating console exactly. "Act on this screen" means one-shot observe of the foreground app → orchestrator plan → §2a loop with envelope approvals in the panel. Includes the acting-state HUD, tap-to-pause, lock-screen/secure-window hiding, and no self-taps.
+- acceptance:
+  - CI green
+  - emulator test: the overlay is shown over the test target activity, and "act on this screen" runs a safe fill action with approval
+  - the lead reviews the diff line by line against §2a and §2b
+
+**Automation acceptance (all of M4.A1–M4.D2):** the §2a emulator tests for that component are green, and the lead has reviewed the diff line by line against §2a.
 
 **M4 close:** PR. Device checklist: sign in to ChatGPT in the Browser tab; run a consult step; take over and resume; enable accessibility and run "open Calculator and type 2+2" (safe app); check discovery lists the installed AI apps.
 
