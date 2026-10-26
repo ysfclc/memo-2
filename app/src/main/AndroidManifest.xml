@@ -12,6 +12,10 @@
         android:theme="@style/Theme.Memo"
         android:supportsRtl="true">
 
+        <!-- Optional vendor GPU libraries used by LiteRT-LM and llama.cpp when present. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
