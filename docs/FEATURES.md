@@ -112,6 +112,13 @@ Legend:
 - [~] J6 CI produces a clean APK on every merge · ✅ main green; core tests added to CI in M0 (verification)
 - [ ] J7 Lint strict, test sweep · M6.6, M6.7
 
+## L. Languages
+- [ ] L1 English, **Polish**, **Turkish** UI with an in-app language picker · M3.6.B1
+- [ ] L2 Voice in pl/tr: Whisper ASR + Piper TTS voices; English via Zipformer + Kokoro · M3.6.C1
+- [ ] L3 Voice and text commands understood in pl/tr (grammar + agent) · M3.6.A1, M3.A4
+- [ ] L4 Agent replies, and asks frontier AIs to reply, in the user's language · M3.A4, M4.A2
+- [~] L5 Safety terms and automation labels in pl/tr · ActionPolicy in M0.A5 (in progress); adapters M4.A2
+
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)
 - [x] K2 Build directly on GitHub (no zip/YAML deliverables); merge each green milestone · in effect since PR #2

@@ -359,6 +359,30 @@ The user doesn't operate anything; the agent works on its own and only surfaces 
 - **Video:** local MediaCodec/MediaMuxer H.264 composer: scenes (images/slides) with Ken-Burns motion, captions, transitions, and a Kokoro voice-over track mixed to AAC. Storyboards are written by the agent.
 - **Gates** show the real rendered assets with target channels. Assets are stored encrypted, then exported to app-private cache only for upload.
 
+## 2h. Languages: English, Polish, Turkish (first-class)
+
+**User requirement:** Polish and Turkish language options alongside English, across the whole product.
+
+- **App UI:**
+  - all strings in resources: `values/` (en), `values-pl/`, `values-tr/`
+  - no hard-coded UI text in Kotlin (lint `HardcodedText` + a grep check)
+  - `res/xml/locales_config.xml` and an in-app language picker (Settings → Language: System / English / Polski / Türkçe), using `LocaleManager` on API 33+ and a configuration-context wrapper on API 30–32
+  - plurals and date/number formatting via `Locale`
+  - Turkish casing: always `Locale.ROOT` for internal keys, and the user locale only for display
+- **Voice:**
+  - **ASR:** multilingual Whisper (sherpa-onnx; small/base/turbo per device) for pl/tr. Live mode runs VAD-segmented Whisper with near-live partials. Streaming Zipformer is used for English where available.
+  - **TTS:** Kokoro for English. Piper/VITS voices for Polish and Turkish (sherpa-onnx `vits-piper-pl_PL-*`, `vits-piper-tr_TR-*`; the most natural available voice is chosen per language, pinned + SHA-verified in the Hub). Voice picker per language.
+  - The wake word "Hey Memo" works in any UI language. Custom wake phrases are allowed.
+- **Commands:**
+  - `CommandGrammar` gains Polish and Turkish patterns (reminders, tasks, CRM add, drafts, cancel), with locale-aware time phrases ("za 10 minut", "o 17:30", "10 dakika sonra", "saat 17:30'da").
+  - Anything else goes to the local agent, which understands all three languages.
+- **Agent and prompts:** the agent replies in the user's language (detected per message, overridable). Frontier consult envelopes ask for answers in the user's language. Templates and preferences are language-tagged.
+- **Automation:**
+  - `ActionPolicy` terms include pl/tr (plus de/es/fr).
+  - Provider adapters' send/stop/busy detection and locators include pl/tr labels.
+  - Humanizer reading speed is per language.
+- **Tests:** string-resource parity (every key exists in all 3 locales; a unit test parses the XML), grammar tests per language, policy tests per language.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -837,6 +861,35 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - files: `app/.../ui/settings/*`, `app/.../runtime/SettingsStore.kt` (encrypted)
 - steps: every §2e settings section, searchable, with the autonomy matrix UI, per-channel overrides and quiet hours. Each setting is wired to its consumer; no dead toggles.
 - acceptance: CI green; the lead verifies every setting key has a reader (grep).
+
+### M3.6 — Languages (en / pl / tr)
+
+**M3.6.A1 — Multilingual command grammar**
+- deps: M0.A8
+- files: `core/.../plan/CommandGrammar.kt` (language-aware), `core/.../plan/grammar/{En,Pl,Tr}Grammar.kt`, tests
+- steps:
+  1. Patterns and time phrases per §2h.
+  2. Language detection or explicit locale.
+  3. Turkish-safe casing.
+- acceptance: ≥15 cases per language, including time resolution.
+
+**M3.6.B1 — App localisation + language picker**
+- deps: M2.B0
+- files: `app/src/main/res/values-pl/strings.xml`, `values-tr/strings.xml`, `res/xml/locales_config.xml`, `app/.../ui/settings/LanguageScreen.kt`, `app/src/test/.../StringParityTest.kt`
+- steps:
+  1. Move every UI string into resources.
+  2. Write full Polish and Turkish translations: natural phrasing, not word-for-word.
+  3. Add the picker, wired to the API 33+ locale manager and the fallback.
+- acceptance:
+  - the parity test passes
+  - grep finds no hard-coded `Text("...")` literals outside previews
+  - the lead spot-checks 20 strings per language for natural phrasing
+
+**M3.6.C1 — Voice in Polish and Turkish**
+- deps: M2.A2
+- files: `app/.../platform/android/voice/VoiceModels.kt` (Whisper multilingual + Piper pl/tr entries, pinned), `SherpaAsr.kt` / `SherpaTts.kt` (language routing)
+- steps: per-language ASR/TTS model selection, a voice picker per language, and VAD-segmented Whisper "live" mode.
+- acceptance: CI green; device check holds a Polish and a Turkish live conversation.
 
 ### M4 — Channels
 
