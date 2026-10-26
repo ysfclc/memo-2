@@ -97,7 +97,14 @@ android {
             cmake {
                 // Always optimise native code: a Debug-built llama.cpp is unusably slow on device
                 // and bloats the APK with symbols. AGP passes CMAKE_BUILD_TYPE first; this later value wins.
-                arguments += listOf("-DANDROID_STL=c++_shared", "-DCMAKE_BUILD_TYPE=Release")
+                // c++_static: libmemo_llama carries its own libc++ built by NDK 27, so it never
+                // depends on the libc++_shared.so that the sherpa AAR ships (see D-026).
+                // ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES: 16 KB-aligned segments, required by Play for targetSdk 35.
+                arguments += listOf(
+                    "-DANDROID_STL=c++_static",
+                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                )
                 cppFlags += "-std=c++17"
             }
         }
@@ -134,7 +141,8 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
         jniLibs {
-            // llama.cpp (c++_shared via ANDROID_STL) and sherpa-onnx both ship libc++_shared.so.
+            // sherpa-onnx ships libc++_shared.so. libmemo_llama links libc++ statically (c++_static),
+            // so this pick only chooses the sherpa copy and cannot clash with the llama build.
             pickFirsts += listOf("**/libc++_shared.so")
         }
     }
