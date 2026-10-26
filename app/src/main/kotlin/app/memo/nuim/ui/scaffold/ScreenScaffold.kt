@@ -1,54 +1,50 @@
 package app.memo.ui.nui.scaffold
 
-import app.memo.ui.MemoTheme
-import app.memo.ui.MemoMotion
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.rememberBox
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScaffoldState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import app.memo.ui.MemoMotion
+import app.memo.ui.MemoTheme
 
-/** Top‑level scaffold that provides the Memo paper‑style background,
- * bottom navigation, and a place for modal sheets (approvals, model picker).
- */
 @Composable
 fun ScreenScaffold(
     title: String = "Memo",
-    navItems: @Composable ((Int) -> Unit)? = null,
-    content: @Composable (@nav: Int) -> Unit,
+    selectedIndex: Int = 0,
+    onSelectedIndexChange: (Int) -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
 ) {
-    val scaffoldState = rememberScaffoldState(
-        bottomBarIndex = 0,
-    )
-
     MemoTheme {
-        MemoMotion {
-            Scaffold(
-                scaffoldState = scaffoldState,
-                bottomBar = {
-                    // Placeholder for bottom navigation; will be wired in M4.
-                    androidx.compose.material3.BottomNavigation {
-                        items(
-                            items = 4,
-                            content = { navItem ->
-                                androidx.compose.material3.BamberNavItem(
-                                    icon = { /* icon */ },
-                                    label = { /* label */ ),
-                                    selected = false,
-                                    onClick = { },
-                                )
-                            },
-                        )
-                    }
-                },
-            ) { padding ->
-                // Page content area with paper‑style padding.
-                Modifier.padding(padding).fillMaxSize()
+        Scaffold(
+            topBar = { Text(title) },
+            bottomBar = {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = selectedIndex == 0,
+                        onClick = { onSelectedIndexChange(0) },
+                        icon = { Icon(Icons.Outlined.Home, contentDescription = "Live environment") },
+                        label = { Text("Live") },
+                    )
+                    NavigationBarItem(
+                        selected = selectedIndex == 1,
+                        onClick = { onSelectedIndexChange(1) },
+                        icon = { Icon(Icons.Outlined.Settings, contentDescription = "Settings") },
+                        label = { Text("Settings") },
+                    )
+                }
+            },
+        ) { padding ->
+            MemoMotion(modifier = Modifier.fillMaxSize().padding(padding)) {
+                content(padding)
             }
         }
     }
