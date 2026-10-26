@@ -138,7 +138,7 @@ Legend:
 - [ ] M13 Onboarding (language, permissions, model, voice, wake word, console) + help + templates gallery · M3.7.C2
 - [ ] M14 In-app updates from GitHub releases (signed, verified) · M3.7.C3
 - [ ] M15 Contacts import and "met at" place tag (opt-in) · M3.7.C4
-- [ ] M16 Council modes (compare / critique & refine / converge) + evidence-backed entity extraction · M4.A4
+- [ ] M16 Council modes + evidence-backed entity extraction → expanded into section S (§2n) · M4.A4a–d
 - [ ] M17 Optional API channel (OpenAI-compatible / Anthropic / Gemini keys), opt-in only · M4.A5
 - [ ] M18 App capability map (learned per device app, reusable, editable) · M4.B4
 - [ ] M19 Memo's own accessibility (TalkBack, font scale, contrast) + empty/loading/error/offline states everywhere · M6.10
@@ -215,6 +215,28 @@ Legend:
 - [ ] P6 Versioned ExtractionSchema / ActionRecipe artifacts, reusable in any workflow and by the Capability Compiler · M4.E0
 - [ ] P7 Self-healing: the local AI regenerates broken locators from the stored schema; validated; new patch version; commit steps need approval · M4.E5
 - [ ] P8 Workflow editor: Pick on page / Pick in app / Extract / Record, with version badges, upgrade and pin · M4.E6
+
+## S. Council: role-based debate between local models and frontier AIs (§2n)
+- [ ] S1 Mixed seats: local models (LiteRT/GGUF), frontiers via the in-Memo web runtime, frontiers via device apps, optional API, and the user · M4.A4a/b
+- [ ] S2 Role library (moderator, proposer, domain expert, skeptic, devil's advocate, fact-checker, user advocate, synthesizer/judge), versioned and editable · M4.A4a
+- [ ] S3 Relevance-based seat plan (topic → TaskSpec → roles → best target per role), editable before and between rounds · M4.A4a, M4.A4c
+- [ ] S4 Formats: compare, critique & refine, converge, debate (opening/rebuttals/closing/judgment), round table, red team · M4.A4a
+- [ ] S5 Claims ledger with ids and rebuttal references; fact-check marks; evidence-only extraction · M4.A4a, M4.A4d
+- [ ] S6 Privacy: private data only to local seats; frontier turns redacted, audited, consented · M4.A4a/b
+- [ ] S7 Anti-sycophancy: blind openings, fixed devil's-advocate stance, judge ≠ proposer, sources labelled · M4.A4a
+- [ ] S8 Stopping rules (consensus, rounds, budget, no-progress, user) and an outcome with a minority report and next steps · M4.A4a
+- [ ] S9 Background execution: web seats headless, app seats batched into one screen session, local and web turns in parallel, absent-seat handling · M4.A4b
+- [ ] S10 Council UI: group thread, role chips, claim links, ledger panel, interject/steelman/pause, outcome card; voice mode with a voice per seat · M4.A4c
+- [ ] S11 Saved councils and templates, re-runnable with updated models · M4.A4a
+
+## T. Live view: watch the AI work in real time (§2o)
+- [ ] T1 User-started web runs ("go to the web…") open a live view of the real WebView; leaving keeps the run going headless · M4.L2
+- [ ] T2 Live previews of background runs in the bubble/overlay, Live tab, council seats and notification (real pixels, throttled) · M4.L4
+- [ ] T3 Ghost cursor + highlight ring at the real target for each action; visible typing, tap ripple and scrolling · M4.L2, M4.L3
+- [ ] T4 Deterministic live narration of each action in en/pl/tr (optionally spoken) · M4.L1
+- [ ] T5 Step timeline with before/after snapshots (masked, encrypted, auto-purged) · M4.L1, M4.L2
+- [ ] T6 Controls: pause, step mode, take over and hand back, stop; the user's touch auto-pauses the agent; inline approvals · M4.L2, M4.L3
+- [ ] T7 App sessions show the HUD, target highlight and narration on top of the real app · M4.L3
 
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)

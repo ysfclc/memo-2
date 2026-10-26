@@ -682,6 +682,128 @@ All are linked from `ProviderAdapter` / `AppCapability` and usable from any work
 - "Record…" starts Show Memo.
 - Steps show their recipe or schema version, trust badge and last success, and can be upgraded or pinned to a version.
 
+## 2n. Council: role-based debate between local models and frontier AIs
+
+User requirement (2026-10-26): chats with local AIs are not one model at a time, and not only local models talking to each other. They are discussions between local models **and** frontier AIs reached through the in-Memo web runtime (§2b) or device apps (§2c). Every participant gets a **relevant role**, and the discussion is a real debate.
+
+### Participants
+- **Seats:** a participant is a seat `{seatId, target, role, persona, stance?}`. `target` is a local model (LiteRT-LM or GGUF), a frontier via web (provider id), a frontier via app (package), or the optional API channel (§2j). The user is always a seat and can speak at any time.
+- **Role library** (a versioned registry kind `CouncilRole`, user-editable, reuse-first):
+  - Moderator: runs the agenda and keeps time. It is the local model by default, so control stays on the device.
+  - Proposer
+  - Domain expert (persona generated for the topic by the Capability Compiler, §2k)
+  - Skeptic / red team
+  - Devil's advocate (argues an assigned stance)
+  - Fact-checker (must cite sources or verbatim evidence)
+  - User advocate (uses the Self Model, §2l; local only)
+  - Synthesizer / judge
+- **Role assignment by relevance:**
+  1. The Moderator reads the topic and builds a TaskSpec (§2k).
+  2. It proposes a seat plan: which roles the topic needs, and which target fills each role. Targets are scored by ModelRouter role affinity, health, rate limits and the privacy class of the content.
+  3. Private data (Self Model, vault, CRM) is only given to local seats. Frontier seats get the redacted, audited packet only.
+  4. The user can accept the seat plan or edit any seat (add, remove, swap model, change role or stance) before the debate starts and between rounds.
+
+### Debate protocol (pure state machine in core, `Council`)
+- **Formats:** `compare` (independent answers), `critique_refine` (chain), `converge` (propose → critique → reconcile), `debate` (opening → rebuttal rounds → closing → judgment), `round_table` (moderated turns, free order), `red_team` (attack a plan; the defender responds).
+- **Rounds:** each round has an agenda item, a turn order, and a speaking budget per seat (tokens and wall time).
+  - Every turn sees the transcript so far, filtered to what that seat may see.
+  - A seat must address the previous claims by id. Claims are tagged with ids such as `C3`; rebuttals reference them (`↳ C3`).
+- **Claims ledger:** every turn is parsed into claims `{id, seat, text, kind: assertion|rebuttal|concession|question|evidence, refs[], evidence?}`.
+  - A fact-checker or judge can mark a claim `supported`, `contested`, `refuted` or `unsupported`.
+  - Entities and facts enter registries only with verbatim evidence (`OutcomeParser`, §2j).
+- **Stopping rules:**
+  - consensus reached (the judge sees no open contested claims)
+  - max rounds
+  - budget exhausted
+  - no-progress detection (the same claims repeat)
+  - the user ends the debate
+- **Output:** the Synthesizer produces a `CouncilOutcome`:
+  - decision or recommendation
+  - agreement/disagreement map
+  - open questions
+  - minority positions kept explicitly, never averaged away
+  - cited claims
+  - proposed next steps (gated as Tasks)
+- **Anti-sycophancy:**
+  - Opening answers are generated blind: seats don't see each other's openings.
+  - The devil's advocate's stance is fixed by the moderator.
+  - The judge is a different model from the proposer when routing allows.
+  - Frontier answers are labelled with their source and never presented as Memo's own.
+
+### Execution
+- Each frontier turn is an async step: web turns go through the `FrontierExecutor` (§2a/§2b, headless, in the background); app turns go through a native-app session (§2c, batched into one screen session).
+- They use `Attempt.Pending` + `deliverExternal`. Every outbound prompt is redacted and audited, and needs consent per run (a standing rule can allow it, §2e).
+- Local turns stream through `InferenceManager`, one model resident at a time. The orchestrator orders turns to minimise model swaps. Turns that don't depend on each other run in parallel: local and web at the same time.
+- A failed or blocked seat (login wall, rate limit, CAPTCHA → takeover) is marked absent for that round. The debate continues and says so.
+
+### UI ("Council" in Talk)
+- A group thread. Each seat has an avatar, a model badge (local/web/app) and a role chip. Seats speak with their own streaming bubble and a subtle per-seat accent from the token palette.
+- Above the thread:
+  - the seat plan sheet (drag roles onto models)
+  - a round indicator
+  - the agenda
+- Claim ids are tappable chips; a rebuttal draws a link to its target claim.
+- **Live claims ledger panel:** supported, contested and refuted, with the evidence.
+- The user can:
+  - interject, pause, skip a seat, or ask a specific seat
+  - "steelman X"
+  - end the debate early and get the synthesis
+- **Voice mode:** each seat speaks with a distinct Kokoro voice, and the user can barge in (§2f/M2.A3).
+- **Outcome card:** agreement map, minority report, next steps (Run as workflow / Save to Project).
+- Saved councils can be re-run with updated models (versioned `CouncilSession` + `CouncilTemplate`).
+
+## 2o. Live view: watch the AI work in real time
+
+User requirement (2026-10-26): "I want to see the real state on the screen in those sessions. Every time the AI does something (e.g. I say 'go to web'), it shows me in real time what the AI does."
+
+**Law:**
+- Every automation session (web, app, or a council seat) is **watchable live**, and showing the real state is the default.
+- Background mode (§2b) is something the user opts into for a run or a standing rule. It never hides anything: a live preview is always one tap away.
+
+### What "live" means
+- **Real pixels, not a reconstruction.** The live view shows the actual WebView the agent is driving, or the actual app on screen. There are no mock-ups or summaries pretending to be the page.
+- **Web sessions:**
+  - When a run is started by the user (voice or chat: "go to the web", "check LinkedIn"), Memo opens the **Live Session view** in the foreground, and the agent's WebView is attached there, visible and interactive. This is the §2b re-parenting, without a restart.
+  - When the user leaves, the WebView moves back to the headless host and keeps going.
+  - While headless, a **live preview** is drawn from the real WebView at ≤ 4 fps (render to a bitmap on the host, downscaled) and shown in:
+    - the bubble / Memo Overlay (§2b)
+    - the Live tab run card
+    - the council seat tile (§2n)
+    - the ongoing notification (thumbnail updated ≤ 1/s)
+- **App sessions (§2c):** the app is on screen by definition. Memo's console HUD sits on top.
+- **Council:** every frontier seat has a live tile of its page while it types and the answer streams. Tapping the tile opens it full screen.
+
+### Action visualisation (every action, as it happens)
+- **Ghost cursor/finger:** before each action, an animated pointer moves to the target and the element gets a highlight ring:
+  - web: from `getBoundingClientRect` via `evaluateJavascript`, drawn as a native overlay above the WebView, not injected into the page
+  - app: from the node bounds, drawn in the overlay window
+  - The ring stays for the action's duration. It shows a tap ripple, typing happens visibly character by character (the humanizer's cadence, §2d), and scrolls show their movement.
+- **Narration strip:** a one-line caption, live, in the user's language (en/pl/tr):
+  - "Opening linkedin.com" → "Typing 'product manager' in Search" → "Reading 24 results" → "Waiting for your approval to apply"
+  - It is generated deterministically from the action envelope (`ActionNarrator`, pure core), never by the model. What it says is exactly what happens.
+  - It is optionally spoken in voice mode.
+- **Step timeline:** a scrubbable list of every action, with:
+  - its narration line
+  - a before/after thumbnail (kept only for the run, encrypted, auto-purged per settings)
+  - the locator used
+  - its result
+  - Tapping an entry shows the snapshot.
+- **State badge:** Navigating, Reading, Typing, Waiting for page, Waiting for you, Paused, Taken over, Done, Failed. Each state has a distinct motion (§2i).
+
+### Control from the live view
+- Pause / resume; step mode (approve each action); take over (the user drives, then hands back with "continue from here"); stop. The kill switch is always visible.
+- The user's own touches in the live view pause the agent automatically. The agent never fights the user.
+- Approvals appear inline in the live view, at the exact moment the agent reaches a gate.
+
+### Privacy
+- Password fields, payment fields and OTP fields are masked in every thumbnail and snapshot. The live view itself shows the real page, because the user is the owner.
+- Snapshots are never sent off the device, and they are purged when the run's retention ends.
+- `FLAG_SECURE` windows are never captured.
+
+### Performance
+- Preview capture is throttled (≤ 4 fps when visible, 0 fps when no preview is on screen) and done off the main thread.
+- Live view attach/detach takes < 150 ms, without reloading the page.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -1269,11 +1391,26 @@ Split into small tasks, all following §2i.
 - steps: opt-in, reuse-first merge into Person/Company.
 - acceptance: CI green.
 
-**M4.A4 — Council modes + evidence-backed entity extraction**
-- deps: M4.A2, M3.A4
-- files: `core/.../agent/Council.kt`, `core/.../agent/EntityExtraction.kt`, tests
-- steps: compare / critique-refine / converge orchestration, an agreement map, and extraction accepted only with verbatim evidence.
-- acceptance: tests including a rejected-unsupported-claim case.
+**M4.A4 — Council (§2n), split into four tasks**
+- **M4.A4a — Council core (pure)**
+  - deps: M3.A4, M0.A6, M3.8.A2
+  - files: `core/.../council/{CouncilRole,Seat,SeatPlanner,Council,ClaimsLedger,ClaimParser,CouncilOutcome,CouncilSession,CouncilTemplate}.kt`, registry schemes + migration, tests
+  - steps: the role library with seeds, relevance seat planning (router affinity + privacy class), all 6 formats as one state machine, visibility filtering, the claims ledger with ids and refs, stopping rules including no-progress, blind openings, and outcome synthesis with the minority report
+  - acceptance: tests for every format's turn order; blind openings never see peers; private data never reaches a non-local seat; a rebuttal must reference an existing claim; no-progress stops the debate; an absent seat lets the round continue; the judge differs from the proposer when ≥2 targets exist; an unsupported claim is never extracted
+- **M4.A4b — Council runtime**
+  - deps: M4.A4a, M4.A2, M1.A3, M4.D1
+  - files: `app/.../runtime/CouncilService.kt`
+  - steps: seats are dispatched to InferenceManager / FrontierExecutor / app session; parallel independent turns; swap-minimising order; per-run consent; audit; takeover → the seat is absent
+  - acceptance: a JVM test with fake channels for a 3-seat debate (local + web + app); emulator test with a fixture "AI" page as a web seat
+- **M4.A4c — Council UI**
+  - deps: M4.A4b, M2.B0c, M1.C2
+  - files: `app/.../ui/council/*`
+  - steps: the group thread, seat plan sheet, claim chips and links, ledger panel, interject/pause/steelman, outcome card, voice mode with a distinct voice per seat
+  - acceptance: CI green; emulator screenshots; tokens only
+- **M4.A4d — Evidence-backed entity extraction**
+  - deps: M4.A4a
+  - files: `core/.../agent/EntityExtraction.kt`, tests
+  - acceptance: tests including a rejected unsupported claim
 
 **M4.A5 — Optional API channel**
 - deps: M0.C1, M0.A6
@@ -1455,6 +1592,45 @@ Split into small tasks, all following §2i.
   6. Return `Attempt.Pending`, then `deliverExternal`.
   7. Every send goes through a redaction preview and the audit.
 - acceptance: JS-string unit tests (escaping, selector tables) + CI green.
+
+**M4.L — Live view (§2o), split into four tasks**
+- **M4.L1 — ActionNarrator + session state (pure)**
+  - deps: M4.A0
+  - files: `core/.../automation/{ActionNarrator,SessionState,ActionTimeline}.kt`, tests
+  - acceptance:
+    - narration in en/pl/tr for every action in the closed vocabulary
+    - masked values never appear in narration
+    - state transitions are tested
+    - timeline retention and purge
+- **M4.L2 — Web live view**
+  - deps: M4.A1, M4.L1, M2.B0c
+  - files: `app/.../ui/live/session/{LiveSessionScreen,GhostCursorOverlay,NarrationStrip,StepTimeline}.kt`, `app/.../platform/android/browser/{PreviewCapturer,TargetRects}.kt`
+  - steps:
+    - auto-open on user-started web runs
+    - attach/detach of the real WebView
+    - throttled preview capture
+    - ghost cursor and highlight from target rects
+    - visible typing
+    - pause, step, take over, stop
+    - touch auto-pause
+    - inline approvals
+    - masked snapshots
+  - acceptance:
+    - emulator test: a fixture run opened in the live view shows the highlight at the target rect
+    - detach/attach keeps the page state with no reload
+    - a user touch pauses the agent
+    - preview fps is 0 when nothing is visible
+- **M4.L3 — App live HUD**
+  - deps: M4.D1, M4.L1
+  - files: `app/.../ui/host/{TargetHighlight,ScreenSessionHud}.kt`
+  - steps: highlight ring at the node bounds, narration and timeline in the console, touch auto-pause
+  - acceptance: emulator test against the test target activity
+- **M4.L4 — Previews everywhere**
+  - deps: M4.L2, M4.D2, M3.B2, M4.A4c
+  - files: live tiles in the overlay, the Live tab, council seats and the notification
+  - acceptance:
+    - CI green
+    - a device check watches a background run from the bubble, then expands it to full screen
 
 **M4.A3 — Browser tab (visible sessions, login once, watch/take over background runs)**
 - deps: M4.A1

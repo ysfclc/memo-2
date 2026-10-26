@@ -2,7 +2,7 @@
 
 This file is loaded into every AI session working in this repo. Obey it without being asked.
 
-**Build plan:** `docs/BUILD_PLAN.md` is the single source of truth for what to build, in which order, and how each task is verified. Read it before starting any task. `docs/FEATURES.md` is the feature checklist; the lead keeps it current. `docs/PROGRESS.md` is the lead's running notes (requests, decisions, verification, open items), updated at every step.
+**Build plan:** `docs/BUILD_PLAN.md` is the single source of truth for what to build, in which order, and how each task is verified. Read it before starting any task. `docs/TASKS.md` is the executable runbook (every task from zero to end with mini-tasks, named tests, checks and build steps). `docs/FEATURES.md` is the feature checklist; the lead keeps it current. `docs/PROGRESS.md` is the lead's running notes (requests, decisions, verification, open items), updated at every step.
 
 ## Standing rule 1 — Engineering notebook (permanent)
 
