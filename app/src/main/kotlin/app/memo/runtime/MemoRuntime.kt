@@ -69,6 +69,8 @@ class MemoRuntime(context: Context) {
         val quarantined: Int = 0,
         val lastReply: String = "",
         val storageError: String = "",
+        /** A vault backup was used at load; writes stay paused until [confirmRecovery]. */
+        val recoveryPending: Boolean = false,
     )
 
     private val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "memo-runtime") }
@@ -340,6 +342,7 @@ class MemoRuntime(context: Context) {
             quarantined = workspace.quarantineCount(),
             lastReply = message,
             storageError = storageMessage(),
+            recoveryPending = pendingRecovery != null,
         )
         main.post { snapshot.value = next }
     }

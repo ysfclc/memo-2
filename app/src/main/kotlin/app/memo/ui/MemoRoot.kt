@@ -117,6 +117,9 @@ fun MemoRoot(runtime: MemoRuntime) {
                     auditCount = snap.auditCount,
                     auditOk = snap.auditOk,
                     quarantined = snap.quarantined,
+                    storageError = snap.storageError,
+                    recoveryPending = snap.recoveryPending,
+                    onConfirmRecovery = { runtime.confirmRecovery() },
                     onStopAll = { runtime.stopEverything() },
                 )
             }
@@ -442,6 +445,9 @@ fun SettingsScreen(
     auditCount: Int,
     auditOk: Boolean,
     quarantined: Int,
+    storageError: String,
+    recoveryPending: Boolean,
+    onConfirmRecovery: () -> Unit,
     onStopAll: () -> Unit,
 ) {
     Column(
@@ -452,6 +458,17 @@ fun SettingsScreen(
     ) {
         ScreenHeader("Settings", "Trust, audit and controls. Everything stays on this device.")
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (storageError.isNotEmpty()) {
+                MemoCard {
+                    Text("Storage", style = MaterialTheme.typography.titleMedium, color = MemoTheme.colors.attention)
+                    Spacer(Modifier.height(4.dp))
+                    Text(storageError, color = MemoTheme.colors.ink, fontSize = 13.sp)
+                    if (recoveryPending) {
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(onClick = onConfirmRecovery) { Text("I reviewed my data, resume saving") }
+                    }
+                }
+            }
             MemoCard {
                 Text("Audit trail", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(4.dp))
