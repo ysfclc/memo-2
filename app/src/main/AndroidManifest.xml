@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Model downloads from pinned sources. Nothing else leaves the device. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Model downloads run as a WorkManager foreground service of type dataSync only. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:name=".MemoApp"
@@ -15,6 +19,13 @@
         <!-- Optional vendor GPU libraries used by LiteRT-LM and llama.cpp when present. -->
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
+
+        <!-- WorkManager's foreground service, pinned to the dataSync type (no other type). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"
+            tools:node="merge" />
 
         <activity
             android:name=".MainActivity"
