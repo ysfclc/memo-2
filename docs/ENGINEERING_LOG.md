@@ -135,3 +135,12 @@ Four compile errors, all caught by `:core:compileKotlin` on the runner in 22s �
 4. `whenContains` used `now` without carrying it as a parameter — pure-clock discipline means every time-dependent helper takes `now` explicitly.
 
 (End of M1 fix pass.)
+
+### M0 (build plan) · domain v2
+
+- Eight v2 entities in `domain/Knowledge.kt` (Project, Note) and `domain/Library.kt` (WorkflowTemplate, PromptTemplate, ArchitecturalPrinciple, ContentPreference, ChannelAccount, ProviderAdapter), each with the v1 codec shape: `toJson`, `contentJson`, `isInvalid`, `fromJson` returning null on garbage, `version` defaulting to 1.
+- Natural keys in `NaturalKeys` (`pj:`, `nt:`, `wt:`, `pt:`, `pr:`, `cp:`, `ca:`, `ad:`); blank input yields `""` so the registry quarantines it. Note keys include the project (blank = unfiled), the title slug and the creation day. ChannelAccount keys strip a leading `@` from the handle.
+- Two `Limits` additions only: `MAX_LIST_ITEMS = 32` bounds every string list, and `MAX_JSON_PAYLOAD_CHARS = 64_000` bounds plan and adapter JSON (12 steps times 4000-char prompts plus framing).
+- Design choices: `ChannelAccount.enabled` defaults to false (no silent outbound action); `ProviderAdapter.channel` is validated against `web`/`app` and `adapterVersion` against `major.minor.patch` text; `WorkflowTemplate` and `ProviderAdapter` require their JSON payloads to parse as objects, and a plan additionally needs a title and 1 to MAX_STEPS_PER_RUN steps.
+- Schemes for all eight entities are added in `Schemes.kt`. `Workspace.kt` and `SynCodec.kt` are untouched; registering these in the workspace and the v1→v2 migration belong to M0.A4.
+- Tests: `DomainV2Test` covers round-trip, invalid and garbage decoding, key normalisation and blank keys, and the Created→Reused→Bumped registry path for Project and WorkflowTemplate.
