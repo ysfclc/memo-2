@@ -6,7 +6,7 @@ import java.io.File
 import java.io.FileWriter
 
 /** Append-only recovery journal. Malformed entries are ignored safely. */
-class RunJournal(private val file: File, private val engine: WorkflowEngine) {
+class RunJournal(private val file: File, private val engine: WorkflowEngine? = null) {
     init {
         file.parentFile?.mkdirs()
         readAndRestore()
