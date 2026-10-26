@@ -5,7 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import app.memo.core.audit.AuditEntry
+import app.memo.core.domain.AuditEntry
 import app.memo.core.audit.HashChainAudit
 import app.memo.core.domain.AgentRun
 import app.memo.core.domain.Company
