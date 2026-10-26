@@ -8,6 +8,7 @@ import app.memo.core.domain.AuditEntry
 import app.memo.core.platform.Vault
 import app.memo.core.platform.VaultName
 import app.memo.core.registry.Workspace
+import app.memo.platform.android.vault.KeystoreVault
 import app.memo.vault.MemoVault
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,14 +26,24 @@ import java.io.RandomAccessFile
  *
  * Migration contract ([migrateLegacyPlaintext]):
  * 1. Runs once. The marker entry [MARKER] is written only after a successful import.
- * 2. All-or-nothing parse: if any legacy file fails to parse, nothing is written
- *    to the vault and nothing is deleted.
+ * 2. All-or-nothing parse: if the legacy workspace or any legacy run or audit row
+ *    fails to parse, nothing is written to the vault and nothing is deleted.
+ *    The legacy workspace is `workspace.syn.json`; `workspace.syn.json.tmp` is used
+ *    only when the primary is missing or unparseable and the temp file parses.
+ *    An unparseable temp file is ignored, logged and removed.
  * 3. Write to the vault, read back, and verify (workspace by SYN serialization,
  *    runs by ids, audit by hashes plus [HashChainAudit.verify]).
  * 4. Only after verification: overwrite each plaintext file with zeros, fsync,
  *    and delete it. The marker is written after the deletes.
- * 5. Any failure sets [migrationProblem] and keeps the plaintext. The caller then
- *    must not load or write vault state for this session.
+ * 5. A failure before the marker sets [migrationProblem] and keeps the plaintext.
+ *    The caller then must not load or write vault state for this session.
+ * 6. When the marker already exists, leftover plaintext of all four legacy files
+ *    is securely deleted and never imported. A failed deletion is reported in
+ *    [migrationProblem] while [migrationFinished] stays true, so startup is not blocked.
+ *
+ * Unreadable rows: [loadRuns] and [loadAudit] throw when any stored row does not
+ * parse, and record the entry in [unreadableEntries]. Writes to a recorded entry
+ * are refused, so a reduced list is never saved over the stored content.
  */
 class Persistence(
     private val vault: Vault,
@@ -40,45 +51,109 @@ class Persistence(
     private val log: (String) -> Unit = {},
 ) {
 
-    /** Set when the legacy import failed or could not finish. Null when the vault is authoritative. */
+    /**
+     * Set when the legacy import failed, or when plaintext removal failed after the
+     * import completed. Check [migrationFinished] to tell the two apart.
+     */
     var migrationProblem: String? = null
         private set
+
+    /** True once the vault holds the migrated data (marker written, or marker found at start). */
+    var migrationFinished: Boolean = false
+        private set
+
+    /** Entries whose stored content could not be fully read this session, with the reason. */
+    private val unreadable = linkedMapOf<String, String>()
+
+    /**
+     * Describes the most recent vault read that had to use a backup copy, or null.
+     * A read from a backup can be a silent rollback, so the runtime treats such a
+     * session as read-only until the user confirms.
+     */
+    val lastRecovery: String?
+        get() = (vault as? KeystoreVault)?.lastRecovery
 
     init {
         listOf(WORKSPACE, RUNS, AUDIT, MARKER).forEach { VaultName.validate(it) }
     }
+
+    /** Entries that could not be fully read this session, keyed by vault entry name. */
+    fun unreadableEntries(): Map<String, String> = unreadable.toMap()
 
     // ------------------------------------------------------------ vault I/O
 
     /** The stored workspace, or an empty workspace when none is stored. */
     fun loadWorkspace(): Workspace {
         val bytes = vault.read(WORKSPACE) ?: return Workspace()
-        return MemoVault.load(ByteArrayInputStream(bytes))
-            ?: throw IllegalStateException("stored workspace is not a valid SYN envelope")
+        return MemoVault.load(ByteArrayInputStream(bytes)) ?: run {
+            val reason = "stored workspace is not a valid SYN envelope"
+            unreadable[WORKSPACE] = reason
+            throw IllegalStateException(reason)
+        }
     }
 
     fun saveWorkspace(workspace: Workspace) {
+        refuseIfUnreadable(WORKSPACE)
         vault.write(WORKSPACE, encodeWorkspace(workspace))
     }
 
-    /** Stored runs; rows that do not parse are skipped, as in the previous build. */
+    /**
+     * Stored runs. Throws when any row does not parse: the entry is then recorded in
+     * [unreadableEntries] and the stored bytes are left untouched.
+     */
     fun loadRuns(): List<AgentRun> {
         val bytes = vault.read(RUNS) ?: return emptyList()
-        return decodeRunRows(String(bytes, Charsets.UTF_8)).filterNotNull()
+        val rows = decodeRunRows(String(bytes, Charsets.UTF_8))
+        rejectUnreadableRows(RUNS, "run", rows)
+        return rows.filterNotNull()
     }
 
+    /** Writes the full list. Refused while [RUNS] is unreadable. */
     fun saveRuns(runs: List<AgentRun>) {
+        refuseIfUnreadable(RUNS)
         vault.write(RUNS, encodeRuns(runs))
     }
 
-    /** Stored audit chain; rows that do not parse are skipped (verify() then reports the break). */
-    fun loadAudit(): List<AuditEntry> {
-        val bytes = vault.read(AUDIT) ?: return emptyList()
-        return decodeAuditRows(String(bytes, Charsets.UTF_8)).filterNotNull()
+    /**
+     * Writes [current] with the run matching [run] replaced, or appended when absent.
+     * Used by the engine checkpoint, which must persist the full list synchronously.
+     */
+    fun saveRunsWith(run: AgentRun, current: List<AgentRun>) {
+        val merged = if (current.any { it.id == run.id }) {
+            current.map { if (it.id == run.id) run else it }
+        } else {
+            current + run
+        }
+        saveRuns(merged)
     }
 
+    /**
+     * Stored audit chain. Throws when any row does not parse: the entry is then recorded in
+     * [unreadableEntries] and the stored bytes are left untouched.
+     */
+    fun loadAudit(): List<AuditEntry> {
+        val bytes = vault.read(AUDIT) ?: return emptyList()
+        val rows = decodeAuditRows(String(bytes, Charsets.UTF_8))
+        rejectUnreadableRows(AUDIT, "audit", rows)
+        return rows.filterNotNull()
+    }
+
+    /** Writes the full chain. Refused while [AUDIT] is unreadable. */
     fun saveAudit(entries: List<AuditEntry>) {
+        refuseIfUnreadable(AUDIT)
         vault.write(AUDIT, encodeAudit(entries))
+    }
+
+    private fun rejectUnreadableRows(name: String, noun: String, rows: List<Any?>) {
+        val bad = rows.count { it == null }
+        if (bad == 0) return
+        val reason = "$bad of ${rows.size} stored $noun rows could not be read"
+        unreadable[name] = reason
+        throw IllegalStateException("$name: $reason")
+    }
+
+    private fun refuseIfUnreadable(name: String) {
+        unreadable[name]?.let { throw IllegalStateException("refusing to overwrite $name: $it") }
     }
 
     // ------------------------------------------------------------ migration
@@ -89,11 +164,12 @@ class Persistence(
      */
     fun migrateLegacyPlaintext() {
         migrationProblem = null
+        migrationFinished = false
         try {
             if (vault.read(MARKER) != null) {
-                // Migration already done. A leftover plaintext temp file is removed; it never blocks startup.
-                runCatching { secureDeleteIfPresent(legacyWorkspaceTmp) }
-                    .onFailure { log("could not remove leftover ${legacyWorkspaceTmp.name}: ${it.message}") }
+                // Migration already done. Leftover plaintext is removed, never imported.
+                migrationFinished = true
+                reportPlaintextRemoval(removePlaintext(legacyFiles()))
                 return
             }
             importLegacy()
@@ -103,12 +179,11 @@ class Persistence(
     }
 
     private fun importLegacy() {
-        val workspaceSource = newestExisting(legacyWorkspace, legacyWorkspaceTmp)
+        val workspace = pickLegacyWorkspace()
         val runsSource = legacyRuns.takeIf { it.exists() }
         val auditSource = legacyAudit.takeIf { it.exists() }
 
         // Step 1: parse everything before writing anything.
-        val workspace = workspaceSource?.let { parseLegacyWorkspace(it) }
         val runs = runsSource?.let { parseLegacyRuns(it) }
         val audit = auditSource?.let { parseLegacyAudit(it) }
 
@@ -123,24 +198,65 @@ class Persistence(
         audit?.let { verifyAudit(it) }
 
         // Step 4: securely delete the plaintext.
-        val removalFailures = mutableListOf<String>()
-        listOf(legacyWorkspace, legacyWorkspaceTmp, legacyRuns, legacyAudit).forEach { file ->
-            try {
-                secureDeleteIfPresent(file)
-            } catch (e: Exception) {
-                removalFailures += "${file.name}: ${e.message}"
-            }
-        }
+        val removalFailures = removePlaintext(legacyFiles())
 
         // Step 5: marker, so the import never runs twice.
         vault.write(MARKER, markerBytes(workspace != null, runs?.size ?: 0, audit?.size ?: 0))
+        migrationFinished = true
 
         if (removalFailures.isNotEmpty()) {
-            fail("data imported and verified, but plaintext removal failed (${removalFailures.joinToString("; ")})", null)
+            reportPlaintextRemoval(removalFailures, "data imported and verified, but ")
         } else {
             log("legacy plaintext imported and removed (runs=${runs?.size ?: 0}, audit=${audit?.size ?: 0})")
         }
     }
+
+    /**
+     * Chooses the legacy workspace: the primary file when it parses, otherwise the
+     * temp file when that parses. An unparseable temp file never fails the import.
+     * When the primary exists but neither file parses, the import fails.
+     */
+    private fun pickLegacyWorkspace(): ParsedWorkspace? {
+        val primary = legacyWorkspace.takeIf { it.exists() }
+        val primaryResult = primary?.let { runCatching { parseLegacyWorkspace(it) } }
+        primaryResult?.getOrNull()?.let { return it }
+
+        if (legacyWorkspaceTmp.exists()) {
+            val tmpResult = runCatching { parseLegacyWorkspace(legacyWorkspaceTmp) }
+            tmpResult.getOrNull()?.let {
+                log("using ${legacyWorkspaceTmp.name}: ${legacyWorkspace.name} is missing or unparseable")
+                return it
+            }
+            log("ignoring unparseable ${legacyWorkspaceTmp.name}: ${tmpResult.exceptionOrNull()?.message}")
+        }
+        primaryResult?.exceptionOrNull()?.let { throw it }
+        return null
+    }
+
+    /**
+     * Securely deletes each file that exists and returns one message per failure.
+     * Every file is attempted even when an earlier one fails.
+     */
+    private fun removePlaintext(files: List<File>): List<String> {
+        val failures = mutableListOf<String>()
+        files.forEach { file ->
+            try {
+                secureDeleteIfPresent(file)
+            } catch (e: Exception) {
+                failures += "${file.name}: ${e.message ?: e.javaClass.simpleName}"
+            }
+        }
+        return failures
+    }
+
+    /** Records a plaintext removal failure without blocking startup. The vault stays authoritative. */
+    private fun reportPlaintextRemoval(failures: List<String>, prefix: String = "") {
+        if (failures.isEmpty()) return
+        migrationProblem = "${prefix}plaintext removal failed (${failures.joinToString("; ")})"
+        log("migration problem: $migrationProblem")
+    }
+
+    private fun legacyFiles(): List<File> = listOf(legacyWorkspace, legacyWorkspaceTmp, legacyRuns, legacyAudit)
 
     private fun fail(problem: String, cause: Throwable?) {
         migrationProblem = problem
@@ -203,9 +319,6 @@ class Persistence(
             requireNotNull(it) { "run row failed to decode after write" }
         }
     }
-
-    private fun newestExisting(vararg files: File): File? =
-        files.filter { it.exists() }.maxByOrNull { it.lastModified() }
 
     /** Overwrites the file with zeros of the same length, fsyncs, then deletes it. */
     private fun secureDeleteIfPresent(file: File) {

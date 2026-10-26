@@ -26,6 +26,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -75,14 +76,150 @@ class PersistenceTest {
         val vault = MemoryVault()
         Persistence(vault, dir).migrateLegacyPlaintext()
 
-        // A new plaintext file appearing after the import must not be imported or deleted.
+        // A plaintext file reappearing after the import is never imported; it is securely deleted.
         File(dir, "workspace.syn.json").writeText(v1Envelope(workspaceWith("Grace")))
         val second = Persistence(vault, dir)
         second.migrateLegacyPlaintext()
 
         assertNull(second.migrationProblem)
         assertEquals(listOf("Ada"), second.loadWorkspace().people.items().map { it.fullName })
+        assertFalse(File(dir, "workspace.syn.json").exists(), "leftover plaintext is removed after the marker")
+    }
+
+    @Test
+    fun newerUnparseableTmpDoesNotBlockGoodPrimary() {
+        writeLegacy(dir)
+        val tmp = File(dir, "workspace.syn.json.tmp")
+        tmp.writeText("{ half-written")
+        tmp.setLastModified(System.currentTimeMillis() + 60_000L)
+        val vault = MemoryVault()
+        val persistence = Persistence(vault, dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertNull(persistence.migrationProblem)
+        assertTrue(persistence.migrationFinished)
+        assertEquals(listOf("Ada"), persistence.loadWorkspace().people.items().map { it.fullName })
+        assertFalse(tmp.exists(), "the unparseable temp file is removed")
+    }
+
+    @Test
+    fun missingPrimaryImportsGoodTmp() {
+        writeLegacy(dir)
+        File(dir, "workspace.syn.json").delete()
+        File(dir, "workspace.syn.json.tmp").writeText(v1Envelope(workspaceWith("Grace")))
+        val vault = MemoryVault()
+        val persistence = Persistence(vault, dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertNull(persistence.migrationProblem)
+        assertEquals(listOf("Grace"), persistence.loadWorkspace().people.items().map { it.fullName })
+        assertFalse(File(dir, "workspace.syn.json.tmp").exists())
+    }
+
+    @Test
+    fun unparseablePrimaryAndTmpKeepsPlaintextAndFailsImport() {
+        writeLegacy(dir)
+        File(dir, "workspace.syn.json").writeText("{ broken")
+        File(dir, "workspace.syn.json.tmp").writeText("{ also broken")
+        val vault = MemoryVault()
+        val persistence = Persistence(vault, dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertNotNull(persistence.migrationProblem)
+        assertFalse(persistence.migrationFinished)
+        assertNull(vault.entries[Persistence.MARKER])
+        assertNull(vault.entries[Persistence.WORKSPACE])
         assertTrue(File(dir, "workspace.syn.json").exists())
+        assertTrue(File(dir, "workspace.syn.json.tmp").exists())
+    }
+
+    @Test
+    fun markerPresentRemovesAllFourPlaintextFilesWithoutImporting() {
+        val vault = MemoryVault()
+        vault.write(Persistence.MARKER, "{\"migration\":\"v1\"}".toByteArray())
+        writeLegacy(dir)
+        File(dir, "workspace.syn.json.tmp").writeText(v1Envelope(workspaceWith("Grace")))
+        val persistence = Persistence(vault, dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertNull(persistence.migrationProblem)
+        assertTrue(persistence.migrationFinished)
+        assertNull(vault.entries[Persistence.WORKSPACE], "plaintext is never imported after the marker")
+        listOf("workspace.syn.json", "workspace.syn.json.tmp", "runs.json", "audit.json").forEach {
+            assertFalse(File(dir, it).exists(), "$it must be removed")
+        }
+    }
+
+    @Test
+    fun markerPresentReportsFailedRemovalWithoutBlocking() {
+        val vault = MemoryVault()
+        vault.write(Persistence.MARKER, "{\"migration\":\"v1\"}".toByteArray())
+        writeLegacy(dir)
+        // A directory where a plaintext file is expected cannot be zeroed, so its removal fails.
+        File(dir, "audit.json").delete()
+        File(dir, "audit.json").mkdir()
+        val persistence = Persistence(vault, dir)
+
+        persistence.migrateLegacyPlaintext()
+
+        assertTrue(persistence.migrationFinished, "startup is not blocked by a cleanup failure")
+        val problem = assertNotNull(persistence.migrationProblem)
+        assertTrue(problem.contains("audit.json"), problem)
+        assertFalse(File(dir, "workspace.syn.json").exists())
+        assertFalse(File(dir, "runs.json").exists())
+    }
+
+    @Test
+    fun corruptRunRowIsReportedAndNeverOverwritten() {
+        val vault = MemoryVault()
+        val stored = JSONArray().apply {
+            put(runFixture("run-1").toJson())
+            put(JSONObject().put("id", "broken-row"))
+        }.toString().toByteArray(Charsets.UTF_8)
+        vault.write(Persistence.RUNS, stored)
+        val persistence = Persistence(vault, dir)
+
+        assertFailsWith<IllegalStateException> { persistence.loadRuns() }
+        assertNotNull(persistence.unreadableEntries()[Persistence.RUNS])
+
+        assertFailsWith<IllegalStateException> { persistence.saveRuns(listOf(runFixture("run-2"))) }
+        assertFailsWith<IllegalStateException> { persistence.saveRunsWith(runFixture("run-2"), emptyList()) }
+        assertTrue(stored.contentEquals(vault.entries.getValue(Persistence.RUNS)), "stored rows are untouched")
+    }
+
+    @Test
+    fun corruptAuditRowIsReportedAndNeverOverwritten() {
+        val vault = MemoryVault()
+        val stored = JSONArray().apply {
+            auditFixture().forEach { put(it.toJson()) }
+            put("not an object")
+        }.toString().toByteArray(Charsets.UTF_8)
+        vault.write(Persistence.AUDIT, stored)
+        val persistence = Persistence(vault, dir)
+
+        assertFailsWith<IllegalStateException> { persistence.loadAudit() }
+        assertFailsWith<IllegalStateException> { persistence.saveAudit(auditFixture()) }
+        assertTrue(stored.contentEquals(vault.entries.getValue(Persistence.AUDIT)))
+    }
+
+    @Test
+    fun saveRunsWithReplacesTheRunInPlace() {
+        val vault = MemoryVault()
+        val persistence = Persistence(vault, dir)
+        val first = runFixture("run-1")
+        val second = runFixture("run-2")
+        persistence.saveRuns(listOf(first, second))
+
+        persistence.saveRunsWith(second.copy(status = RunStatus.CANCELLED), listOf(first, second))
+
+        val back = Persistence(vault, dir).loadRuns()
+        assertEquals(listOf("run-1", "run-2"), back.map { it.id })
+        assertEquals(RunStatus.CANCELLED, back[1].status)
+        assertEquals(RunStatus.COMPLETED, back[0].status)
     }
 
     @Test

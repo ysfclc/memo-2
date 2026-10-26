@@ -20,6 +20,21 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
 /**
+ * Decides when [KeystoreVault] rotates backups. Pure, so it can be tested on the JVM.
+ */
+internal object BackupRotationPolicy {
+    /** Minimum time between two backup rotations of the same entry. */
+    const val INTERVAL_MS: Long = 10 * 60 * 1000L
+
+    /**
+     * True when a rotation is due: at least [INTERVAL_MS] since [lastRotationMs], or the
+     * clock went backwards (then rotating is the safe choice).
+     */
+    fun isDue(now: Long, lastRotationMs: Long): Boolean =
+        now < lastRotationMs || now - lastRotationMs >= INTERVAL_MS
+}
+
+/**
  * [Vault] backed by files in `noBackupFilesDir/vault/`, sealed with AES-256-GCM
  * under an Android Keystore key (see [VaultFormat] for the file format).
  *
@@ -27,9 +42,14 @@ import javax.crypto.SecretKey
  *   encryption required. It is created only when no vault data exists. If data
  *   exists but the key is missing, every operation throws [VaultException]:
  *   a new key is never generated over existing data (fail closed).
- * - **Write.** Seal, write `name.tmp` and `fd.sync()`, rotate backups
- *   (`.bak2`→`.bak3`, `.bak1`→`.bak2`, current copied to `.bak1`), then atomically
- *   move `.tmp` over the primary. A failure leaves the previous value intact.
+ * - **Write.** Seal, write `name.tmp` and `fd.sync()`, then atomically move `.tmp`
+ *   over the primary. A failure leaves the previous value intact. Before the move,
+ *   backups are rotated (`.bak2`→`.bak3`, `.bak1`→`.bak2`, current copied to `.bak1`)
+ *   but **at most once per 10 minutes per name** ([BackupRotationPolicy]). The last
+ *   rotation time is kept in memory and starts from the `.bak1` modification time, so a
+ *   restart does not rotate again straight away. Writes in between replace only the
+ *   primary. Consequence: `.bak1` may be up to 10 minutes older than the primary, and
+ *   a fallback read can roll back to that point.
  * - **Read.** Tries the primary, then `.bak1..3`. A fallback is recorded in
  *   [lastRecovery] and logged. When nothing opens, throws [VaultException];
  *   a corrupt entry never reads as null.
@@ -44,9 +64,13 @@ class KeystoreVault(context: Context) : Vault {
     private val dir = File(context.noBackupFilesDir, "vault")
     private val locks = ConcurrentHashMap<String, Any>()
 
+    /** Last backup rotation per entry name, in epoch millis. Guarded by the per-name lock. */
+    private val lastRotation = ConcurrentHashMap<String, Long>()
+
     /**
      * Describes the most recent read that had to use a backup copy, or null if
-     * no fallback has happened since this instance was created. The app shows it to the user.
+     * no fallback has happened since this instance was created. The app shows it to the user,
+     * e.g. "Recovered workspace.syn from backup .bak1; review your data".
      */
     @Volatile
     var lastRecovery: String? = null
@@ -74,10 +98,13 @@ class KeystoreVault(context: Context) : Vault {
 
             val (source, plain) = found
             if (source != name) {
-                val message = "vault entry '$name' was unreadable and was restored from backup '$source'" +
-                    if (failures.isNotEmpty()) " (${failures.joinToString("; ")})" else ""
-                lastRecovery = message
-                Log.w(TAG, message)
+                val backup = source.removePrefix(name)
+                lastRecovery = "Recovered $name from backup $backup; review your data"
+                Log.w(
+                    TAG,
+                    "vault entry '$name' was unreadable and was restored from backup '$source'" +
+                        if (failures.isNotEmpty()) " (${failures.joinToString("; ")})" else "",
+                )
             }
             return plain
         }
@@ -98,7 +125,11 @@ class KeystoreVault(context: Context) : Vault {
                     out.flush()
                     out.fd.sync()
                 }
-                rotateBackups(name)
+                val now = System.currentTimeMillis()
+                if (BackupRotationPolicy.isDue(now, lastRotationOf(name))) {
+                    rotateBackups(name)
+                    lastRotation[name] = now
+                }
                 replaceFile(tmp, File(dir, name))
             } catch (e: IOException) {
                 throw VaultException("write failed for vault entry '$name'; previous value kept", e)
@@ -128,6 +159,15 @@ class KeystoreVault(context: Context) : Vault {
     }
 
     private fun lockFor(name: String): Any = locks.getOrPut(name) { Any() }
+
+    /**
+     * Last rotation for [name]. Not seen yet in this process: the `.bak1` modification
+     * time, which is when the last rotation copied the primary (0 when none exists).
+     */
+    private fun lastRotationOf(name: String): Long =
+        lastRotation[name] ?: File(dir, "$name.bak1").takeIf { it.exists() }?.lastModified()?.also {
+            lastRotation[name] = it
+        } ?: 0L
 
     private fun readOrNull(candidate: String): ByteArray? {
         val file = File(dir, candidate)
