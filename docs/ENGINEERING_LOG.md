@@ -28,6 +28,14 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 **D-011 · 2026-10-26 · Workflow DSL v1.** Step kinds exactly: `reason · browser_automation · app_automation · human_approval · data_persist · metric_collect · branch · retry`. Sequential execution; `CONSULT_AND_COMPARE`-style parallelism only between side-effectless reason consults. Status machine: `PENDING→RUNNING→COMPLETED|FAILED|SKIPPED|NEEDS_REVIEW→WAITING_USER`; process death → `INTERRUPTED` (never auto-resumes side-effectful steps; resume re-verifies context). Approvals bind to artifact `contentHash` (TOCTOU guard) — memo-v2 prototype law: "approval is bound to content".
 
+**D-012 · 2026-10-26 · Engine admission = projection round-trip.** `WorkflowPolicy.validateSpec` (the check every engine `createRun` performs) validates a compiled spec by feeding ONLY the parser's input contract (title + steps) back through `PlanProposalParser.parse` — never the full `WorkflowSpec.toJson` envelope, whose `id`/`createdAt`/`schemaVersion` bookkeeping is unknown top-level text to the parser (as written it rejected every VALID spec; caught by tests before a single commit). One law, two doors: model text → parser; user spec → projection → same parser.
+
+**D-013 · 2026-10-26 · Branch-on-failure rescue.** A step that FAILs without a retry policy does NOT immediately fail the run when a LATER BRANCH step explicitly watches that step's FAILED outcome: the engine diverts to that branch (steps between are SKIPPED with "run diverged"); unwatched failures fail the run as before. This makes `metric fails → fallback persist` plans executable while preserving fail-fast.
+
+**D-014 · 2026-10-26 · RETRY declarations are honored, never defaulted.** `{"kind":"retry","target":"x","attemptsMax":N}` folds N verbatim onto the target (bounds-checked against `MIN_STEP_ATTEMPTS..MAX_STEP_ATTEMPTS`; out-of-bounds = rejected plan). The first implementation silently discarded N and substituted defaults — caught by `foldsRetryDeclarationsOntoTargets`.
+
+**D-015 · 2026-10-26 · `JSONObject.NULL` is a first-class null in CanonicalJson.** org.json silently REMOVES a key when `put(key, null)` is called, and its `JSONObject.NULL` sentinel otherwise falls through the writer and renders as the STRING `"null"` — inside the hash pipeline that is silent chain poisoning. The canon writer now treats the sentinel as JSON `null`; tests pin both behaviors.
+
 ---
 
 ## CONSTRAINTS
@@ -79,3 +87,36 @@ Extraction map (source → Memo home):
 - memo-v2 prototype → applied as product law (checkpoint semantics, content-bound approvals, routing trace, component contracts); not shipped as HTML
 
 (End of M0.)
+
+### M1 · `:core` — domain, registry, plan DSL, engine, prompts, audit, redaction
+
+Shipped (all under `core/src/main/kotlin/app/memo/core/`; pure JVM, each class compiles and carries its law in the doc header):
+
+- `Limits.kt` — the single source of hard bounds (plans, packets, outputs, evidence, audit, registry capacity). Engine refuses instead of truncating.
+- `util/Sha256Hex.kt` — one UTF-8 SHA-256 helper so digests are identical everywhere they are produced.
+- `codec/CanonicalJson.kt` — sorted-key, plain-number deterministic JSON; every hash input (natural keys, content signatures, gate bindings, audit links, run ids) goes through it. `JSONObject.NULL` handled as first-class null (D-015).
+- `codec/SynCodec.kt` — the SYN envelope: strict validate → migrate → load. A bad envelope is rejected WHOLE; bad rows inside a valid envelope quarantine per registry law. Migration chain headed at v1.
+- `domain/` — `Evidence` (verbatim law), `People`/`Work`/`Content` (the eight registry entities with `contentJson` + `isInvalid`), `Workflow` (8-step DSL, `StepSpec`/`StepState`/`AgentRun` with JSON persist/restore), `Audit` (`OutboundEvent` + chained `AuditEntry`).
+- `registry/` — `NaturalKeys` (stable short-hash ids, state/timestamp free), `Registry` (Created / Reused / Bumped(v+1) / Failed; load conflicts + blank keys quarantine, never overwrite), `Schemes`, `Workspace` (eight registries in canonical order).
+- `plan/` — `Parsing` (string-aware balanced-brace locator), `OutcomeParser` (whitespace-normalized case-SENSITIVE verbatim containment; `extractNumber` rounds DOWN, k/M/B flagged approximate), `CommandGrammar` (zero-model commands: cancel/reminder/task/crm-person/draft; clock-time rollovers past times to tomorrow), `PlanProposalParser` (strict compiler: no-JSON rejection, unknown-field refusal, per-kind requirements, gate law, provider whitelist, step-id shape, duplicate ids, caps, RETRY folding honoring declared attemptsMax — D-014), `WorkflowPolicy` (side-effect discipline, branch ref integrity, `validateSpec` projection round-trip — D-012).
+- `prompts/` — `ContextPacket` (bounded scope-limited packet, visible `[packet truncated at N chars]` markers), `Prompts` (orchestrator + frontier system/envelope; ARTIFACT_KINDS are the shared constant the parser also accepts).
+- `catalog/` — `ModelCatalog` (three pinned litert-community models with VERBATIM byte sizes and SHA-256 pins and `/resolve/<rev>/` URLs; `MIN_MODEL_BYTES` sanity floor) and `ProviderRegistry` (eight frontier providers, byte-verified hosts + start URLs).
+- `engine/WorkflowEngine.kt` — the checkpoint executor: sequential pointer advance; gate steps open `WAITING_USER` and never auto-close; approvals bind `contentHash` (deliver re-verifies, mismatch → `NEEDS_REVIEW`); veto skips side effects only up to the NEXT gate; retry backoff writes explicit `resumeAt` (clock-honored, no wall-clock assumptions); attempt ids `runId:stepId:attempt` bound in-memory (app journal owns re-execution safety); interrupted side effects NEVER auto-resume; metric steps must return `Measured` and persist `metric_sample` + `post` shell; `data_persist` routes through `DataStore` with natural keys; branch steps switch on prior outcomes with failure-rescue semantics (D-013); one `OutboundEvent` per completed side effect, hash-chained.
+- `redact/Redactor.kt` — pattern pack (PEM blocks, `sk-`/`ghp_`/`AKIA…`/JWT/bearer/secret-assignments/card runs), visible `[REDACTED_*]` markers, overlap resolution by start-then-length.
+- `audit/HashChainAudit.kt` — append-only SHA-256 chain over `CanonicalJson` links (genesis `000…0`), full-snapshot sink, `verify()` localizing tamper (sequence break / chain break / hash mismatch), restorable from entries.
+
+Tests: 11 JVM suites under `core/src/test/kotlin` run via `:core:test` (JUnit 4 + kotlin-test): `CanonicalJsonTest`, `SynCodecTest`, `RegistryTest`, `OutcomeParserTest`, `PlanProposalParserTest`, `CommandGrammarTest`, `WorkflowEngineTest` (13 flows: gate bind/mismatch, veto-to-next-gate, branch rescue incl. retry fold, interruption both ways, restore-persist-continue, metric persist, backoff clock, cancel punctuation), `RedactorTest`, `HashChainAuditTest`, `CatalogTest` (pins are the contract), `PromptContractTest` (prompt↔parser single-document law).
+
+Bugs the suite caught before a single commit was pushed (ci-is-the-compiler):
+
+1. `WorkflowPolicy.validateSpec` round-tripped the FULL compiled-spec envelope through the parser — `id`/`createdAt`/`schemaVersion` are unknown top-level fields, so EVERY valid spec (and therefore every engine `createRun`) would have been rejected. Fixed via title+steps projection (D-012).
+2. RETRY declarations discarded the author's `attemptsMax`, silently substituting defaults — parser now folds it, bounds-checked (D-014).
+3. org.json `put(key, null)` REMOVES the key, and the `JSONObject.NULL` sentinel rendered as the string `"null"` — a hash input printing the wrong bytes is silent chain poisoning. Explicit sentinel branch (D-015), tests pin both.
+4. Three `failState(...)` calls in `persistMetric` lost their `now` argument in a mid-write edit — wrong-arity, caught by re-reading the whole engine file, not by hope.
+5. Gate steps would have been routed to the executor as ordinary work (closing as COMPLETED) instead of opening `WAITING_USER` — dispatch order fix.
+6. Cancel commands with trailing punctuation ("Never mind.") missed the cancel set — grammar strips `.!?` before matching.
+7. A fixture step id `persist-draft` (hyphen) hit the parser's strict step-id shape law `^[a-z][a-z0-9_]{0,23}$` — law kept, fixture renamed; the law is now documented here.
+
+Notes for M2+: the executor interfaces (ReasonExecutor, BrowserExecutor, AppAutomationExecutor, MetricExecutor, ArtifactBuilder, DataStore, OutboundAudit) are the EXACT seams the Android app layer must fill; the engine's attempt cache is in-memory only — process-death re-execution safety is the app-side journal's responsibility (idempotency keys are provided); launcher manifest still has zero permissions (notification channel and work scheduling arrive with M2).
+
+(End of M1.)

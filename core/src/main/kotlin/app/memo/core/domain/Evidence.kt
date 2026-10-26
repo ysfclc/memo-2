@@ -37,8 +37,7 @@ data class Evidence(
             }.getOrDefault(EvidenceKind.OBSERVATION)
             return Evidence(
                 kind = kind,
-                // Real Evidence records are verbatim human/一手 text; short dashes and
-                // smart quotes from frontier pages are preserved by optString.
+                // Frontier/OCR text is preserved verbatim (smart quotes, dashes stay).
                 quote = raw.optString("quote"),
                 source = raw.optString("source"),
                 capturedAt = raw.optLong("capturedAt", 0L),

@@ -27,6 +27,8 @@ object CanonicalJson {
     private fun write(value: Any?, sb: StringBuilder) {
         when (value) {
             null -> sb.append("null")
+            // org.json's explicit-null sentinel (put(key, null) would REMOVE the key).
+            JSONObject.NULL -> sb.append("null")
             is JSONObject -> {
                 val keys = value.keySet().sorted()
                 sb.append('{')
