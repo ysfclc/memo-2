@@ -6,6 +6,8 @@
     <!-- Background generation: InferenceService runs as a specialUse foreground service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Shows the InferenceService notification on API 33+. The runtime request is UI work, done later. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".MemoApp"

@@ -10,8 +10,17 @@ package app.memo.platform.android.llm.llama
  * kind code) or as [OutOfMemoryError]. Nothing is swallowed on the native side.
  */
 object LlamaNative {
+    /**
+     * The library chosen for this CPU: `memo_llama_dp` on arm64 with dot product and fp16,
+     * otherwise `memo_llama`. Only one of the two is ever loaded, so their identical JNI symbols never meet.
+     */
+    val selectedLibrary: String = selectLlamaLibrary(
+        isArm64 = android.os.Build.SUPPORTED_ABIS.firstOrNull() == "arm64-v8a",
+        features = readCpuFeatures(),
+    )
+
     val loadError: String? = try {
-        System.loadLibrary("memo_llama")
+        System.loadLibrary(selectedLibrary)
         null
     } catch (e: UnsatisfiedLinkError) {
         e.message ?: "UnsatisfiedLinkError: libmemo_llama.so could not be loaded"
