@@ -583,6 +583,8 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Per-token callback to Kotlin; atomic cancel flag; free resources.
   3. Map native errors to exceptions.
   4. All API names must be taken from the pinned `llama.h`.
+  5. **Performance:** native code is always built Release (M0 integration). For arm64, enable the ARM CPU feature path at the pinned tag: `GGML_CPU_ALL_VARIANTS=ON` + `GGML_BACKEND_DL=ON` if supported there, so the best variant (dotprod / i8mm / sve) is chosen at runtime. Otherwise build with `-march=armv8.2-a+dotprod+fp16`. Verify against the tag's `ggml/src/ggml-cpu/CMakeLists.txt`.
+  6. Report tokens/s in `GenStats`; the device check records tokens/s for a 1B and a 3B Q4_K_M model.
 - acceptance:
   - CI green
   - the native code compiles for both ABIs
