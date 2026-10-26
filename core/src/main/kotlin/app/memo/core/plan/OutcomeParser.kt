@@ -75,7 +75,7 @@ object OutcomeParser {
                 else -> continue
             }
             val scaled = decimal.multiply(multiplier)
-            val value = scaled.setScale(0, RoundingMode.DOWN).toLongOrNull() ?: continue
+            val value = runCatching { scaled.setScale(0, RoundingMode.DOWN).longValueExact() }.getOrNull() ?: continue
             if (value >= 0) {
                 return ParsedNumber(value, approximated = multiplier != BigDecimal.ONE)
             }

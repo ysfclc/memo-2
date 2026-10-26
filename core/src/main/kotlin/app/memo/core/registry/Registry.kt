@@ -24,6 +24,9 @@ interface RegScheme<T> {
      */
     fun stamped(item: T, existing: T?, now: Long, nextVersion: Int): T
 
+    /** The version label carried by [item]; the registry bumps by exactly one. */
+    fun versionOf(item: T): Int
+
     /**
      * Canonical business-content signature (timestamps and version stripped).
      * Two items with equal signatures are the SAME content — reuse, no bump.
@@ -76,7 +79,7 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
     fun upsert(item: T, now: Long): Put<T> {
         val id = scheme.id(item)
         if (id.isBlank()) {
-            quarantine += Quarantined(kind, "blank natural key", scheme.toJson(item).toString())
+            quarantined += Quarantined(kind, "blank natural key", scheme.toJson(item).toString())
             return Put.Failed("blank natural key")
         }
         if (byId.size >= Limits.MAX_ENTRIES_PER_REGISTRY && id !in byId) {
@@ -91,7 +94,7 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
         return if (scheme.contentSignature(item) == scheme.contentSignature(existing)) {
             Put.Reused(existing)
         } else {
-            val bumped = scheme.stamped(item, existing, now, existing.version + 1)
+            val bumped = scheme.stamped(item, existing, now, scheme.versionOf(existing) + 1)
             byId[id] = bumped
             Put.Bumped(bumped)
         }
@@ -103,24 +106,24 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
         for (i in 0 until rows.length()) {
             val raw = rows.optJSONObject(i)
             if (raw == null) {
-                quarantine += Quarantined(kind, "row $i not an object", rows.optString(i))
+                quarantined += Quarantined(kind, "row $i not an object", rows.optString(i))
                 continue
             }
             val decoded = scheme.fromJson(raw)
             if (decoded == null) {
-                quarantine += Quarantined(kind, "row $i structurally invalid", raw.toString())
+                quarantined += Quarantined(kind, "row $i structurally invalid", raw.toString())
                 continue
             }
             val id = scheme.id(decoded)
             if (id.isBlank()) {
-                quarantine += Quarantined(kind, "row $i blank natural key", raw.toString())
+                quarantined += Quarantined(kind, "row $i blank natural key", raw.toString())
                 continue
             }
             val existing = byId[id]
             if (existing == null) {
                 byId[id] = decoded
             } else if (scheme.contentSignature(decoded) != scheme.contentSignature(existing)) {
-                quarantine += Quarantined(
+                quarantined += Quarantined(
                     kind,
                     "row $i conflicts with already-loaded row $id",
                     raw.toString(),

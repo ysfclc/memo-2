@@ -79,12 +79,12 @@ object CommandGrammar {
 
     /** "in 5 minutes"-style suffix into epoch ms; unrecognized suffix -> 0. */
     internal fun resolveWhen(text: String, now: Long, zone: ZoneId): Long {
-        whenContains(text)?.let { return it }
+        whenContains(text, now)?.let { return it }
         whenAtTime(text, now, zone)?.let { return it }
         return 0L
     }
 
-    private fun whenContains(text: String): Long? {
+    private fun whenContains(text: String, now: Long): Long? {
         val match = WHEN_IN.find(text) ?: return null
         val amount = match.groupValues[1].toLongOrNull() ?: return null
         val unit = match.groupValues[2].lowercase()

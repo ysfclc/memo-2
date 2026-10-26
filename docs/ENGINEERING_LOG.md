@@ -120,3 +120,14 @@ Bugs the suite caught before a single commit was pushed (ci-is-the-compiler):
 Notes for M2+: the executor interfaces (ReasonExecutor, BrowserExecutor, AppAutomationExecutor, MetricExecutor, ArtifactBuilder, DataStore, OutboundAudit) are the EXACT seams the Android app layer must fill; the engine's attempt cache is in-memory only — process-death re-execution safety is the app-side journal's responsibility (idempotency keys are provided); launcher manifest still has zero permissions (notification channel and work scheduling arrive with M2).
 
 (End of M1.)
+
+### M1 fix pass (same day, first CI red on 24ff4af)
+
+Four compile errors, all caught by `:core:compileKotlin` on the runner in 22s — the loop works exactly as designed:
+
+1. `BigDecimal` has no `toLongOrNull` (stdlib Scoping on String/Number subclasses; BigDecimal is neither) — overflow-safe DOWN-rounded extraction now goes through `longValueExact()` inside `runCatching`.
+2. The registry quarantine list is `quarantined`; five mutator sites had been typed `quarantine +=` — one name, many call sites, compiler catches every one.
+3. Version bumps out of generic `T` need scheme knowledge: new `RegScheme.versionOf(item)` (8 one-line implementations) keeps the "bump by exactly one" law visible at the single call site instead of leaking `existing.version` into untyped code.
+4. `whenContains` used `now` without carrying it as a parameter — pure-clock discipline means every time-dependent helper takes `now` explicitly.
+
+(End of M1 fix pass.)
