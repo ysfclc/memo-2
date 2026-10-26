@@ -40,7 +40,9 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 **C-004 · Kotlin vs LiteRT-LM metadata.** Keep Kotlin in the 2.4.2x line when using litertlm-android 0.18.1; if metadata mismatch errors appear in CI, adjust Kotlin patch version before touching model code.
 
-**C-005 · Gradle release verification.** Wrapper must include `distributionSha256Sum`; fetch the official `gradle-X-bin.zip.sha256` from services.gradle.org rather than trusting truncated SSHA strings from anywhere.
+**C-005 · Gradle release verification.** Wrapper must include `distributionSha256Sum`; fetch the official `gradle-X-bin.zip.sha256` from services.gradle.org rather than trusting truncated SHA strings from anywhere.
+
+**C-006 · Kotlin 2.4 removed the `kotlinOptions` DSL from build scripts.** First M0 CI run (40332432835) failed with `Using 'jvmTarget: String' is an error. Please migrate to the compilerOptions DSL`. In `.gradle.kts` files, `import org.jetbrains.kotlin.gradle.dsl.JvmTarget` goes at the very top (before `plugins {}`), and JVM target moves to a top-level `kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }` block. Any new module must use this DSL, not `kotlinOptions`.
 
 ---
 
@@ -61,7 +63,7 @@ Security flags inherited from the source apps and their Memo resolutions (full a
 | 7 | threadline-vo | `chat()` vs `complete()` thinking-config discrepancy; duplicated RAM thresholds | Single ModelProfile source of truth in catalog (D-005) |
 | 8 | threadline-v1 | Continuous passive live feed + plaintext exports | Observation becomes opt-in tap-triggered only; exports default encrypted (TLBK), plaintext export requires explicit confirm |
 | 9 | all | Stale version strings everywhere | `BuildConfig` is the single source; screens render `VERSION_NAME` |
-| 10 | pocket | DESIGN_MOTION.md says "no internet permission" while manifest has it | Resolved as |
+| 10 | pocket | DESIGN_MOTION.md says "no internet permission" while manifest has it | Same resolution as #1 — a doc-vs-manifest divergence is a release blocker; Memo's docs must always match the shipped manifest |
 
 Extraction map (source → Memo home):
 
