@@ -180,7 +180,7 @@ class PlatformContractsTest {
         runtime.emitToken("he")
         runtime.emitToken("llo")
         runtime.finish()
-        assertEquals("hello", sink.text)
+        assertEquals("hello", sink.text.toString())
         assertEquals(1, sink.completions)
 
         val sink2 = RecordingSink()
