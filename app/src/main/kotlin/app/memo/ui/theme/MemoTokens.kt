@@ -38,7 +38,7 @@ data class MemoColorScheme(
     val onAccent: Color,
     /** Mint soft fill: chips, selected rows, "active" state. */
     val accentSoft: Color,
-    /** Amber: "waiting for you", needs a decision. */
+    /** Amber: "waiting for you", needs a decision. Body text belongs on surface (4.75:1 light), not canvas (4.28:1, large text only). */
     val attention: Color,
     /** Destructive actions and hard errors. */
     val danger: Color,

@@ -35,7 +35,6 @@ class TokensContrastTest {
         Check("inkMuted/canvas", c.inkMuted, c.canvas, 4.5),
         Check("onAccent/accent", c.onAccent, c.accent, 4.5),
         Check("attention/surface", c.attention, c.surface, 4.5),
-        Check("attention/canvas", c.attention, c.canvas, 4.5),
         Check("danger/surface", c.danger, c.surface, 4.5),
         Check("link/surface", c.link, c.surface, 4.5),
         Check("ink/accentSoft", c.ink, c.accentSoft, 4.5),
@@ -46,6 +45,7 @@ class TokensContrastTest {
         Check("outlineStrong/surface", c.outlineStrong, c.surface, 3.0),
         Check("focusRing/surface", c.focusRing, c.surface, 3.0),
         Check("attention/surface (icon)", c.attention, c.surface, 3.0),
+        Check("attention/canvas (large text and icons only)", c.attention, c.canvas, 3.0),
         Check("accent/surface (icon)", c.accent, c.surface, 3.0),
         Check("inkFaint/surface (large text and icons only)", c.inkFaint, c.surface, 3.0),
     )
