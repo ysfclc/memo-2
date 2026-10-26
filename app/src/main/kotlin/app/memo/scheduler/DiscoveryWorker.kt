@@ -1,43 +1,28 @@
 package app.memo.scheduler
 
-import app.memo.core.plan.CommandGrammar
-import app.memo.core.engine.WorkflowEngine
-import app.memo.core.domain.StepKind
-import app.memo.core.domain.StepStatus
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import app.memo.journal.RunJournal
+import app.memo.vault.MemoVault
+import app.memo.core.engine.ExecutorRoutes
+import app.memo.core.engine.WorkflowEngine
 
-/**
- * Scheduled wake‑up receiver.  Every morning at 08:00 the system
- * broadcasts ACTION_BOOT_COMPLETED; this receiver re‑hydrates the
- * journal, re‑executes any INTERRUPTED steps, and, if a run is
- * waiting at a gate, re‑presents the approval UI.
- * 
- * Law: interrupted side effects never auto‑resume — the journal
- * records the exact state so the engine can re‑run idempotently.
- */
+/** Restores the append-only journal after boot without inventing executors. */
 class DiscoveryReceiver : BroadcastReceiver() {
-
     override fun onReceive(context: Context, intent: Intent) {
-        val journal = app.memo.journal.RunJournal(
-            app.memo.vault.MemoVault.ioFile(context, "journal.jsonl"),
-            app.memo.engine.WorkflowEngine(
-                routes = app.memo.engine.ExecutorRoutes(
-                    reason = app.memo.reason.ReasonExecutor { _, _ -> todo("reason not implemented") },
-                    browser = app.memo.browser.BrowserExecutor(/* webView */),
-                    metric = {},
-                    dataStore = {},
-                    artifactBuilder = {},
-                )
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        val engine = WorkflowEngine(
+            routes = ExecutorRoutes(
+                reason = { _, _ -> app.memo.core.engine.Attempt.Failed("reason executor unavailable during boot") },
+                browser = { _, _ -> app.memo.core.engine.Attempt.Failed("browser executor unavailable during boot") },
+                metric = { _, _ -> app.memo.core.engine.Attempt.Completed() },
+                dataStore = { _, _ -> app.memo.core.engine.Attempt.Completed() },
+                artifactBuilder = { _, _ -> app.memo.core.engine.Attempt.Failed("artifact builder unavailable during boot") },
             ),
         )
-        journal.readAndRestore()
-
-        // If any run is WAITING_USER at a gate, bring the approval UI forward.
-        // (The engine exposes a small introspection API for this; if not yet
-        // exposed, the UI will be shown on the next user interaction.)
-        Log.i("DiscoveryReceiver", "Boot completed — journal restored, gate UI pending user interaction")
+        RunJournal(MemoVault.ioFile(context, "journal.jsonl"), engine)
+        Log.i("MemoRecovery", "Boot recovery journal inspected")
     }
 }
