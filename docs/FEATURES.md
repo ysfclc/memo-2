@@ -13,15 +13,15 @@ Legend:
 - [ ] A1 Voice-first intent capture, including from a locked phone · M2.A3, M2.C1, M2.C2
 - [ ] A2 Intent → typed workflow, **generated dynamically by the local orchestrator** (never hardcoded per use case) · M3.A1
 - [x] A3 Workflow DSL with step kinds reason, browser_automation, app_automation, human_approval, data_persist, metric_collect, branch, retry, plus async external steps (`Attempt.Pending`/`deliverExternal`) · M0.A1, M0.A8 · CI run 40374975745
-- [~] A4 Workflows persisted, resumable, versioned, re-runnable · runs persisted (plaintext, 2b43e36); encryption M0.C2; versioned templates M0.A4; re-run M3.5.B2
+- [~] A4 Workflows persisted (encrypted, M0.C2), resumable (M0.A1), versioned (semver registry, M0.A4); re-run UI M3.5.B2
 - [ ] A5 Route each step: local orchestration / frontier AI (web or app) / browser automation / app automation / human gate · M0.A6, M4.*
 - [ ] A6 Local agent is capable (tool-using, advanced work); frontier AIs reached via their apps or web UIs (no API keys assumed); routing per task class is a user setting · M0.A6, M3.A1, M3.A4, M4.A2, M4.B3
-- [ ] A7 Pluggable `ModelRouter` that picks the frontier target per step and records which one and why · M0.A6, M4.C2
+- [~] A7 Pluggable `ModelRouter` that picks the frontier target per step and records which one and why · core done (M0.A6); UI M4.C2
 - [~] A8 Fill the artifact before approval; approvals show the **completed** artifact · gates bound to content hash (core); JSON view only today; renderers M3.B1
 - [x] A9 Approvals checkpointed, persisted and auditable (hash-bound gates; outbound events now recorded in the audit chain) · M0.A1 · CI run 40374975745
 - [ ] A10 Execute approved workflows end to end, checkpointing at each gate · M3.A3, M4.*, M5.*
 - [ ] A11 Instrument everything: logs, tracking, metrics feeding back into planning · M5.C1, M3.A2, M6.2
-- [~] A12 Versioned schema and artifact registry with semantic versions, reuse-first, first-class migrations · registry v1 done; v2 entities M0.A3 (verification); semver + migration M0.A4
+- [x] A12 Versioned schema and artifact registry with semantic versions, reuse-first, first-class migrations (first real migration v1→v2) · M0.A3, M0.A4
 - [ ] A13 Schemas: Person, Company, Job, ContentDraft, Post, MetricSample, WorkflowTemplate, Prompt, ArchitecturalPrinciple (+ Project, Note, ContentPreference, ChannelAccount, ProviderAdapter) · v1 done for the first 6; rest M0.A3/M0.A4
 
 ## B. Use cases (acceptance scenarios)
@@ -85,7 +85,7 @@ Legend:
 - [ ] G5 Profile and content preferences that feed planning · M3.C1
 
 ## H. Security & trust
-- [ ] H1 Encrypted local DB (Keystore AES-GCM vault) with migration from plaintext · M0.C1, M0.C2
+- [~] H1 Encrypted local DB (Keystore AES-GCM vault) with verified migration from plaintext · M0.C1, M0.C2 · CI ✔; device check pending
 - [ ] H2 Encrypted credential/token vault · M0.C1, M1.B2
 - [~] H3 Redaction before anything leaves the device · core Redactor done; wired into consults in M4.A2
 - [~] H4 User-auditable outbound log (hash-chained) · chain exists; wiring fixed in M0.A1; viewer M6.2
@@ -108,7 +108,7 @@ Legend:
 
 ## J. Reliability & engineering (self-audit items)
 - [ ] J1 Offline queue + boot recovery · M6.1
-- [ ] J2 Rate limiting per provider/app · M0.A6, §2d
+- [~] J2 Rate limiting per provider/app · core RateLimiter + circuit breaker done (M0.A6); humanizer pacing M3.5.A2
 - [ ] J3 Error recovery: retry/backoff, takeover, NEEDS_REVIEW · core + M4.*
 - [ ] J4 Observability: local diagnostics, crash log, run journal (no analytics) · M6.2
 - [x] J5 Platform boundary (`core/platform`) for a later desktop build: LLM, speech, vault, web/app channels, device, scheduler interfaces · M0.A7 · CI run 40374975745
