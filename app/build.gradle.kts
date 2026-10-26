@@ -168,7 +168,7 @@ dependencies {
 
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("androidx.webkit:webkit:1.17.1")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("androidx.biometric:biometric:1.1.0")
