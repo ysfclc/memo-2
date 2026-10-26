@@ -128,6 +128,7 @@ jobs:
           unzip -l "$apk" > apk-contents.txt
           unzip -l "$apk" | grep 'lib/' || true
           grep -q 'lib/arm64-v8a/libmemo_llama.so' apk-contents.txt || { echo "::error::libmemo_llama.so (arm64-v8a) missing from APK"; exit 1; }
+          grep -q 'lib/arm64-v8a/libmemo_llama_dp.so' apk-contents.txt || { echo "::error::libmemo_llama_dp.so (arm64-v8a dotprod) missing from APK"; exit 1; }
           grep -q 'lib/x86_64/libmemo_llama.so' apk-contents.txt || { echo "::error::libmemo_llama.so (x86_64) missing from APK"; exit 1; }
           echo "Total APK size: $(stat -c %s "$apk") bytes"
 
