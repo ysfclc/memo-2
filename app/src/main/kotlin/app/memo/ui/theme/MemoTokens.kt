@@ -1,8 +1,8 @@
 package app.memo.ui.theme
 
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -114,12 +114,12 @@ data class MemoSpacing(
 )
 
 data class MemoShapes(
-    val xs: Shape = RoundedCornerShape(8.dp),
-    val sm: Shape = RoundedCornerShape(12.dp),
-    val md: Shape = RoundedCornerShape(18.dp),
-    val lg: Shape = RoundedCornerShape(24.dp),
-    val xl: Shape = RoundedCornerShape(30.dp),
-    val pill: Shape = RoundedCornerShape(percent = 50),
+    val xs: CornerBasedShape = RoundedCornerShape(8.dp),
+    val sm: CornerBasedShape = RoundedCornerShape(12.dp),
+    val md: CornerBasedShape = RoundedCornerShape(18.dp),
+    val lg: CornerBasedShape = RoundedCornerShape(24.dp),
+    val xl: CornerBasedShape = RoundedCornerShape(30.dp),
+    val pill: CornerBasedShape = RoundedCornerShape(percent = 50),
 )
 
 /** A soft, low-contrast shadow. Alphas scale the ink colour, so light and dark both stay subtle. */
