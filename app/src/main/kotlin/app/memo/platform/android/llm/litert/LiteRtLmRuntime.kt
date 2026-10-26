@@ -191,6 +191,10 @@ class LiteRtLmRuntime(
 
     private fun generate(request: Active, turns: List<ChatTurn>, params: GenParams): Outcome {
         if (request.cancelled.get()) return Outcome.Cancelled
+        if (params.stop.isNotEmpty()) {
+            // LiteRT-LM's callback API has no stop-sequence parameter, so the request is refused, not ignored.
+            return Outcome.Failed(LlmError.Unsupported("stop sequences are not supported by LiteRT-LM"))
+        }
         val res = resident ?: return Outcome.Failed(LlmError.Other("no model loaded"))
         val split = splitTurns(turns)
             ?: return Outcome.Failed(LlmError.Unsupported("the final turn must be a user or tool turn"))

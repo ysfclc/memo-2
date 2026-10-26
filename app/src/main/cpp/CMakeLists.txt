@@ -25,6 +25,18 @@ set(GGML_OPENMP          OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS    OFF CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# arm64 CPU feature path. GGML_CPU_ALL_VARIANTS needs GGML_BACKEND_DL, which needs shared
+# backends, so it cannot be used with this static build. GGML_CPU_ARM_ARCH is supported
+# at b11460 (ggml/src/ggml-cpu/CMakeLists.txt) and gives one fixed -march for the whole
+# library: dotprod and fp16 (ARMv8.2-A). Devices without that baseline would fault, so the
+# ABI check keeps x86_64 (emulator) on the generic build. See docs/ENGINEERING_LOG.md D-026.
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(GGML_CPU_ARM_ARCH "armv8.2-a+dotprod+fp16" CACHE STRING "" FORCE)
+    message(STATUS "memo_llama: arm64 CPU arch set to armv8.2-a+dotprod+fp16")
+else()
+    message(STATUS "memo_llama: generic CPU build for ABI ${ANDROID_ABI}")
+endif()
+
 FetchContent_Declare(
     llama_cpp
     URL https://github.com/ggml-org/llama.cpp/archive/refs/tags/b11460.tar.gz
