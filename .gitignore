@@ -19,3 +19,4 @@ local.properties
 *.jks
 gradle.properties.local
 .env
+.claude/

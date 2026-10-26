@@ -322,6 +322,43 @@ The user doesn't operate anything; the agent works on its own and only surfaces 
   - Thermal and low-battery auto-pause.
 - The default-assistant role (long-press power) remains the zero-battery path.
 
+## 2g. Local agent engine + media engine
+
+**User requirement:** upgrade the local agent for advanced work. It must be able to create content assets itself: text, images, carousels, video. The user can also route any such task to a frontier AI through the in-Memo web runtime. This **refines A6/D-016**: the local model is no longer orchestrator-only. Routing per task class is a user setting (Settings → Autonomy/Routing), defaulting to "local first, frontier when the local result fails quality checks or the task class is marked heavy".
+
+### Local agent (tool-using)
+- **`AgentEngine`** (core, pure; app supplies `LlmRuntime`) runs a bounded loop:
+  1. The model receives the goal, ContextPacket and tool schemas, and replies with ONE JSON tool call or a final answer.
+  2. Core validates the call against the tool's schema; invalid calls get up to 2 repairs.
+  3. The tool executes.
+  4. The observation is appended (capped).
+  5. Bounds: ≤ 12 tool calls, token and wall-clock budgets, no-progress detection.
+- Every side-effecting tool is a **workflow step** (gated or envelope-bound per §2a/§2e). The agent cannot bypass the engine.
+- **Tools:**
+  - `search_workspace`, `get_record`
+  - `create_record` / `update_record` (gated per autonomy)
+  - `draft_text`, `summarize`, `extract_json`
+  - `generate_image`, `render_carousel`, `compose_video`
+  - `consult_frontier` (routed via ModelRouter → web or app)
+  - `browse_capture` (web runtime, read-only)
+  - `run_workflow`, `schedule_workflow`
+  - `ask_user` (queues a question in Live and the console)
+- **Models:** the agent runs on the user's chosen local model, recommended Gemma 4 E4B / Qwen3-4B / Phi-4-mini (thinking where supported), on either runtime. Smaller models fall back to a planner-only mode.
+- **Quality checks:**
+  - drafts: length/format/forbidden-claims checks against ContentPreference
+  - JSON: schema
+  - images: safety + resolution checks
+  - A failure escalates to the frontier route if the user's routing allows it.
+
+### Media engine
+- **Images:**
+  1. Local: MediaPipe `com.google.mediapipe:tasks-vision-image-generator:0.10.26.1` (Stable-Diffusion-class model, downloaded through the Hub, pinned + SHA-verified; prompt, negative prompt, steps, seed). The API is verified from the AAR's classes at implementation time.
+  2. Advanced local (capability-gated): litert-community diffusion pipelines (FLUX.2-klein-4B-LiteRT, Z-Image-Turbo-LiteRT) via the LiteRT runtime, following each model's published pipeline. Enabled only on devices passing a RAM/accelerator check.
+  3. Frontier: image generation in ChatGPT/Gemini inside the in-Memo web runtime. The generated image is downloaded from the page as an artifact (a consult, gated by autonomy).
+- **Carousels:** slides rendered locally from design tokens and templates (title, body, image slots) to PNG + PDF.
+- **Video:** local MediaCodec/MediaMuxer H.264 composer: scenes (images/slides) with Ken-Burns motion, captions, transitions, and a Kokoro voice-over track mixed to AAC. Storyboards are written by the agent.
+- **Gates** show the real rendered assets with target channels. Assets are stored encrypted, then exported to app-private cache only for upload.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -703,6 +740,12 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   5. Reuse-first: look up an existing template or project before creating.
 - acceptance: tests with a fake LlmRuntime: a good plan, a repaired plan, a fallback, and a reuse hit.
 
+**M3.A4 — Local agent engine (tool-using)**
+- deps: M3.A1, M1.A3
+- files: `core/.../agent/AgentEngine.kt`, `core/.../agent/Tools.kt` (tool schemas + strict arg validation), `app/.../runtime/AgentTools.kt` (tool implementations wired to engine, registries, media, router), tests with a fake LlmRuntime
+- steps: implement §2g's agent loop, tool set, bounds, repairs and quality-check escalation. Side-effecting tools become workflow steps.
+- acceptance: tests for valid calls, invalid → repair → success, budget exhaustion, no-progress stop, gated tool queueing, and escalation to frontier when routing allows it.
+
 **M3.A2 — Context retrieval**
 - deps: M3.A1
 - files: `core/.../prompts/PacketBuilder.kt`, tests
@@ -967,8 +1010,18 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   6. Studio: per-post charts plus strategy hints fed back into the packet.
 - acceptance: E2E test + CI green.
 
+**M5.C1a — Local image generation runtime**
+- deps: M1.B2
+- files: `app/.../platform/android/media/ImageGenRuntime.kt` (MediaPipe ImageGenerator 0.10.26.1; API taken from the AAR classes), `app/.../platform/android/media/LiteRtDiffusion.kt` (capability-gated FLUX.2-klein / Z-Image pipelines per their model cards), Hub entries for the image models (pinned + SHA)
+- steps:
+  1. Load the model, generate with prompt/negative/steps/seed, and report progress.
+  2. Cancel.
+  3. RAM/accelerator capability check.
+  4. Save the output as an encrypted artifact.
+- acceptance: CI green; device check generates a 512×512 image.
+
 **M5.C1b — UC-4 media assets (image / carousel / video)**
-- deps: M5.C1, M4.A2, M2.A2
+- deps: M5.C1, M5.C1a, M3.A4, M4.A2, M2.A2
 - files: `core/.../content/MediaSpec.kt` (asset specs: image prompt, carousel slides, video storyboard with scenes, captions, duration), `app/.../platform/android/media/CarouselRenderer.kt` (slides rendered from design tokens to PNG + PDF), `app/.../platform/android/media/VideoComposer.kt` (MediaCodec/MediaMuxer H.264 slideshow with Ken-Burns motion, captions, Kokoro voice-over), `app/.../runtime/ImageGeneration.kt` (frontier image generation via the in-Memo web runtime; the downloaded image is saved as an artifact), tests
 - steps:
   1. The draft step chooses the asset type from ContentPreference.

@@ -15,7 +15,7 @@ Legend:
 - [~] A3 Workflow DSL with step kinds reason, browser_automation, app_automation, human_approval, data_persist, metric_collect, branch, retry · core v1 done (tested); async steps M0.A1 in verification
 - [~] A4 Workflows persisted, resumable, versioned, re-runnable · runs persisted (plaintext, 2b43e36); encryption M0.C2; versioned templates M0.A4; re-run M3.5.B2
 - [ ] A5 Route each step: local orchestration / frontier AI (web or app) / browser automation / app automation / human gate · M0.A6, M4.*
-- [ ] A6 Local model = orchestrator only; frontier AIs reason via their apps or web UIs (no API keys assumed) · M0.A6, M3.A1, M4.A2, M4.B3
+- [ ] A6 Local agent is capable (tool-using, advanced work); frontier AIs reached via their apps or web UIs (no API keys assumed); routing per task class is a user setting · M0.A6, M3.A1, M3.A4, M4.A2, M4.B3
 - [ ] A7 Pluggable `ModelRouter` that picks the frontier target per step and records which one and why · M0.A6, M4.C2
 - [~] A8 Fill the artifact before approval; approvals show the **completed** artifact · gates bound to content hash (core); JSON view only today; renderers M3.B1
 - [~] A9 Approvals checkpointed, persisted and auditable · core done; audit wiring fixed in M0.A1 (verification)
@@ -59,6 +59,12 @@ Legend:
 - [ ] E4 On-device inference running (streaming, stop, GPU→CPU fallback, RAM preflight) · M1.A1, M1.A2, M1.A3
 - [ ] E5 Downloads survive app close (foreground worker), resume, notification progress, optional HF token · M1.B2
 - [ ] E6 Per-model settings (system prompt, temperature, context, thinking) · M1.B3
+
+## E+. Local agent & media engine
+- [ ] E7 Tool-using local agent engine (search/create/update records, draft, summarise, generate image, render carousel, compose video, consult frontier, browse, run/schedule workflows, ask user) · M3.A4
+- [ ] E8 Local image generation (MediaPipe ImageGenerator; advanced FLUX.2-klein / Z-Image via LiteRT on capable devices) · M5.C1a
+- [ ] E9 Carousel rendering (PNG + PDF) and video composition (slides/images, motion, captions, Kokoro voice-over) · M5.C1b
+- [ ] E10 Route media/heavy tasks to frontier AIs via the in-Memo web runtime when chosen · M3.A4, M4.A2
 
 ## F. Chat & voice
 - [ ] F1 Proper chat interface: threads, streaming markdown, stop/regenerate/edit/copy/delete · M1.C1, M1.C2
