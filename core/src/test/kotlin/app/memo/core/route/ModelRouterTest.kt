@@ -4,6 +4,7 @@ import app.memo.core.policy.ChannelSwitches
 import org.json.JSONObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -339,5 +340,74 @@ class ModelRouterTest {
         val before = route(StepRole.CRITIQUE, targets = listOf(chatgpt, claude), health = health, limiter = limiter, at = now + 1_000L)
         val after = route(StepRole.CRITIQUE, targets = listOf(chatgpt, claude), health = restoredHealth, limiter = restoredLimiter, at = now + 1_000L)
         assertEquals(before, after)
+    }
+
+    // ---- frontier channel switch (Fix B) -------------------------------------
+
+    @Test
+    fun frontierSwitchOffRoutesOnlyLocalTargets() {
+        val sw = switches.withChannel("frontier", false)
+        val d = decision(route(StepRole.CRITIQUE, targets = listOf(local, chatgpt, chat), sw = sw))
+        assertEquals(local.id, d.target.id)
+        assertTrue(d.rationale.contains("fallback, no frontier target eligible"), d.rationale)
+        assertTrue(d.alternatives.contains("ChatGPT: frontier channel off"), d.alternatives.toString())
+        assertTrue(d.alternatives.contains("Example Chat: frontier channel off"), d.alternatives.toString())
+        assertTrue(d.rationale.contains("ChatGPT: frontier channel off"), d.rationale)
+    }
+
+    @Test
+    fun frontierSwitchOffWithOnlyFrontierTargetsIsNoRouteNamingTheBlocker() {
+        val sw = switches.withChannel("frontier", false)
+        val text = reason(route(StepRole.CRITIQUE, targets = listOf(chatgpt, claude), sw = sw))
+        assertTrue(text.contains("ChatGPT: frontier channel off"), text)
+        assertTrue(text.contains("Claude: frontier channel off"), text)
+    }
+
+    @Test
+    fun frontierSwitchAlsoGatesOptedInApiTargets() {
+        val prefs = RoutingPreferences().withMode(StepRole.RESEARCH, RoutingMode.FRONTIER_ONLY)
+        val sw = switches.withChannel("api", true).withChannel("frontier", false)
+        val text = reason(route(StepRole.RESEARCH, targets = listOf(api), prefs = prefs, sw = sw))
+        assertTrue(text.contains("Custom API: frontier channel off"), text)
+    }
+
+    @Test
+    fun missingFrontierKeyLeavesFrontierTargetsEnabled() {
+        val d = decision(route(StepRole.CRITIQUE, targets = listOf(chatgpt)))
+        assertEquals(chatgpt.id, d.target.id)
+    }
+
+    // ---- pins versus routing mode (Fix C) ------------------------------------
+
+    @Test
+    fun frontierPinIsIgnoredAndReportedUnderLocalOnly() {
+        val prefs = RoutingPreferences()
+            .withMode(StepRole.CRITIQUE, RoutingMode.LOCAL_ONLY)
+            .withPin(StepRole.CRITIQUE, "chatgpt")
+        val d = decision(route(StepRole.CRITIQUE, prefs = prefs))
+        assertEquals(local.id, d.target.id)
+        assertTrue(d.alternatives.contains("pinned chatgpt ignored: not allowed in LOCAL_ONLY"), d.alternatives.toString())
+        assertFalse(d.rationale.contains("pinned by you"), d.rationale)
+    }
+
+    @Test
+    fun localPinIsIgnoredAndReportedUnderFrontierOnly() {
+        val prefs = RoutingPreferences()
+            .withMode(StepRole.PLAN, RoutingMode.FRONTIER_ONLY)
+            .withPin(StepRole.PLAN, local.id)
+        val d = decision(route(StepRole.PLAN, prefs = prefs))
+        assertEquals(chatgpt.id, d.target.id)
+        assertTrue(d.alternatives.contains("pinned ${local.id} ignored: not allowed in FRONTIER_ONLY"), d.alternatives.toString())
+        assertFalse(d.rationale.contains("pinned by you"), d.rationale)
+    }
+
+    @Test
+    fun pinAllowedByTheModeStillWins() {
+        val prefs = RoutingPreferences()
+            .withMode(StepRole.PLAN, RoutingMode.FRONTIER_ONLY)
+            .withPin(StepRole.PLAN, claude.id)
+        val d = decision(route(StepRole.PLAN, prefs = prefs))
+        assertEquals(claude.id, d.target.id)
+        assertTrue(d.rationale.contains("pinned by you"), d.rationale)
     }
 }

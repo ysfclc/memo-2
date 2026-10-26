@@ -78,6 +78,39 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
 
     fun quarantinedRows(): List<Quarantined> = quarantined.toList()
 
+    /**
+     * Re-adds quarantined rows read back from a saved envelope, unchanged.
+     * Restored rows never enter the valid rows here; they stay quarantined
+     * until the user fixes and releases them with [releaseQuarantined].
+     */
+    internal fun restoreQuarantined(rows: List<Quarantined>) {
+        quarantined += rows.map { it.copy(kind = kind) }
+    }
+
+    /**
+     * Fixes-and-re-imports one quarantined row. The row's raw text is parsed
+     * again with the scheme; if it is now valid it is upserted (reuse, bump, or
+     * create, exactly like any other write) and removed from the quarantine.
+     * If it is still invalid, or the upsert is rejected, the row stays
+     * quarantined and nothing changes. [index] is the position in [quarantinedRows].
+     */
+    fun releaseQuarantined(index: Int, now: Long): Put<T> {
+        if (index !in quarantined.indices) {
+            return Put.Failed("no quarantined row at index $index")
+        }
+        val row = quarantined[index]
+        val obj = runCatching { JSONObject(row.raw) }.getOrNull()
+            ?: return Put.Failed("quarantined row $index is not a JSON object")
+        val decoded = scheme.fromJson(obj)
+            ?: return Put.Failed("quarantined row $index is still structurally invalid")
+        // Checked here, not left to upsert: a blank key makes upsert quarantine a new copy.
+        if (scheme.id(decoded).isBlank()) return Put.Failed("quarantined row $index has a blank natural key")
+        val result = upsert(decoded, now)
+        if (result is Put.Failed) return result
+        quarantined.removeAt(index)
+        return result
+    }
+
     fun findFirst(predicate: (T) -> Boolean): T? = byId.values.firstOrNull(predicate)
 
     fun filter(predicate: (T) -> Boolean): List<T> = byId.values.filter(predicate)

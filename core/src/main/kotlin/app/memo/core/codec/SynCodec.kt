@@ -1,6 +1,7 @@
 package app.memo.core.codec
 
 import app.memo.core.Limits
+import app.memo.core.registry.Registry
 import app.memo.core.registry.Workspace
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,6 +18,9 @@ object SynCodec {
 
     /** Schema version of every registry in a v1 envelope (v1 predates per-registry schemas). */
     private const val V1_REGISTRY_SCHEMA: String = "1.0"
+
+    /** Envelope key for quarantined rows; optional, so v2 files written before it existed still parse. */
+    private const val QUARANTINE_KEY: String = "quarantine"
 
     /** Upper bound on registry keys in one envelope; leaves headroom over the 16 registries in use. */
     private const val MAX_REGISTRIES_PER_ENVELOPE: Int = 64
@@ -75,6 +79,7 @@ object SynCodec {
         for (registry in workspace.all()) {
             registry.load(registries.optJSONArray(registry.kind))
         }
+        restoreQuarantine(workspace, current.optJSONObject(QUARANTINE_KEY))
         return ParseOutcome.Ok(workspace, version, migrated)
     }
 
@@ -91,11 +96,53 @@ object SynCodec {
             .put("exportedAt", exportedAt)
             .put("schemas", schemas)
             .put("registries", registries)
+        val quarantine = quarantineJson(workspace)
+        if (quarantine.length() > 0) out.put(QUARANTINE_KEY, quarantine)
         val text = out.toString(2)
         if (text.length > Limits.MAX_WORKSPACE_BYTES) {
             throw IllegalStateException("serialized workspace exceeds the size cap")
         }
         return text
+    }
+
+    /**
+     * Quarantined rows, keyed by registry kind. Each entry keeps the reason and the
+     * original row text, so a bad row survives every save until the user releases it.
+     * Kinds with no quarantined rows are omitted.
+     */
+    private fun quarantineJson(workspace: Workspace): JSONObject {
+        val out = JSONObject()
+        for (registry in workspace.all()) {
+            val rows = registry.quarantinedRows()
+            if (rows.isEmpty()) continue
+            val arr = JSONArray()
+            rows.forEach { arr.put(JSONObject().put("reason", it.reason).put("raw", it.raw)) }
+            out.put(registry.kind, arr)
+        }
+        return out
+    }
+
+    /**
+     * Re-adds quarantined rows from the envelope, unchanged. Entries without a
+     * string `raw` are skipped; unknown registry kinds are ignored. Restored rows
+     * are never promoted into the valid rows here.
+     */
+    private fun restoreQuarantine(workspace: Workspace, quarantine: JSONObject?) {
+        if (quarantine == null) return
+        for (registry in workspace.all()) {
+            val arr = quarantine.optJSONArray(registry.kind) ?: continue
+            val rows = mutableListOf<Registry.Quarantined>()
+            for (i in 0 until arr.length()) {
+                val entry = arr.optJSONObject(i) ?: continue
+                if (!entry.has("raw")) continue
+                rows += Registry.Quarantined(
+                    kind = registry.kind,
+                    reason = entry.optString("reason", "restored from quarantine"),
+                    raw = entry.optString("raw", ""),
+                )
+            }
+            registry.restoreQuarantined(rows)
+        }
     }
 
     /**
