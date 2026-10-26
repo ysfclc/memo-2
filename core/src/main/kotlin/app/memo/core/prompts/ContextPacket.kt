@@ -13,7 +13,7 @@ class ContextPacket private constructor(
 ) {
 
     val fieldCount: Int get() = fields.size
-    val approximateChars: Int get() = fields.values.sumOf { it.length + it.toString().length / 8 }
+    val approximateChars: Int get() = fields.entries.sumOf { it.key.length + it.value.length + 2 }
 
     fun isEmpty(): Boolean = fields.isEmpty()
 

@@ -45,14 +45,14 @@ class LocalAssistant(
     /** Parse raw speech and dispatch the resulting VoiceCommand into the engine. */
     private fun parseAndDispatch(raw: String) {
         val now = System.currentTimeMillis()
-        val zone = java.util.TimeZone.getDefault()
+        val zone = java.time.ZoneId.systemDefault()
 
         val grammarResult = CommandGrammar.parse(raw, now, zone)
 
         when (grammarResult) {
             is CommandGrammar.VoiceCommand.Cancel -> {
                 // Cancel the current step / run.
-                engine.markStepFailed("voice", "user cancelled: ${raw.take(60)}")
+                android.util.Log.i("MemoVoice", "User cancelled voice command")
             }
             is CommandGrammar.VoiceCommand.Reminder -> {
                 val cmd = grammarResult as CommandGrammar.VoiceCommand.Reminder
@@ -72,7 +72,7 @@ class LocalAssistant(
                 onCommand(cmd)
             }
             else -> {
-                engine.markStepFailed("voice", "unrecognized command: ${raw.take(60)}")
+                android.util.Log.w("MemoVoice", "Unrecognized voice command")
             }
         }
     }

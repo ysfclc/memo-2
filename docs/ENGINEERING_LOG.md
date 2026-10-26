@@ -52,6 +52,8 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 **C-006 · Kotlin 2.4 removed the `kotlinOptions` DSL from build scripts.** First M0 CI run (40332432835) failed with `Using 'jvmTarget: String' is an error. Please migrate to the compilerOptions DSL`. In `.gradle.kts` files, `import org.jetbrains.kotlin.gradle.dsl.JvmTarget` goes at the very top (before `plugins {}`), and JVM target moves to a top-level `kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }` block. Any new module must use this DSL, not `kotlinOptions`.
 
+**C-007 · 2026-10-26 · Reliability repair pass.** Replaced invalid Compose theme/scaffold placeholders with Material 3 APIs, fixed the duplicate motion implementation, corrected Kotlin `Result` and JSON validation usage, fixed packet size accounting, and hardened browser bridge state to bind callbacks to the active outbound event. Local verification is UNVERIFIED because this sandbox has no JDK/Gradle/Android SDK; GitHub Actions remains the authoritative build path.
+
 ---
 
 ## NOTES BY MILESTONE
