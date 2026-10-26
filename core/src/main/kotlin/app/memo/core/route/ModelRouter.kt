@@ -56,14 +56,17 @@ object RoleAffinity {
  * Pure routing. Time is supplied as [now]; nothing here reads the clock.
  *
  * Steps: (1) filter to targets that are enabled, list the role, pass the kill switch and channel and
- * provider switches (API needs an explicit `channels["api"] == true`), and are neither rate-limited nor
- * circuit-open; (2) apply the [RoutingMode] with the pinned target first if eligible; (3) rank by
+ * provider switches (API needs an explicit `channels["api"] == true`; WEB, APP and API also need the
+ * `frontier` channel switch, where a missing key means enabled), and are neither rate-limited nor
+ * circuit-open; (2) apply the [RoutingMode] with the pinned target first if eligible and the mode allows
+ * its channel (a pin the mode forbids is ignored and reported); (3) rank by
  * affinity x health, ties by id then channel; (4) explain the choice and every rejection; (5) return
  * [RouteResult.NoRoute] naming each blocker when nothing is eligible.
  */
 object ModelRouter {
 
     private const val API_KEY = "api"
+    private const val FRONTIER_KEY = "frontier"
 
     fun route(
         role: StepRole,
@@ -92,7 +95,9 @@ object ModelRouter {
 
         val pinId = prefs.pinFor(role)
         val pinned: RouteTarget? = pinId?.let { id -> ordered.firstOrNull { it.id == id } }
-        val pinnedOk: RouteTarget? = pinned?.takeIf { p -> eligible.any { it.id == p.id } }
+        // A pin may not leave the side the mode allows: LOCAL_ONLY never takes a frontier pin.
+        val pinAllowedByMode = pinned != null && (pinned.channel in primaryChannels || pinned.channel in secondaryChannels)
+        val pinnedOk: RouteTarget? = pinned?.takeIf { p -> pinAllowedByMode && eligible.any { it.id == p.id } }
 
         val ranked = eligible.sortedWith(
             compareByDescending<RouteTarget> { score(role, it, health, now) }
@@ -127,6 +132,9 @@ object ModelRouter {
         val alternatives = mutableListOf<String>()
         if (pinId != null && pinned == null) {
             alternatives.add("pinned $pinId: not registered")
+        }
+        if (pinned != null && !pinAllowedByMode) {
+            alternatives.add("pinned $pinId ignored: not allowed in ${mode.name}")
         }
         for ((t, blk) in evaluated) {
             if (t.id == chosen.id) continue
@@ -167,6 +175,8 @@ object ModelRouter {
             out.add("API not opted in")
         } else if (!switches.allows(key, t.id)) {
             out.add(if (switches.channels[key] == false) "$key channel off" else "provider not enabled")
+        } else if (t.channel != TargetChannel.LOCAL && !switches.allows(FRONTIER_KEY, t.id)) {
+            out.add(if (switches.channels[FRONTIER_KEY] == false) "frontier channel off" else "provider not enabled")
         }
         when (val decision = limiter.check(t.id, now)) {
             is RateDecision.Wait -> out.add("rate-limited until ${iso(decision.untilMs)}")

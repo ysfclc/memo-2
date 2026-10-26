@@ -290,4 +290,190 @@ class ActionPolicyTest {
         assertFalse(isHumanOnly(classify("Send")))
         assertFalse(isHumanOnly(classify("Open")))
     }
+
+    /** Misses fixed in M0.F3: new phrases, stems and multilingual equivalents. */
+    private val reviewMisses: List<Pair<String, ActionClass>> = listOf(
+        // Payment phrases
+        "Check out" to BLOCKED,
+        "Place your order" to BLOCKED,
+        "Order now" to BLOCKED,
+        "Complete purchase" to BLOCKED,
+        "Continue with PayPal" to BLOCKED,
+        "PayPal" to BLOCKED,
+        "Google Pay" to BLOCKED,
+        "GPay" to BLOCKED,
+        "Apple Pay" to BLOCKED,
+        "Add payment method" to BLOCKED,
+        // Account phrases
+        "Deactivate account" to BLOCKED,
+        "Close account" to BLOCKED,
+        // Destructive and sign-out phrases
+        "Cancel subscription" to NEEDS_APPROVAL,
+        "Terminate" to NEEDS_APPROVAL,
+        "Unlink" to NEEDS_APPROVAL,
+        "Erase all data" to NEEDS_APPROVAL,
+        "Wipe data" to NEEDS_APPROVAL,
+        "Uninstall" to NEEDS_APPROVAL,
+        "Log out" to NEEDS_APPROVAL,
+        "Sign out" to NEEDS_APPROVAL,
+        // Inflections (stems)
+        "Passwords" to BLOCKED,
+        "Purchases" to BLOCKED,
+        "Payments" to BLOCKED,
+        "Deleting" to NEEDS_APPROVAL,
+        "Deleted" to NEEDS_APPROVAL,
+        "Removal" to NEEDS_APPROVAL,
+        "Erased" to NEEDS_APPROVAL,
+        "Hasła" to BLOCKED,
+        "Haseł" to BLOCKED,
+        "Şifreyi" to BLOCKED,
+        "Şifreni" to BLOCKED,
+        "Silin" to NEEDS_APPROVAL,
+        "Silmek" to NEEDS_APPROVAL,
+        // Multilingual equivalents
+        "Siparişi ver" to BLOCKED,
+        "Jetzt bestellen" to BLOCKED,
+        "Kauf abschließen" to BLOCKED,
+        "Mit PayPal fortfahren" to BLOCKED,
+        "Zahlungsmethode hinzufügen" to BLOCKED,
+        "Realizar pedido" to BLOCKED,
+        "Completar compra" to BLOCKED,
+        "Añadir método de pago" to BLOCKED,
+        "Finaliser l'achat" to BLOCKED,
+        "Commander maintenant" to BLOCKED,
+        "Ajouter un moyen de paiement" to BLOCKED,
+        "Złóż zamówienie" to BLOCKED,
+        "Zakończ zakup" to BLOCKED,
+        "Dodaj metodę płatności" to BLOCKED,
+        "Kontynuuj z PayPal" to BLOCKED,
+        "Hesabı kapat" to BLOCKED,
+        "Konto schließen" to BLOCKED,
+        "Cerrar cuenta" to BLOCKED,
+        "Fermer le compte" to BLOCKED,
+        "Zamknij konto" to BLOCKED,
+        "Gelöscht" to NEEDS_APPROVAL,
+        "Abmelden" to NEEDS_APPROVAL,
+        "Deinstallieren" to NEEDS_APPROVAL,
+        "Cerrar sesión" to NEEDS_APPROVAL,
+        "Desinstalar" to NEEDS_APPROVAL,
+        "Se déconnecter" to NEEDS_APPROVAL,
+        "Désinstaller" to NEEDS_APPROVAL,
+        "Effacer" to NEEDS_APPROVAL,
+        "Wyloguj się" to NEEDS_APPROVAL,
+        "Odinstaluj" to NEEDS_APPROVAL,
+        "Çıkış yap" to NEEDS_APPROVAL,
+        "Oturumu kapat" to NEEDS_APPROVAL,
+        "Kaldır" to NEEDS_APPROVAL,
+        // Stems must not reach unrelated words
+        "Silver" to SAFE,
+        "Silent mode" to SAFE,
+        "Payee" to SAFE,
+        "Borrador" to SAFE,
+        // Guards: descriptive labels that contain a risky stem
+        "Silinmiş öğeler" to SAFE,
+        "Silinenler" to SAFE,
+        "Usunięte elementy" to SAFE,
+        "Menedżer haseł" to SAFE,
+        "Passwort-Manager" to SAFE,
+        "Gelöschte Elemente" to SAFE,
+        "Éléments supprimés" to SAFE,
+        "Elementos eliminados" to SAFE,
+        "Administrador de contraseñas" to SAFE,
+        "Gestionnaire de mots de passe" to SAFE,
+        "Şifreleme" to SAFE,
+    )
+
+    @Test
+    fun reviewMissesNowClassifyCorrectly() {
+        val mismatches = reviewMisses.mapNotNull { (label, expected) ->
+            val actual = classify(label).cls
+            if (actual == expected) null else "\"$label\": expected $expected, got $actual"
+        }
+        assertEquals(emptyList<String>(), mismatches)
+    }
+
+    @Test
+    fun stemsCarryCategoryAndTerm() {
+        val plural = classify("Purchases")
+        assertEquals(PolicyCategory.PAYMENT, plural.category)
+        assertEquals("purchas", plural.term)
+        assertEquals(PolicyCategory.DESTRUCTIVE, classify("Deleting").category)
+        assertEquals(PolicyCategory.CREDENTIAL, classify("Şifreni").category)
+    }
+
+    @Test
+    fun guardsExcuseOnlyTheirOwnPhrase() {
+        // The guard covers "Deleted items"; the trailing action word still counts.
+        assertEquals(NEEDS_APPROVAL, classify("Deleted items delete").cls)
+        assertEquals(BLOCKED, classify("Password manager password").cls)
+    }
+
+    @Test
+    fun normalisationStripsNfkcAndFormatCharacters() {
+        // Fullwidth letters fold through NFKC; format characters are removed without a space.
+        assertEquals("pay", normalise("Ｐａｙ"))
+        assertEquals("payment", normalise("pay​ment"))
+        assertEquals("password", normalise("pass­word"))
+        assertEquals("delete", normalise("De‍lete"))
+        assertEquals("password", normalise("﻿pass⁠word"))
+    }
+
+    @Test
+    fun obfuscatedLabelsStillClassify() {
+        // Fullwidth "Pay now" folds to the ordinary phrase.
+        assertEquals(BLOCKED, classify("Ｐａｙ now").cls)
+        assertEquals(PolicyCategory.PAYMENT, classify("Ｐａｙ now").category)
+        // Zero-width space, zero-width non-joiner, word joiner and BOM inside a word.
+        assertEquals(PolicyCategory.PAYMENT, classify("pay​ment").category)
+        assertEquals(PolicyCategory.CREDENTIAL, classify("pass‌word").category)
+        assertEquals(PolicyCategory.PAYMENT, classify("pay⁠ment").category)
+        assertEquals(BLOCKED, classify("﻿Pay").cls)
+        // Soft hyphen inside a destructive word.
+        assertEquals(NEEDS_APPROVAL, classify("De­lete").cls)
+        assertEquals(PolicyCategory.CREDENTIAL, classify("Pass­word").category)
+    }
+
+    @Test
+    fun submitWithUnknownOrEmptyLabelNeedsApproval() {
+        assertEquals(Classification(NEEDS_APPROVAL), classifyControl("", ControlRole.SUBMIT))
+        assertEquals(NEEDS_APPROVAL, classifyControl("Gizmo", ControlRole.SUBMIT).cls)
+        assertEquals(NEEDS_APPROVAL, classifyControl("Open", ControlRole.SUBMIT).cls)
+        // A recognised label keeps its own class; BLOCKED stays BLOCKED on a submit.
+        assertEquals(BLOCKED, classifyControl("Pay now", ControlRole.SUBMIT).cls)
+        assertEquals(NEEDS_APPROVAL, classifyControl("Send", ControlRole.SUBMIT).cls)
+    }
+
+    @Test
+    fun buttonInsideAFormFailsClosedOnlyWhenContextSaysSo() {
+        assertEquals(NEEDS_APPROVAL, classifyControl("", ControlRole.BUTTON, "Login form").cls)
+        assertEquals(NEEDS_APPROVAL, classifyControl("Open", ControlRole.BUTTON, "Formular").cls)
+        assertEquals(SAFE, classifyControl("", ControlRole.BUTTON).cls)
+        assertEquals(SAFE, classifyControl("Open", ControlRole.BUTTON, "Toolbar").cls)
+        assertEquals(BLOCKED, classifyControl("Pay", ControlRole.BUTTON, "form").cls)
+    }
+
+    @Test
+    fun linkAndOtherKeepTheTableClassification() {
+        assertEquals(SAFE, classifyControl("Open", ControlRole.LINK).cls)
+        assertEquals(SAFE, classifyControl("", ControlRole.OTHER).cls)
+        assertEquals(BLOCKED, classifyControl("Pay now", ControlRole.LINK).cls)
+    }
+
+    @Test
+    fun inputsMentioningCardOrCredentialsAreBlocked() {
+        assertEquals(PolicyCategory.PAYMENT, classifyControl("Number", ControlRole.INPUT, "Card number").category)
+        assertEquals(BLOCKED, classifyControl("Code", ControlRole.INPUT, "CVV").cls)
+        assertEquals(BLOCKED, classifyControl("Account", ControlRole.INPUT, "IBAN").cls)
+        assertEquals(BLOCKED, classifyControl("Field", ControlRole.INPUT, "OTP").cls)
+        // The CREDENTIAL tail exception does not apply to input hints.
+        val policy = classifyControl("Next field", ControlRole.INPUT, "Password policy")
+        assertEquals(BLOCKED, policy.cls)
+        assertEquals(PolicyCategory.CREDENTIAL, policy.category)
+    }
+
+    @Test
+    fun ordinaryInputsStaySafe() {
+        assertEquals(SAFE, classifyControl("Name", ControlRole.INPUT, "Full name").cls)
+        assertEquals(NEEDS_APPROVAL, classifyControl("Send", ControlRole.INPUT, "Message").cls)
+    }
 }
