@@ -116,6 +116,83 @@ app/
 
 ---
 
+## 2a. Automation engineering spec (browser + app + agent loop)
+
+**Execution locus (non-negotiable).** Every automation runs **inside Memo**:
+- Web work runs in Memo's own WebView profiles (never an external browser, never a remote runner, ADB or PC).
+- App work runs through Memo's own `MemoAccessibilityService` on the same device.
+- Agent reasoning uses Memo's in-app local model, or a frontier AI reached through Memo's WebView or that AI's app on the device.
+- Nothing is delegated outside the Memo process boundary except the target website or app itself.
+
+### Agent loop (one web/app step)
+`OBSERVE → DECIDE → CHECK → ACT → VERIFY → RECORD`, repeated until the step's postcondition holds or a bound trips.
+
+1. **OBSERVE**
+   - Web: a structured DOM snapshot (visible interactive elements: role, accessible name, label, placeholder, text, test id, bounds), capped.
+   - App: the accessibility tree of the target package (bounded walk).
+   - Fallback: screenshot + OCR boxes.
+   - Each observation gets a content hash.
+2. **DECIDE**
+   - Deterministic adapter rules come first.
+   - Only when no rule applies does the local model pick **one action from the closed action vocabulary**, as JSON validated by core.
+   - The model never emits code or free-form JS.
+3. **CHECK** (core, pure). The action must pass all of:
+   - (a) `ActionPolicy` (destructive or sensitive → BLOCKED unless it is the envelope's final approved action)
+   - (b) the **approved action envelope**
+   - (c) channel switches, the kill switch and rate limits
+   - (d) the target host or package equals the envelope target
+4. **ACT.** Execute exactly one action with a resolved locator.
+5. **VERIFY.** The action's postcondition: field value equals the intended value, the expected element appeared or disappeared, the URL changed as expected, or the confirmation text is present. A failed verify is retried a bounded number of times **only for non-side-effect actions**.
+6. **RECORD.** Append to the run journal: action, locator, before/after observation hashes, result, evidence quote or screenshot hash. Outbound sends go into the hash-chained audit.
+
+### Approved action envelope (binds the gate to behaviour, not just content)
+The HUMAN_APPROVAL artifact for any web or app side effect contains:
+- the target (host or package)
+- the ordered list of intended actions, with every value to be typed or submitted
+- the single final commit action (e.g. "click 'Submit application'")
+- the expected confirmation signal
+
+The envelope is part of the artifact JSON, so it is covered by the content hash. At runtime the executor **refuses any action not in the envelope**: no other values, no other hosts or packages, no extra submits. A deviation, such as a new required field or an unexpected dialog, pauses the step for **takeover or re-approval** and never improvises.
+
+### Closed action vocabulary
+- **web:** `navigate(url in envelope hosts)`, `fill(locator, value)`, `select(locator, option)`, `check(locator, bool)`, `click(locator)`, `scroll(dir)`, `wait_for(locator|text, timeoutMs)`, `extract(locator|region) -> text`, `commit(locator)` (final, gated, at most once)
+- **app:** `launch(pkg)`, `tap(locator)`, `type(locator, value)`, `scroll(dir)`, `swipe(path)`, `back()`, `wait_text(text, timeoutMs)`, `read(region) -> text`, `commit(locator)` (final, gated, at most once)
+
+### Locators
+A multi-strategy locator, tried in this order: test id → role + accessible name → label → placeholder → exact text → CSS/view id (adapter-provided).
+- Each strategy must resolve to **exactly one** visible, enabled element.
+- Zero or several matches → no action. Escalate to the next strategy, then to takeover. **Never guess, never click by coordinates on the web.**
+- On apps, a coordinate tap via an OCR box is allowed only for non-commit actions when no node matches.
+
+### Bounds and failure semantics
+- Per step: ≤ N actions (adapter default 25, hard cap 60), wall-clock cap (default 120 s, thinking-model consults 300 s), and the same observation hash 3× in a row = no progress.
+- Any bound tripping → the step goes to WAITING_USER (takeover) with the reason.
+- `commit` is **never auto-retried**. An uncertain outcome (no confirmation signal) → NEEDS_REVIEW with evidence. Before any re-commit, an idempotency pre-check looks for an existing confirmation or submission.
+- Lock screen, wrong foreground app/host, or kill switch → immediate pause; resume only after re-observing.
+- Password/OTP/payment fields are never read or typed by automation. These always hand over to the human.
+
+### Frontier consults (agent ↔ web/app AI)
+These follow the same loop, using a provider adapter: `fill(composer, prompt)`, `commit(send)` (a consult send counts as an outbound side effect, gated by the run's consult approval and redaction preview), `wait_for(completion)`, then `extract(latest answer)`. Answers are DATA: they are verified with `OutcomeParser` evidence checks and never treated as instructions.
+
+### Verification of automation code (beyond normal review)
+1. **Core unit tests** (pure):
+   - locator resolution over recorded DOM/a11y fixtures
+   - envelope enforcement: every out-of-envelope action is refused
+   - policy, bounds and no-progress detection
+   - commit idempotency
+   - JSON action validation
+2. **Instrumented tests in CI on an Android emulator** (`reactivecircus/android-emulator-runner@v2.38.0`, API 34 x86_64 with KVM, in a separate CI job):
+   - **Web:** Memo's real WebView automation drives bundled fixture pages in `app/src/androidTest/assets/fixtures/`:
+     - a ProseMirror-style contenteditable chat composer with streaming answer
+     - a job application form with required fields, a confirmation page and an unexpected-dialog variant
+     - a social post composer
+     - a metrics page
+     - a page that changes its DOM mid-run, to test deviation → takeover
+   - **App:** Memo's real accessibility service drives a bundled test activity in `androidTest`: tap, type, scroll, wait_text, a commit button with a confirmation, a password field that must be refused, and a wrong-app switch.
+   - The tests assert the outcome **and** that refused actions were refused.
+3. **Real sites and apps:** adapters are versioned registry data and are validated on device through the milestone checklist. A failing adapter pauses for takeover and never improvises.
+4. **Review:** the lead reviews every automation diff line by line. Automation tasks are kept small (one concern each) so Haiku output stays reviewable.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -551,6 +628,29 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 
 ### M4 — Channels
 
+**M4.0 — Emulator test job in CI**
+- deps: M0.B1
+- files: `.github/workflows/build-memo-apk.yml` (new job `instrumented`), `app/build.gradle.kts` (androidTest deps: `androidx.test.ext:junit`, `androidx.test:runner`, `androidx.test:rules`, `androidx.test.uiautomator`; versions verified ≥2 weeks old), `app/src/androidTest/kotlin/app/memo/SmokeTest.kt`
+- steps:
+  1. Enable KVM.
+  2. Run `reactivecircus/android-emulator-runner@v2.38.0`: API 34, x86_64, `google_apis`, run `./gradlew connectedDebugAndroidTest`.
+  3. Upload test reports.
+- acceptance: the smoke test (app launches, WebView loads an asset page) is green in CI.
+
+**M4.A0 — Automation contracts in core**
+- deps: M0.A1, M0.A5
+- files: `core/.../automation/ActionVocabulary.kt`, `ActionEnvelope.kt`, `Locator.kt`, `Observation.kt`, `AgentLoopPolicy.kt` (bounds, no-progress, commit rules), `ActionJson.kt` (strict parse of model-chosen actions), tests with DOM/a11y JSON fixtures
+- steps: implement §2a exactly as pure logic, with no Android dependencies.
+- acceptance:
+  - all §2a rules have unit tests, including every refusal path
+  - the lead verifies each rule against §2a line by line
+
+**M4.A0b — Web/app fixtures**
+- deps: M4.0
+- files: `app/src/androidTest/assets/fixtures/*.html`, `app/src/androidTest/kotlin/app/memo/fixtures/TestTargetActivity.kt` + manifest in `androidTest`
+- steps: build the fixture pages and the test activity listed in §2a Verification 2.
+- acceptance: the fixtures load in the emulator smoke test.
+
 **M4.A1 — Browser runtime**
 - deps: M0.A1, M0.A7
 - files: `app/.../platform/android/browser/BrowserRuntime.kt`, `WebProfiles.kt`, `SafeWebViewClient.kt`
@@ -622,6 +722,8 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   1. Toggles per discovered app, web provider and channel; kill switch; rate-limit settings.
   2. Router decisions are shown on each step ("why this provider").
 - acceptance: CI green.
+
+**Automation acceptance (all of M4.A1–M4.B3):** the §2a emulator tests for that component are green, and the lead has reviewed the diff line by line against §2a.
 
 **M4 close:** PR. Device checklist: sign in to ChatGPT in the Browser tab; run a consult step; take over and resume; enable accessibility and run "open Calculator and type 2+2" (safe app); check discovery lists the installed AI apps.
 
