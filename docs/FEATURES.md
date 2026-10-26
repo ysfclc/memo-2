@@ -186,6 +186,26 @@ Legend:
 | memo-v2 prototype | Models + routing trace view | E1–E6, A7 (trace shown per step) |
 | memo-v2 prototype | "How Memo works" explainer | M13 (motion intro, help) |
 
+## N. Capability Compiler (§2k)
+- [ ] N1 Task architect → TaskSpec (objective, success definition, constraints, deliverables) · M3.8.A2
+- [ ] N2 Requirement graph (knowledge, skills, data, tools, persona, constraints, evaluators, experience; can spawn sub-requirements; bounded) · M3.8.A2
+- [ ] N3 Capability Library: typed, versioned, user-editable components with dependencies, conflicts and trust levels · M3.8.A1, M3.8.B1
+- [ ] N4 Deterministic assembler + readiness validator; honest capability gaps · M3.8.A2
+- [ ] N5 Execution package rendered per executor (local small/large, frontier), compiled into gated workflows · M3.8.A3
+- [ ] N6 Evaluate → diagnose → repair only the failing component → learn (Experience, reliability stats, evidence-based promotion) · M3.8.A4
+- [ ] N7 "Ask another AI for the prompt" loop: architect + critic models, bounded rounds · M3.8.A5
+- [ ] N8 Compiler view: animated requirement graph, chosen components, gaps, rendered prompt, evaluations; edit + recompile · M3.8.C1
+
+## O. Self Model & Artifact Studio (§2l)
+- [ ] O1 Self Model: identity, experience, achievements with metrics, projects, education, skills with evidence, preferences, voice, brand; per-fact provenance · M3.9.A1
+- [ ] O2 Ingest from website, LinkedIn (own profile in Memo's browser, or official export) and CVs/documents, as a gated diff with conflicts surfaced · M3.9.A2
+- [ ] O3 Outbound sync: propose website/LinkedIn updates from the Self Model (approved, humanized) · M3.9.C1
+- [ ] O4 CV generator: templates, en/pl/tr, 1–2 page fitting, PDF/DOCX/text/JSON Resume export, rich editor · M3.9.B1
+- [ ] O5 Per-job tailored CVs with evidence links, fit score, gap flags, ATS coverage, diff vs base · M3.9.B2
+- [ ] O6 Fabrication guard: nothing appears that isn't in the Self Model · M3.9.B2
+- [ ] O7 Cover letters, bios, LinkedIn headline/about, portfolio one-pager, intro emails · M3.9.B3
+- [ ] O8 UC-3 job applications use the tailored CV + letter, shown at the gate · M5.B1, M3.9.B2
+
 ## K. Delivery & docs
 - [x] K1 Pull latest GitHub state before building · done (b8c6ebd → main)
 - [x] K2 Build directly on GitHub (no zip/YAML deliverables); merge each green milestone · in effect since PR #2

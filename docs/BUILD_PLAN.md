@@ -539,6 +539,93 @@ When Memo operates a device app (§2c), it records an **AppCapability** profile:
 - Every screen has empty, loading, error and offline states. Errors are human-readable with a recovery action.
 - Contacts import into the CRM (`READ_CONTACTS`, opt-in) and an optional place tag for "met at P" (coarse location, opt-in).
 
+## 2k. Capability Compiler: assemble the competence a task needs, at the moment it needs it
+
+**Idea (user):** before an AI executes a job, the machine works out what the job needs: instructions, persona, skills, knowledge, data, experience, tools, constraints, and how success is judged. It then **stitches those components together on demand** into a task-specific execution package. Memo does not keep a zoo of fixed agents. It keeps a **library of typed, versioned capability components** and a **compiler** that assembles them per task. The executing model (local, or frontier via web/app/API) becomes interchangeable.
+
+### Pipeline (core, pure; models plug in through `LlmRuntime` / ModelRouter)
+`Objective → TaskSpec → RequirementGraph → Assembly → Readiness → ExecutionPackage → Execute → Evaluate → Diagnose → Repair | Finish → Learn`
+
+1. **TaskSpec.** Turn the user intent into: objective, success definition, constraints, deliverables, deadline, risk class, and language. Produced by the **task architect** (an LLM role, routed per §2g; it may ask a second AI to propose the spec, then a different AI critiques it: the user's "ask another AI for the prompt" loop). The output is strict JSON validated by core.
+2. **RequirementGraph.** A typed DAG of needs. Node kinds: `knowledge`, `skill/procedure`, `data`, `tool`, `persona`, `constraint`, `evaluator`, `experience`, `human_input`. Requirements can spawn sub-requirements; expansion is bounded by depth ≤ 4 and ≤ 40 nodes. Each node is critical or optional and carries an uncertainty note.
+3. **Assembly (linker, deterministic).** Match nodes against the **Capability Library** by declared `provides` / `requires` / `compatibleWith` / `conflictsWith`, language, and trust level. It resolves dependencies, removes conflicts, and checks permissions against `ChannelSwitches` and autonomy. Unmatched nodes can be resolved by:
+   - (a) adapting a near-match component (creating a new *draft* version)
+   - (b) generating a candidate component with an LLM, which enters as `UNTRUSTED`
+   - (c) asking the user (`ask_user`)
+   - (d) declaring a **capability gap**: never pretending to have access or data it lacks
+4. **Readiness validator** (deterministic): every critical node is covered, required tools are available and permitted, the evaluator can actually test the deliverable, and the token/time/cost budget fits. If not ready, the run reports exactly what is missing.
+5. **ExecutionPackage.** A structured manifest: persona, procedure steps, knowledge excerpts (loaded lazily, packet-budgeted), data bindings, tool list with permissions, constraints, evaluator spec, chosen executor(s) per stage, and budgets. It is **rendered** into the actual prompt for the chosen model and size (compact for small local models, fuller for frontier). Rendering is deterministic from the manifest.
+6. **Execute** through the existing engine: the package becomes a `WorkflowSpec` (REASON / agent tool loop / web / app / gates), so all gates, envelopes, audit and humanizer rules apply unchanged.
+7. **Evaluate.** Evaluator components run: schema checks, evidence checks (`OutcomeParser`), rubric scoring by a *different* model than the executor where routing allows, deterministic tests, and user feedback.
+8. **Diagnose + repair.** Classify failures (missing knowledge, bad procedure, broken tool, insufficient evidence, executor weakness, ambiguous spec). Repair **only the responsible component(s)**, then re-run, within a hard budget (≤ 2 repair cycles, ≤ N tokens). Never append prompt text endlessly.
+9. **Learn.** Record an **Experience** row: task class, components and versions used, executor, outcome scores, cost, failure modes. Component reliability stats update per (component, model, task class). Components are promoted `UNTRUSTED → TRIAL → TRUSTED` only on evidence (N successful evaluated uses), never because an AI wrote them.
+
+### Capability Library (registry kinds, versioned, reuse-first)
+- `Persona`: role, perspective, tone, language
+- `Skill`: procedure steps, preconditions, outputs (extends the PromptTemplate idea)
+- `KnowledgePack`: domain notes and references, with sources
+- `DataBinding`: a query over Memo registries or sources, or required user input
+- `ToolSpec`: maps to the closed action vocabulary / agent tools, with required permissions
+- `Constraint`
+- `Evaluator`: schema, rubric, tests, required evidence
+- `Experience`: outcome records
+- `ArchitecturalPrinciple` (exists)
+
+Every component has `provides`, `requires`, `compatibleWith`, `conflictsWith`, `languages`, `trust`, `stats`, and a semver. Components are **editable by the user** (§2e), and the user can pin or ban components.
+
+### Seed library
+Shipped components cover the core use cases (all `TRUSTED` after tests): research, CRM enrichment, job application, CV tailoring, content drafting, metric reading, brainstorm council, web form filling, app chores, plus evaluators for each.
+
+### UI ("Compiler" view inside a run)
+- the TaskSpec
+- the requirement graph, animated as it expands
+- the components chosen and why, with their trust badges
+- gaps and questions
+- the rendered prompt (inspectable)
+- evaluation results and repairs
+
+Users can edit the spec or graph and recompile.
+
+### Safety
+AI interprets; deterministic code enforces schemas, permissions, budgets, trust levels and validation. Untrusted components can never authorise side effects, and they are sandboxed to read-only tools until promoted.
+
+## 2l. The Self Model: representing the user, and generating artifacts from it
+
+**Requirement (user):** Memo must represent the user as a person, built from their website, LinkedIn, CVs and other material, and keep it in sync both ways. From it Memo generates **personalised CVs and other artifacts**, with proper tools. The key use case is applying for jobs with a CV tailored to each one.
+
+### Self Model (encrypted, user-owned, versioned)
+- **Sections:** identity (name, headline, locations, languages, contact), summary/positioning variants, experience (roles, dates, organisations, responsibilities, **achievements with metrics**), projects, education, certifications, skills (with evidence and proficiency), publications/talks, awards, volunteering, references (opt-in), preferences (target roles, industries, locations, salary band, remote/hybrid), voice and tone samples, and the visual brand (colours, fonts, photo).
+- **Every fact carries provenance:** the source (website URL, LinkedIn section, CV file, user entry), a capture date, and a confidence level. Conflicting values from different sources are surfaced for the user to resolve; they are never silently merged.
+
+### Ingestion (all inside Memo)
+- **Website:** captured via the in-Memo web runtime (read-only), parsed into sections.
+- **LinkedIn:** the user's own profile, viewed in the in-Memo web runtime under the user's logged-in session (read-only capture of their own sections), or imported from LinkedIn's official data export archive (ZIP via the document picker).
+- **CVs and documents:** PDF, DOCX or text, imported via the picker and parsed (on-device; OCR fallback for scanned PDFs).
+- **Manual editing** of everything (§2e).
+- Re-ingestion produces a **diff**: new, changed and conflicting facts are presented for approval before the Self Model updates (a HUMAN_APPROVAL gate with the diff as the artifact).
+
+### Vice versa (outbound sync)
+Memo proposes updates *to* the website or LinkedIn from the Self Model (e.g. a new role or achievement). The proposal shows the exact text per field as an envelope-bound side effect, is approved, and is then applied via the web runtime or the LinkedIn app (§2c/§2d humanized). It never runs automatically unless the autonomy settings allow it, and profile edits are Always ask by default.
+
+### Artifact Studio (tools)
+- **CV generator:**
+  - templates (ATS-safe single column, modern two-column, academic, Europass-style)
+  - languages en/pl/tr
+  - length targets (1 or 2 pages)
+  - export to **PDF** (on-device renderer), **DOCX** (OOXML writer), plain text, and JSON Resume
+- **Per-job tailoring** (Capability Compiler task class `cv_tailoring`):
+  1. Parse the job posting into requirements.
+  2. Map them to Self Model evidence and score the fit.
+  3. Select and reorder experience and achievements.
+  4. Rewrite bullets in the posting's language and keywords **using only facts present in the Self Model**. Every bullet links to its source facts.
+  5. Flag gaps honestly ("no evidence for Kubernetes").
+  6. Run an ATS keyword-coverage check.
+  7. Show a diff against the base CV.
+- **Cover letters, bios, LinkedIn headline/about variants, portfolio one-pagers, intro emails**, all generated with the same evidence discipline.
+- **Fabrication guard (evaluator):** an evaluator rejects any claim, date, metric, employer or skill that is not in the Self Model. The user must add a fact to the Self Model before it can appear.
+- **Versioning:** every generated CV and letter is a versioned artifact linked to its JobPosting and JobApplication. UC-3 gates show the job, the tailored CV, the cover letter and the exact form fields.
+- **Editing:** a rich editor for generated artifacts. Edits can be written back to the Self Model as new facts (with confirmation).
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -1145,6 +1232,118 @@ Split into small tasks, all following §2i.
 
 **M6.10 — Memo's own accessibility audit:** TalkBack pass, touch targets, 200% font scale, contrast; fix everything found. Every screen has empty, loading, error and offline states.
 
+### M3.8 — Capability Compiler (§2k)
+
+**M3.8.A1 — Capability library schemas**
+- deps: M0.A4
+- files: `core/.../capability/{Persona,Skill,KnowledgePack,DataBinding,ToolSpec,Constraint,Evaluator,Experience}.kt` + registry schemes + Workspace registration + a SynCodec v2→v3 migration, tests
+- steps:
+  - fields per §2k: provides / requires / compatibleWith / conflictsWith / languages / trust / stats / semver
+  - natural keys
+  - trust state machine UNTRUSTED → TRIAL → TRUSTED with evidence thresholds
+- acceptance: round-trip, key, trust-transition and migration tests.
+
+**M3.8.A2 — TaskSpec + RequirementGraph + Assembler + Readiness (pure)**
+- deps: M3.8.A1, M0.A5, M0.A6
+- files: `core/.../capability/{TaskSpec,RequirementGraph,Assembler,Readiness}.kt`, tests
+- steps:
+  - strict JSON parsing of TaskSpec and graph
+  - bounded expansion
+  - deterministic matching with dependency resolution, conflict removal and permission checks
+  - gap reporting and the readiness verdict
+- acceptance: tests for covered, conflict, missing-tool gap, untrusted-component restriction, and bounds.
+
+**M3.8.A3 — ExecutionPackage + renderer + compile-to-workflow**
+- deps: M3.8.A2, M3.A4
+- files: `core/.../capability/{ExecutionPackage,PromptRenderer,PackageCompiler}.kt`, tests
+- steps:
+  - the manifest
+  - a deterministic renderer per executor size class
+  - compile to a `WorkflowSpec` (agent loop / web / app / gates) that passes `WorkflowPolicy.validateSpec`
+- acceptance: golden tests of rendered prompts per size class; compiled specs validate.
+
+**M3.8.A4 — Evaluate / diagnose / repair / learn loop**
+- deps: M3.8.A3
+- files: `core/.../capability/{EvaluationRunner,Diagnoser,RepairPlanner,ExperienceRecorder}.kt`, app wiring in `app/.../runtime/CompilerService.kt`, tests with a fake LlmRuntime
+- steps:
+  - evaluator execution, with a cross-model rubric where routing allows
+  - failure classification
+  - targeted component repair within the budget
+  - Experience rows and reliability stats
+  - promotion rules
+- acceptance: tests for repair success, budget exhaustion, a no-endless-loop guarantee, and promotion only on evidence.
+
+**M3.8.A5 — Architect/critic loop**
+- deps: M3.8.A2, M4.A2
+- files: `core/.../capability/ArchitectLoop.kt`, tests
+- steps: an architect model proposes the TaskSpec and graph; a different model critiques; at most 2 rounds; the result is strict JSON. The models are routed per §2g, either local or frontier via web.
+- acceptance: tests with fake models, including disagreement resolution and round limits.
+
+**M3.8.B1 — Seed capability library**
+- deps: M3.8.A1
+- files: `core/src/main/resources/capabilities/*.json` + loader + tests
+- steps: seed components for every use case in §2k, plus evaluators, each with a test case.
+- acceptance: every seed loads and validates, and each has an evaluator.
+
+**M3.8.C1 — Compiler UI**
+- deps: M3.8.A4, M2.B0c
+- files: `app/.../ui/compiler/*`
+- steps: the §2k view: animated requirement graph, component cards with trust badges, gaps and questions, inspectable rendered prompt, evaluation and repair timeline, edit + recompile.
+- acceptance: CI green.
+
+### M3.9 — Self Model + Artifact Studio (§2l)
+
+**M3.9.A1 — Self Model schema + provenance + conflict resolution**
+- deps: M0.A4, M0.C1
+- files: `core/.../self/{SelfModel,Fact,Provenance,Conflict,SelfDiff}.kt`, tests
+- steps:
+  - typed sections
+  - per-fact provenance and confidence
+  - diff between an ingestion result and the current model
+  - conflicts surfaced, never silently merged
+- acceptance: tests for diff, conflict and merge-after-approval.
+
+**M3.9.A2 — Ingestion: website, LinkedIn, CV/docs**
+- deps: M3.9.A1, M4.A1, M3.7.B2
+- files: `app/.../self/{WebsiteIngest,LinkedInIngest,LinkedInExportImport,DocumentIngest}.kt`, `core/.../self/parse/*` (pure section parsers with fixtures)
+- steps:
+  1. Read-only capture through the in-Memo web runtime (the user's own profile, own session).
+  2. LinkedIn official export ZIP import.
+  3. PDF/DOCX/text parsing on-device, with an OCR fallback.
+  4. Every ingestion produces a gated SelfDiff.
+- acceptance: parser tests on fixtures (website HTML, LinkedIn export CSVs, a sample CV text); CI green.
+
+**M3.9.B1 — Artifact Studio: CV generator + exporters**
+- deps: M3.9.A1, M2.B0c
+- files: `app/.../studio/cv/{CvTemplates,CvLayout,PdfRenderer,DocxWriter,JsonResumeExport}.kt`, `app/.../ui/studio/cv/*`, tests
+- steps:
+  - 4 templates in 3 languages
+  - 1- and 2-page fitting
+  - PDF (Android `PdfDocument`) and DOCX (minimal OOXML ZIP writer) export
+  - JSON Resume export
+  - a rich editor with write-back to the Self Model (confirmed)
+- acceptance: tests that DOCX opens as a valid OOXML ZIP (structure validated) and PDF page count fitting; a device check opens the exports.
+
+**M3.9.B2 — Tailoring + fabrication guard**
+- deps: M3.9.B1, M3.8.A4
+- files: `core/.../self/{JobRequirements,FitScorer,TailoringPlan,FabricationGuard,AtsCoverage}.kt`, a `cv_tailoring` seed capability, tests
+- steps:
+  1. Job → requirements.
+  2. Evidence mapping and fit score.
+  3. Bullet selection and rewrite linked to facts.
+  4. The guard rejects unsupported claims.
+  5. ATS keyword coverage.
+  6. Diff against the base CV.
+- acceptance: the guard test rejects an invented employer, metric and skill; a coverage test; an end-to-end test from fake job to tailored CV.
+
+**M3.9.B3 — Other artifacts:** cover letter, bio, LinkedIn headline/about variants, portfolio one-pager, intro email. Same evidence discipline, templates in en/pl/tr. Tests for the guard per artifact type.
+
+**M3.9.C1 — Outbound profile sync**
+- deps: M3.9.A2, M4.A1, M4.D1
+- files: `app/.../self/ProfileSyncPlanner.kt`
+- steps: propose website/LinkedIn updates from the Self Model as an envelope-bound gated side effect (Always ask by default), executed via the web runtime or app with the humanizer.
+- acceptance: tests for envelope building; the device check applies a test edit to the user's own site or profile.
+
 ### M4 — Channels
 
 **M4.0 — Emulator test job in CI**
@@ -1295,7 +1494,7 @@ Split into small tasks, all following §2i.
 - acceptance: an E2E JVM test with fake channels + CI green.
 
 **M5.B1 — UC-3 jobs**
-- deps: M3, M4
+- deps: M3, M4, M3.9.B2, M3.8.A4
 - files: `core/.../plan/templates/Jobs.kt`, `app/.../runtime/JobFlows.kt`, `app/.../ui/work/JobsScreen.kt`, tests
 - steps:
   1. Discovery: browser capture of job search pages produces JobPostings (CAPTURE role, evidence-checked).
