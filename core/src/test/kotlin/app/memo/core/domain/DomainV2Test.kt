@@ -111,7 +111,6 @@ class DomainV2Test {
             description = "Summarise the week",
             intentExamples = listOf("make my weekly brief", "summarise this week"),
             planJson = plan,
-            useCount = 4,
             createdAt = t0,
             updatedAt = t0 + 1,
             version = 2,
@@ -147,11 +146,25 @@ class DomainV2Test {
         assertIs<Registry.Put.Reused<WorkflowTemplate>>(
             reg.upsert(WorkflowTemplate(name = "Brief", planJson = plan), now = t0 + 1),
         )
-        val bumped = reg.upsert(WorkflowTemplate(name = "Brief", planJson = plan, useCount = 1), now = t0 + 2)
+        val bumped = reg.upsert(
+            WorkflowTemplate(name = "Brief", description = "Now with a summary step", planJson = plan),
+            now = t0 + 2,
+        )
         assertIs<Registry.Put.Bumped<WorkflowTemplate>>(bumped)
         assertEquals(2, bumped.current.version)
         assertEquals(t0, bumped.current.createdAt)
         assertEquals(1, reg.size)
+    }
+
+    @Test
+    fun workflowTemplateIdenticalUpsertIsReusedAndKeepsVersionOne() {
+        val reg = Registry("templates", Schemes.WorkflowTemplates)
+        val item = WorkflowTemplate(name = "Brief", planJson = plan)
+        assertIs<Registry.Put.Created<WorkflowTemplate>>(reg.upsert(item, now = t0))
+        val again = reg.upsert(item, now = t0 + 1)
+        assertIs<Registry.Put.Reused<WorkflowTemplate>>(again)
+        assertEquals(1, again.existing.version)
+        assertEquals(t0, again.existing.updatedAt)
     }
 
     // ---- PromptTemplate --------------------------------------------------
