@@ -383,6 +383,87 @@ The user doesn't operate anything; the agent works on its own and only surfaces 
   - Humanizer reading speed is per language.
 - **Tests:** string-resource parity (every key exists in all 3 locales; a unit test parses the XML), grammar tests per language, policy tests per language.
 
+## 2i. Alive, professional, fast: motion language + performance
+
+**User requirement:** the app must feel alive, with proper motion graphics and transitions, and be professional and fast.
+
+### Motion principles
+1. Motion explains state: something spawned, progressed, waits for you, is done.
+2. Physics over curves: springs for anything the user touches, tweens only for ambient loops.
+3. Fast first. Interactions respond within one frame. Transitions run 180–320 ms, never block input, and are interruptible.
+4. Never fake progress: a progress animation always maps to real engine or download state.
+5. Respect the system animator scale and the "reduce motion" setting, with a static fallback for every animation.
+
+### Motion tokens (`MemoMotion`)
+- **Springs:**
+  - `snappy` (dampingRatio 0.85, stiffness 700): presses, toggles, chips
+  - `smooth` (0.9, 380): cards, sheets, layout changes
+  - `gentle` (1.0, 200): large surfaces, page transitions
+  - `bouncy` (0.6, 500): only celebratory moments (approval done)
+- **Durations:**
+  - micro 90 ms, short 180 ms, medium 260 ms, long 360 ms
+  - stagger 28 ms per item (max 9 items, then all at once)
+  - ambient orb breathing 1650 ms, shimmer 1150 ms
+- **Easing:** emphasized decelerate (0.05, 0.7, 0.1, 1) for entrances; emphasized accelerate (0.3, 0, 0.8, 0.15) for exits.
+- **Haptics** (via `HapticFeedbackConstants`, gated by setting):
+  - tick on press
+  - confirm on approve
+  - reject on veto
+  - long-press on drag start
+  - a gentle "attention" pattern when a gate opens while the app is in the foreground
+
+### Transition catalogue (all implemented, no placeholders)
+- **Navigation:**
+  - `SharedTransitionLayout` + `AnimatedContent` between tabs and detail screens
+  - shared-element transitions for record card → record detail, workflow card → run view, model card → model detail, and chat message → full-screen artifact
+  - **predictive back** with a scale/fade preview (`PredictiveBackHandler`) on every screen and sheet
+- **Lists:** `Modifier.animateItem()` for insert, remove and reorder; staggered first-appear; swipe-to-archive with spring settle and an undo snackbar.
+- **Workflow spawn:** a plan card unfolds from the message that created it. Steps cascade in (stagger), each step's kind icon morphs in, and the rail line draws progressively (path trim).
+- **Step progression:**
+  - the running step's node pulses (scale 1.0↔1.08 plus a glow ring)
+  - on completion the node morphs into a check (path morph) and the rail segment fills with an animated gradient sweep to the next node
+  - failure gives a short horizontal shake plus the amber tint
+  - waiting for you gives a breathing amber halo
+- **Approval transitions:**
+  - the gate card rises with a shared-element expansion into the full artifact view
+  - approve: the card compresses into a check, flies into the run rail and the rail continues (choreographed ~420 ms)
+  - veto: the card slides out with fade and desaturate
+  - editing an artifact crossfades fields and re-computes the hash badge, which flips
+- **Live status:**
+  - PresenceOrb: a shader-based gradient blob (`RuntimeShader` on API 33+, Canvas radial gradient fallback) that reacts to state, mic level and TTS amplitude
+  - counters tick with animated digit rolls
+  - sparklines draw in
+  - the "since you were away" digest stacks cards in
+- **Chat:**
+  - streaming text appears per token with a soft caret, and no layout jumps (text measured incrementally)
+  - code blocks fade in when closed
+  - voice-message waveform animates live while recording, then collapses into a playable bubble
+  - live-conversation mode morphs from the composer mic button into a full-screen orb (shared bounds)
+- **Models and downloads:** a progress ring with real bytes, and on finish the ring morphs into an "installed" badge. Skeleton shimmer while catalogs load.
+- **Floating console:** the bubble expands into the panel with a container transform from the bubble's bounds, and collapses back. Drag uses fling physics and edge snapping.
+- **Sheets and dialogs:** spring-driven bottom sheets with scrim fade; never instant pop-ins.
+
+### Performance (fast app)
+- **Targets:**
+  - cold start < 900 ms to first frame on a mid-range phone; warm start < 300 ms
+  - 0 janky frames in scroll, navigation and streaming benchmarks (≥ 60/120 fps)
+  - typing latency < 16 ms
+- **Engineering:**
+  - heavy work never on the main thread (inference, crypto, file I/O, JSON parse of large blobs)
+  - Compose stability: immutable UI models, `@Immutable`/`@Stable`, `derivedStateOf`, keys on lazy lists
+  - no allocation in draw lambdas
+  - images decoded at display size
+  - lazy model and catalog loading
+  - startup work deferred via `androidx.startup` and lazy singletons
+- **Release build:**
+  - a **release variant**: R8 full mode, resource shrinking, `debuggable=false`, with keep rules for LiteRT-LM, sherpa-onnx, llama JNI and ML Kit
+  - signed with a **persistent release key** held in GitHub Actions secrets (`MEMO_KEYSTORE_B64`, `MEMO_KEYSTORE_PASSWORD`, `MEMO_KEY_ALIAS`, `MEMO_KEY_PASSWORD`), so updates install over each other
+  - CI uploads `memo-release-apk`, which becomes the APK the user installs; the debug APK stays for diagnostics
+- **Baseline profiles:**
+  - `androidx.baselineprofile` + a macrobenchmark module generated on the CI emulator, covering startup, tab switching, chat streaming and list scroll
+  - `androidx.profileinstaller` in the app
+- **Benchmarks in CI** (emulator): startup and frame-timing macrobenchmarks, with results posted to the run summary and regressions flagged.
+
 ## 3. Process (applies to every task)
 
 ### Roles
@@ -626,7 +707,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - acceptance: CI green; the lead reviews the resume and verify paths.
 
 **M1.B3 — Models UI**
-- deps: M1.B2, M2.B0
+- deps: M1.B2, M2.B0d
 - files: `app/.../ui/models/*`
 - steps:
   1. Sections: Installed / Recommended for this phone / Browse (live search, format filter, family chips) / Voice models (filled in M2) / Import.
@@ -663,14 +744,35 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 
 ### M2 — Voice
 
-**M2.B0 — Design system + motion (prerequisite for UI tasks)**
+**M2.B0 — Design system + motion foundation (prerequisite for UI tasks)**
+Split into small tasks, all following §2i.
+
+**M2.B0a — Tokens + typography + theme**
 - deps: M0
-- files: `app/.../ui/theme/MemoTokens.kt`, `MemoTypography.kt`, `MemoMotion.kt`, `app/.../ui/components/*` (MemoCard, Pill, MemoButton with press scale, Shimmer, SectionHeader, EmptyState, StatTile, StepRail, PresenceOrb)
+- files: `app/.../ui/theme/MemoTokens.kt`, `MemoTypography.kt`, `MemoTheme.kt` (replaces `Theme.kt`)
+- steps: colour roles (light/dark), spacing (4 dp grid), radii, elevation, type scale, and semantic colours (success, attention, danger).
+- acceptance: grep finds no `Color(0x` outside `ui/theme`.
+
+**M2.B0b — Motion tokens + haptics**
+- deps: M2.B0a
+- files: `app/.../ui/motion/MemoMotion.kt`, `Haptics.kt`, `ReduceMotion.kt`
+- steps: §2i springs, durations and easings; haptic vocabulary gated by a setting; reduce-motion and animator-scale awareness.
+- acceptance: unit tests for reduce-motion fallbacks (pure functions).
+
+**M2.B0c — Component kit**
+- deps: M2.B0b
+- files: `app/.../ui/components/*`
 - steps:
-  - D-008 values: press 0.965 at 85–170 ms; entrance 230 ms with +7 dp and easing (0.16, 1, 0.3, 1); stagger 28 ms ×9; crossfade 180 ms; orb breathing 1650 ms (scale 0.78→1.12); shimmer 1150 ms; respect `areAnimatorsEnabled`
-  - PresenceOrb states: idle, listening (level-reactive), thinking, speaking (audio-reactive), waiting
-  - migrate existing screens onto the tokens
-- acceptance: grep shows no `Color(0x` outside `ui/theme`.
+  - MemoButton (press spring + haptic), MemoCard, Pill/Chip, SectionHeader, EmptyState, StatTile with digit-roll counter, Skeleton/Shimmer, MemoSheet (spring), Snackbar with undo, ProgressRing (real progress), Sparkline (draw-in)
+  - StepRail: path-trim line, pulsing node, check morph, failure shake, waiting halo
+  - PresenceOrb: `RuntimeShader` on API 33+ with a Canvas fallback; states plus audio-reactive input
+- acceptance: CI green; the lead reviews every component against §2i values.
+
+**M2.B0d — Navigation shell with shared transitions + predictive back**
+- deps: M2.B0c
+- files: `app/.../ui/nav/*`, `MainActivity.kt`
+- steps: `SharedTransitionLayout` app shell, tab ↔ detail shared-element transitions, `PredictiveBackHandler` on all screens and sheets, and migrating the existing screens onto the kit.
+- acceptance: CI green; every navigation path has an animated transition (the lead walks the nav graph).
 
 **M2.A1 — Audio I/O**
 - deps: M0.B1
@@ -1098,6 +1200,35 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - acceptance: tests + CI green.
 
 **M5 close:** PR. Device checklist: run UC-1, UC-3, UC-4 and UC-5 on a real phone.
+
+### M2.5 — Speed (release build, profiles, benchmarks)
+
+**M2.5.A1 — Release variant + persistent signing**
+- deps: M0.B1
+- files: `app/build.gradle.kts`, `app/proguard-rules.pro`, `.github/workflows/build-memo-apk.yml`, `docs/BUILD.md` (signing section)
+- steps:
+  1. Release build: R8 full mode, resource shrinking, keep rules for LiteRT-LM, sherpa-onnx, llama JNI and ML Kit.
+  2. Signing config from env vars.
+  3. A one-time `workflow_dispatch` job `create-release-key` that generates a keystore with `keytool` on the runner and prints setup instructions. The lead then stores the key as repo secrets (`MEMO_KEYSTORE_B64` etc.) with `gh secret set`; the key file is never committed.
+  4. The build job assembles `assembleRelease` when the secrets exist and uploads `memo-release-apk`.
+- acceptance: CI green with a signed release APK artifact; `apksigner verify` runs in CI.
+
+**M2.5.A2 — Baseline profiles + macrobenchmarks**
+- deps: M2.5.A1, M4.0, M2.B0d
+- files: new module `:baselineprofile` (macrobenchmark), `app/build.gradle.kts` (profileinstaller, baselineprofile plugin), CI emulator job
+- steps:
+  1. Generate the profile on the CI emulator, covering startup, tab switches, chat streaming and list scroll.
+  2. Add startup and frame-timing benchmarks, with results in the run summary.
+- acceptance: the profile is bundled in the release APK, and benchmark numbers are reported against the §2i targets.
+
+**M2.5.A3 — Performance pass**
+- deps: M2.5.A2
+- files: any UI file flagged by benchmarks or Compose reports
+- steps:
+  1. Enable Compose compiler metrics/reports in CI.
+  2. Fix unstable params and main-thread I/O (StrictMode in debug).
+  3. Meet the §2i targets.
+- acceptance: benchmarks meet the targets on the CI emulator, and a device check confirms the app feels fast.
 
 ### M6 — Hardening + release
 

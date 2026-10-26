@@ -94,14 +94,17 @@ Legend:
 - [ ] H7 Scoped permissions with rationale (permission centre) · M6.5
 - [ ] H8 App lock (biometric), FLAG_SECURE option, encrypted backup/export · M6.3, M6.4
 
-## I. UX & "live" feel
-- [~] I1 One design system (tokens, type, spacing, components) · Paper+Mint tokens exist; full system M2.B0
-- [ ] I2 Motion: workflow spawn, step progression, approval transitions, live status pulse · M2.B0, M3.B2
-- [ ] I3 PresenceOrb (idle / listening / thinking / speaking / working / waiting) across app, bubble and notification · M2.B0
-- [ ] I4 Live Environment: running workflows, waiting approvals, recent outputs, metric health, "since you were away" · M3.B2
-- [ ] I5 Artifact renderers: person/company cards, post preview with channels, job + cover letter, etc.; edit before approve · M3.B1
-- [ ] I6 Inline plan cards and approvals inside chat · M3.A3
-- [ ] I7 Haptics on gate open and approve · M3.B1
+## I. UX, motion, speed ("alive, professional, fast")
+- [~] I1 One design system (tokens, type, spacing, components) · Paper+Mint tokens exist; full system M2.B0a–c
+- [ ] I2 Motion language with spring physics, haptics and reduce-motion fallbacks · M2.B0b
+- [ ] I3 Shared-element transitions + predictive back on every screen · M2.B0d
+- [ ] I4 Workflow spawn cascade, step progression (pulse, check morph, rail fill), approval choreography · M2.B0c, M3.B2, M3.B1
+- [ ] I5 PresenceOrb (shader, state- and audio-reactive) across app, bubble and notification · M2.B0c
+- [ ] I6 Live Environment: running workflows, waiting approvals, recent outputs, metric health, "since you were away" · M3.B2
+- [ ] I7 Artifact renderers + edit before approve · M3.B1
+- [ ] I8 Inline plan cards and approvals in chat; streaming without layout jumps · M3.A3, M1.C2
+- [ ] I9 Release build (R8, signed with a persistent key) as the APK to install · M2.5.A1
+- [ ] I10 Baseline profiles + startup/frame benchmarks meeting the targets (cold < 900 ms, no jank) · M2.5.A2, M2.5.A3
 
 ## J. Reliability & engineering (self-audit items)
 - [ ] J1 Offline queue + boot recovery · M6.1
