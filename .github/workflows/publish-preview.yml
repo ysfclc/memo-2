@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::run_id must be numeric"; exit 1; }
-          [[ "$TAG" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || { echo "::error::tag must match ^[A-Za-z0-9._-]{1,64}$"; exit 1; }
+          [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { echo "::error::tag must start with a letter or digit and match ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"; exit 1; }
           [[ "${#TITLE}" -le 120 ]] || { echo "::error::title too long"; exit 1; }
           info="$(gh run view "$RUN_ID" -R "$REPO" --json conclusion,workflowName,headBranch,event,headSha)"
           conclusion="$(jq -r .conclusion <<<"$info")"
