@@ -261,7 +261,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 
 ### [x] M0.F4 publish-preview hardening (lead)
 
-### [~] M0.F2 App review fixes
+### [x] M0.F2 App review fixes
 - Files: `MemoRuntime.kt`, `Persistence.kt`, `KeystoreVault.kt`, tests
 - Mini-tasks:
   - [ ] checkpoint → synchronous runs save; read-only makes it throw; runs saved before the audit
@@ -287,7 +287,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 
 # PART 2 — Design system (M2.B0, starts in parallel with M0) and M1 Local AI + Chat
 
-### [~] M2.B0a Tokens + typography + theme [§2i]
+### [x] M2.B0a Tokens + typography + theme [§2i]
 - Files: `app/.../ui/theme/{MemoTokens,MemoTypography,MemoTheme}.kt`; delete `ui/Theme.kt`; migrate `MemoRoot.kt`, `ModelsScreen.kt` and `MainActivity.kt`
 - Mini-tasks:
   - [ ] `MemoColorScheme` (canvas, surface, raised, sunken, outline, ink, inkMuted, inkFaint, accent, onAccent, accentSoft, attention, danger, success, scrim, focusRing), light and dark
