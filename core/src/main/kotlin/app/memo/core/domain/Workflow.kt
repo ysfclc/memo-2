@@ -187,7 +187,7 @@ data class WorkflowSpec(
             .put("id", id)
             .put("title", title)
             .put("createdAt", createdAt)
-            .put("schemaVersion", Limits.WORKSPACE_SCHEMA_VERSION)
+            .put("schemaVersion", app.memo.core.Version.DSL_SCHEMA_VERSION)
             .put("steps", stepsArr)
     }
 

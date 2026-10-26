@@ -2,6 +2,7 @@ package app.memo.core.codec
 
 import app.memo.core.Limits
 import app.memo.core.registry.Workspace
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -14,6 +15,12 @@ object SynCodec {
 
     const val FORMAT_ID: String = "SYN"
 
+    /** Schema version of every registry in a v1 envelope (v1 predates per-registry schemas). */
+    private const val V1_REGISTRY_SCHEMA: String = "1.0"
+
+    /** Upper bound on registry keys in one envelope; leaves headroom over the 16 registries in use. */
+    private const val MAX_REGISTRIES_PER_ENVELOPE: Int = 64
+
     sealed interface ParseOutcome {
         data class Ok(
             val workspace: Workspace,
@@ -24,9 +31,9 @@ object SynCodec {
         data class Rejected(val reason: String) : ParseOutcome
     }
 
-    /** Migration chain: `fromVersion -> transformer`. v1 is the current head. */
+    /** Migration chain: `fromVersion -> transformer`. Each step produces the next version. */
     private val migrations: Map<Int, (JSONObject) -> JSONObject> = mapOf(
-        1 to { it }, // identity placeholder so the chain has a head; v2 will prepend real steps
+        1 to { doc: JSONObject -> migrateV1ToV2(doc) },
     )
 
     fun parse(text: String): ParseOutcome {
@@ -47,6 +54,11 @@ object SynCodec {
         if (version > Limits.WORKSPACE_SCHEMA_VERSION) {
             return ParseOutcome.Rejected("workspace from newer version $version (this build: ${Limits.WORKSPACE_SCHEMA_VERSION})")
         }
+        val rawRegistries = doc.optJSONObject("registries")
+            ?: return ParseOutcome.Rejected("missing registries object")
+        if (rawRegistries.length() > MAX_REGISTRIES_PER_ENVELOPE) {
+            return ParseOutcome.Rejected("registries object suspiciously large")
+        }
         var migrated = false
         var current = doc
         var v = version
@@ -59,40 +71,49 @@ object SynCodec {
         }
         val registries = current.optJSONObject("registries")
             ?: return ParseOutcome.Rejected("missing registries object")
-        if (registries.length() > 64) {
-            return ParseOutcome.Rejected("registries object suspiciously large")
-        }
         val workspace = Workspace()
-        workspace.people.load(registries.optJSONArray("people"))
-        workspace.companies.load(registries.optJSONArray("companies"))
-        workspace.jobPostings.load(registries.optJSONArray("job_postings"))
-        workspace.applications.load(registries.optJSONArray("applications"))
-        workspace.tasks.load(registries.optJSONArray("tasks"))
-        workspace.drafts.load(registries.optJSONArray("drafts"))
-        workspace.posts.load(registries.optJSONArray("posts"))
-        workspace.samples.load(registries.optJSONArray("metric_samples"))
+        for (registry in workspace.all()) {
+            registry.load(registries.optJSONArray(registry.kind))
+        }
         return ParseOutcome.Ok(workspace, version, migrated)
     }
 
     fun serialize(workspace: Workspace, exportedAt: Long): String {
         val registries = JSONObject()
-            .put("people", workspace.people.toRows())
-            .put("companies", workspace.companies.toRows())
-            .put("job_postings", workspace.jobPostings.toRows())
-            .put("applications", workspace.applications.toRows())
-            .put("tasks", workspace.tasks.toRows())
-            .put("drafts", workspace.drafts.toRows())
-            .put("posts", workspace.posts.toRows())
-            .put("metric_samples", workspace.samples.toRows())
+        val schemas = JSONObject()
+        for (registry in workspace.all()) {
+            registries.put(registry.kind, registry.toRows())
+            schemas.put(registry.kind, registry.schemaVersion())
+        }
         val out = JSONObject()
             .put("format", FORMAT_ID)
             .put("schemaVersion", Limits.WORKSPACE_SCHEMA_VERSION)
             .put("exportedAt", exportedAt)
+            .put("schemas", schemas)
             .put("registries", registries)
         val text = out.toString(2)
         if (text.length > Limits.MAX_WORKSPACE_BYTES) {
             throw IllegalStateException("serialized workspace exceeds the size cap")
         }
         return text
+    }
+
+    /**
+     * v1 -> v2. Keeps every v1 registry's rows exactly as stored, adds the
+     * registries introduced in v2 as empty arrays, records the "1.0" schema
+     * for every registry in a `schemas` map, and stamps schemaVersion 2.
+     */
+    private fun migrateV1ToV2(v1: JSONObject): JSONObject {
+        val v1Registries = v1.optJSONObject("registries") ?: JSONObject()
+        val registries = JSONObject()
+        val schemas = JSONObject()
+        for (registry in Workspace().all()) {
+            registries.put(registry.kind, v1Registries.optJSONArray(registry.kind) ?: JSONArray())
+            schemas.put(registry.kind, V1_REGISTRY_SCHEMA)
+        }
+        return v1
+            .put("registries", registries)
+            .put("schemas", schemas)
+            .put("schemaVersion", 2)
     }
 }
