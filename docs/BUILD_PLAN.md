@@ -193,39 +193,44 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
 3. **Real sites and apps:** adapters are versioned registry data and are validated on device through the milestone checklist. A failing adapter pauses for takeover and never improvises.
 4. **Review:** the lead reviews every automation diff line by line. Automation tasks are kept small (one concern each) so Haiku output stays reviewable.
 
-## 2b. Memo stays in control: hosting other apps + the floating console
+## 2b. Inside Memo, in the background: the headless web runtime + the floating console
 
-**User requirement:** apps must open *inside Memo*, never "outside" it. Memo must also have a proper floating surface for taking actions anywhere, not just capture.
+**User requirement:** services open *inside Memo* (as SynthOS Fieldwork did with its in-app browser), and the agent works with them **in the background without bothering the user**. A floating Memo surface lets the user act from anywhere, and it does more than capture.
 
-### Platform fact (stated to the user)
-Stock Android does not let a third-party app render another installed app's activities inside its own window. Embedding on a private virtual display needs system privileges, and Activity Embedding only covers your own activities or apps that opt in. So Memo provides the closest real equivalent, in this order:
+### Channel priority
+1. **In-Memo web runtime (primary).** Every service with a web app runs inside Memo's own WebView sessions: frontier AIs, LinkedIn/X, job boards, webmail, metrics pages. These run **headless in the background**. The user is involved only at approval gates and at takeover moments (login, captcha, 2FA, unexpected page). The router always prefers this channel when an adapter exists.
+2. **Native app automation (fallback, only when no web app exists).** On stock Android, accessibility automation can only act on an app that is on screen. These steps therefore run in a **screen session**: the user starts it with one tap from the bubble or notification, the bubble console stays on top, and Memo returns itself to the front when the step ends. The planner marks such steps "needs your screen" so they are batched and never surprise the user.
 
-1. **Web-first, truly inside Memo.**
-   - If a service has a usable web app (frontier AIs, LinkedIn, X, job boards, email webmail…), the step runs in a Memo WebView tab: Memo's own window, Memo's own profile.
-   - The router prefers the web channel whenever an adapter exists for it.
-2. **Native app, hosted under Memo's control.**
-   - When a step needs a native app, Memo launches it **adjacent to Memo in split-screen** (`FLAG_ACTIVITY_LAUNCH_ADJACENT | FLAG_ACTIVITY_NEW_TASK`, with Memo resizeable). On devices or orientations without split-screen, the app opens full-screen **underneath the Memo floating console**.
-   - The console stays visible throughout: step HUD (current action, progress, envelope), pause, stop, take over, approve.
-   - When the step ends or is paused, Memo returns itself to the front automatically, using an overlay tap target plus an activity relaunch. The user never has to navigate back.
-3. **No hidden or background launches.** Memo never launches an app the user can't see, and never acts on an app while Memo's console is hidden.
+### Headless web runtime (architecture)
+- **`WebWorkService`:**
+  - a foreground service (`dataSync` type; `specialUse` with a subtype if a run exceeds dataSync limits)
+  - persistent notification "Memo is working on N tasks" with a Stop action
+  - owns every automation WebView while runs are active, keeping the process alive
+- **WebView host window:**
+  - Automation WebViews are attached to an **invisible host window**: `TYPE_APPLICATION_OVERLAY`, `FLAG_NOT_TOUCHABLE | FLAG_NOT_FOCUSABLE`, alpha 0, fixed virtual viewport (e.g. 412×915 dp), so pages keep their layout, `requestAnimationFrame` and timers running.
+  - This uses the same overlay permission as the bubble.
+  - Degraded mode without overlay permission: an offscreen WebView with manual `measure`/`layout` to the virtual viewport and no `pauseTimers`. The UI warns that some sites may stall, and a stalled step goes to takeover.
+- **Profiles:** one WebView profile per service (androidx.webkit multi-profile, feature-checked), so each service keeps its own cookies and session. Sessions persist across runs; login happens once, by the user, in the visible Browser tab.
+- **Visible on demand:** the Browser tab (or the overlay console) **re-parents** the live WebView of a running step into the visible UI for watching or takeover, then hands it back to the host window. The run never restarts.
+- **Concurrency:** at most 2 automation WebViews active at once (memory guard); the others are queued. Each run's steps stay sequential (engine law).
+- **Throttling resistance:** no `onPause()`/`pauseTimers()` on automation WebViews. A watchdog detects stalled pages (no DOM change, no network) and escalates to takeover.
+- **Lifecycle:** the service stops when no run needs a WebView. Kill switch, low battery, or thermal throttling → pause all and notify.
+- **Security:** no JS bridge; results come only through `evaluateJavascript`. HTTPS only, Safe Browsing, no file/content access. Every outbound send is redacted and audited.
 
 ### Floating console ("Memo Overlay")
-- **Collapsed:** a draggable PresenceOrb bubble (`TYPE_APPLICATION_OVERLAY`) showing the live state: idle, listening, thinking, acting, waiting for you. It edge-snaps, and dragging it onto a dismiss target hides it.
+- **Collapsed:** a draggable PresenceOrb bubble (`TYPE_APPLICATION_OVERLAY`) showing live state: idle, listening, thinking, working in background (with a count), waiting for you. It edge-snaps; drag it to the dismiss target to hide it.
 - **Expanded:** a panel over any app, with:
-  - **Talk:** voice (sherpa, no system pop-up) and text chat with Memo. It is the same conversation engine as the Talk tab, so the thread continues there.
-  - **Act on this screen:** Memo observes the *current* foreground app (one-shot consent per invocation) and proposes a plan for it (e.g. "reply to this message", "fill this form", "add this person to CRM"). It runs through the full §2a loop and envelope rules, with approvals shown in the panel.
-  - **Running work:** live step rails of active runs; pause, stop, take over.
-  - **Approvals:** the filled artifact and envelope, with approve/veto in the panel. Side effects need the device unlocked.
-  - **Quick actions:** new task, capture screen/selection to a project, start a workflow template, open the full app.
+  - **Talk:** voice (sherpa, no system pop-up) and text with Memo, continuing the same conversation as the Talk tab.
+  - **Act on this screen:** Memo observes the current foreground app (one-shot consent per invocation) and proposes a plan (reply, fill this form, add this person to CRM…). It runs the full §2a loop and envelope rules, with approvals in the panel.
+  - **Background work:** live step rails of running workflows, including web sessions working headless; watch, take over, pause, stop.
+  - **Approvals:** filled artifact + envelope, approve/veto. Side effects need the device unlocked.
+  - **Quick actions:** new task, capture screen/selection to a project, start a workflow template, open Memo.
   - **Kill switch:** always visible.
-- **While Memo is acting:** the overlay shows the action being taken ("Typing your cover letter into 'Message'"). A single tap pauses. Touch passthrough stays enabled so the user can always intervene.
-- **Lifecycle:**
-  - a `specialUse` foreground service with a clear subtype and a persistent notification
-  - started only from user action (in-app toggle, QS tile, assist session)
-  - survives app switching; stops on the kill switch
-  - the overlay permission is requested with a rationale screen
-  - the overlay hides itself on the lock screen and in secure windows (FLAG_SECURE apps), and never captures password fields
-- **Safety:** the overlay never auto-taps for itself (no tapjacking). Its approve buttons need a deliberate tap plus device unlock for side effects. Action labels come from the envelope, not from the target app's text.
+- **Lifecycle and safety:**
+  - started only by user action (in-app toggle, QS tile, assist session)
+  - overlay permission requested with a rationale screen
+  - hidden on the lock screen and in secure windows; never captures password fields
+  - never taps itself (no tapjacking); approve buttons need a deliberate tap
 
 ## 3. Process (applies to every task)
 
@@ -685,15 +690,23 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - steps: build the fixture pages and the test activity listed in §2a Verification 2.
 - acceptance: the fixtures load in the emulator smoke test.
 
-**M4.A1 — Browser runtime**
-- deps: M0.A1, M0.A7
-- files: `app/.../platform/android/browser/BrowserRuntime.kt`, `WebProfiles.kt`, `SafeWebViewClient.kt`
-- steps:
-  1. A WebView per profile, using androidx.webkit multi-profile with a feature check. Fallback: a shared jar plus a visible warning and per-provider clear.
-  2. Hardened settings: no file/content access, HTTPS only, Safe Browsing, no JS bridge (results come only through `evaluateJavascript`).
-  3. Session persistence.
-  4. Human takeover: the step goes to a "needs you" state, with a notification and the Browser tab; the run continues with `deliverExternal`.
-- acceptance: CI green; the lead audits the settings.
+**M4.A1 — Headless in-Memo web runtime**
+- deps: M0.A1, M0.A7, M4.0
+- files: `app/.../platform/android/browser/WebWorkService.kt`, `WebHostWindow.kt`, `WebProfiles.kt`, `SafeWebViewClient.kt`, `WebSessionRegistry.kt`, manifest
+- steps: implement §2b's headless web runtime exactly:
+  1. Foreground service with the "working on N tasks" notification.
+  2. Invisible overlay host window with a fixed virtual viewport; offscreen degraded mode.
+  3. Per-service profiles.
+  4. Re-parenting into the visible UI and back without restarting.
+  5. At most 2 active WebViews, plus a queue.
+  6. Stall watchdog leading to takeover.
+  7. Hardened settings.
+  8. Kill switch, battery and thermal pause.
+  9. Results delivered via `Attempt.Pending` + `deliverExternal`.
+- acceptance:
+  - emulator test: a fixture page completes a fill + extract **while Memo's activity is in the background** (home pressed)
+  - re-parent to visible and back keeps page state
+  - the lead reviews the code line by line against §2a and §2b
 
 **M4.A2 — Provider adapters + frontier executor**
 - deps: M4.A1, M0.A6
@@ -708,7 +721,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   7. Every send goes through a redaction preview and the audit.
 - acceptance: JS-string unit tests (escaping, selector tables) + CI green.
 
-**M4.A3 — Browser tab**
+**M4.A3 — Browser tab (visible sessions, login once, watch/take over background runs)**
 - deps: M4.A1
 - files: `app/.../ui/browser/*`
 - steps: tabs per profile, address bar (HTTPS only), "capture page as source", "discuss in chat", takeover banner, provider sign-in status.
@@ -757,18 +770,18 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Router decisions are shown on each step ("why this provider").
 - acceptance: CI green.
 
-**M4.D1 — Native app hosting under Memo's control**
-- deps: M4.B1
-- files: `app/.../platform/android/automation/AppHost.kt`, `app/.../ui/host/HostedStepHud.kt`, manifest (`resizeableActivity`)
+**M4.D1 — Native-app screen sessions (fallback channel)**
+- deps: M4.B1, M2.C3
+- files: `app/.../platform/android/automation/ScreenSession.kt`, `app/.../ui/host/ScreenSessionHud.kt`
 - steps:
-  1. Launch the target app adjacent in split-screen when supported, otherwise full-screen under the overlay console.
-  2. The HUD stays visible for the whole step.
-  3. Bring Memo back to the front when the step completes, pauses or needs approval.
-  4. Refuse to act if Memo's console is not visible.
+  1. The planner marks native-app steps "needs your screen" and batches them.
+  2. The user starts the session with one tap (bubble or notification).
+  3. Memo launches the target app with the bubble console on top showing the step HUD.
+  4. The §2a loop runs; Memo returns itself to the front when the session ends.
+  5. Refuse to act if the console is not visible.
 - acceptance:
-  - CI green
-  - emulator test: launching the test target activity adjacent, and Memo returning to the front, both work
-  - the lead reviews the code against §2b
+  - emulator test against the test target activity
+  - the lead reviews the code against §2a and §2b
 
 **M4.D2 — Memo Overlay console**
 - deps: M2.C3, M3.A3, M3.B1, M4.A0, M4.B1
