@@ -124,19 +124,25 @@ class ProviderHealth {
         const val RECENT_FAILURE_MS: Long = 10L * 60L * 1000L
         const val SLOW_LATENCY_MS: Double = 30_000.0
 
+        /**
+         * Restores persisted health. Counters and timestamps are clamped to >= 0. A
+         * latency that is NaN, infinite or negative is treated as "no sample yet"
+         * (null), so a damaged file can never poison the score.
+         */
         fun fromJson(raw: JSONObject): ProviderHealth {
             val health = ProviderHealth()
             val targets = raw.optJSONObject("targets") ?: return health
             for (id in targets.keys()) {
                 val o = targets.optJSONObject(id) ?: continue
+                val latency = if (o.has("avgLatencyMs")) o.optDouble("avgLatencyMs") else Double.NaN
                 health.byTarget[id] = TargetHealth(
-                    successes = o.optInt("successes", 0),
-                    failures = o.optInt("failures", 0),
-                    consecutiveFailures = o.optInt("consecutiveFailures", 0),
-                    lastFailureAt = if (o.has("lastFailureAt")) o.optLong("lastFailureAt") else null,
-                    avgLatencyMs = if (o.has("avgLatencyMs")) o.optDouble("avgLatencyMs") else null,
-                    tripCount = o.optInt("tripCount", 0),
-                    openUntil = if (o.has("openUntil")) o.optLong("openUntil") else null,
+                    successes = o.optInt("successes", 0).coerceAtLeast(0),
+                    failures = o.optInt("failures", 0).coerceAtLeast(0),
+                    consecutiveFailures = o.optInt("consecutiveFailures", 0).coerceAtLeast(0),
+                    lastFailureAt = if (o.has("lastFailureAt")) o.optLong("lastFailureAt").coerceAtLeast(0L) else null,
+                    avgLatencyMs = latency.takeIf { it.isFinite() && it >= 0.0 },
+                    tripCount = o.optInt("tripCount", 0).coerceAtLeast(0),
+                    openUntil = if (o.has("openUntil")) o.optLong("openUntil").coerceAtLeast(0L) else null,
                 )
             }
             return health

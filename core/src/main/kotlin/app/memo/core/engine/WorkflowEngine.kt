@@ -2,6 +2,7 @@ package app.memo.core.engine
 
 import app.memo.core.Limits
 import app.memo.core.codec.CanonicalJson
+import app.memo.core.codec.SynCodec
 import app.memo.core.domain.AgentRun
 import app.memo.core.domain.BranchOutcome
 import app.memo.core.domain.Evidence
@@ -118,7 +119,7 @@ data class ExecContext(
  * - a side effect binds to the NEAREST preceding HUMAN_APPROVAL step regardless
  *   of its status; that gate must be COMPLETED, or the side effect is refused
  *   (D-023). Older approvals never cover a later side effect;
- * - a veto skips side-effect steps up to the NEXT gate only;
+ * - a veto (or a skipped gate after review) skips every PENDING step up to the NEXT gate (D-025);
  * - interruptions NEVER auto-resume side effects (resumeInterrupted);
  * - before a side-effect executor runs, the run is checkpointed with the step
  *   RUNNING and an "inflight:" ticket; a crash mid side effect therefore
@@ -140,8 +141,19 @@ class WorkflowEngine(
 ) {
 
     private val runs = LinkedHashMap<String, AgentRun>()
-    private val attemptResults = HashMap<String, Attempt>()
+    private val attemptResults = LinkedHashMap<String, Attempt>()
     private var runCounter = 0
+
+    /** Number of attempt results currently remembered for idempotent replay (bounded). */
+    internal fun rememberedAttemptCount(): Int = attemptResults.size
+
+    /** Remembers an attempt result for idempotent replay; keeps only the last [MAX_REMEMBERED_ATTEMPTS]. */
+    private fun rememberAttempt(key: String, result: Attempt) {
+        attemptResults[key] = result
+        while (attemptResults.size > MAX_REMEMBERED_ATTEMPTS) {
+            attemptResults.remove(attemptResults.keys.first())
+        }
+    }
 
     // ------------------------------------------------------------------ API
 
@@ -166,6 +178,12 @@ class WorkflowEngine(
     fun run(id: String): AgentRun? = runs[id]
 
     fun runs(): List<AgentRun> = runs.values.toList()
+
+    /** Drops every run from memory. Used only by an explicit vault reset. */
+    fun forgetAllRuns() {
+        runs.clear()
+        attemptResults.clear()
+    }
 
     /** Restore a persisted run (process-death resume path). */
     fun putRun(run: AgentRun) {
@@ -316,6 +334,13 @@ class WorkflowEngine(
                             settled = true
                             break
                         }
+                        is StepOutcome.Review -> {
+                            // A failed side effect is never retried automatically: a human decides.
+                            runStatus = RunStatus.NEEDS_REVIEW
+                            runFailure = outcome.state.failure.take(Limits.MAX_GATE_SUMMARY_CHARS)
+                            settled = true
+                            break
+                        }
                     }
                 }
             }
@@ -342,7 +367,7 @@ class WorkflowEngine(
     /**
      * Human decision on an open gate. The delivered hash must equal the
      * artifact hash captured at gate-open (approval binds content):
-     * mismatch -> NEEDS_REVIEW, veto -> gate skipped + side-effect steps up
+     * mismatch -> NEEDS_REVIEW, veto -> gate skipped + pending steps up
      * to the NEXT gate skipped, approval -> gate completes (artifact kept in
      * output for downstream persist/binding) and the run continues.
      */
@@ -362,7 +387,6 @@ class WorkflowEngine(
         val now = clock()
         val trimmedNote = note.trim().take(Limits.MAX_GATE_SUMMARY_CHARS)
 
-        val nextGate = nextGateIndexAfter(existing, gateIndex)
         val steps = existing.steps.toMutableList()
         var status = existing.status
 
@@ -373,14 +397,7 @@ class WorkflowEngine(
                     failure = "vetoed: $trimmedNote",
                     lastAttemptAt = now,
                 )
-                for (i in gateIndex + 1 until nextGate) {
-                    if (steps[i].spec.isSideEffect && steps[i].status == StepStatus.PENDING) {
-                        steps[i] = steps[i].copy(
-                            status = StepStatus.SKIPPED,
-                            failure = "vetoed by gate '$stepId'",
-                        )
-                    }
-                }
+                skipGatedSteps(steps, gateIndex, "vetoed by gate '$stepId'")
                 status = RunStatus.RUNNING
             }
             contentHashAtApproval != state.artifactContentHash -> {
@@ -417,6 +434,51 @@ class WorkflowEngine(
         )
         runs[runId] = updated
         return if (status == RunStatus.RUNNING) advance(runId) else updated
+    }
+
+    /**
+     * Veto law: every PENDING step between [gateIndex] and the NEXT gate
+     * depends on that gate's approval (persist, side effects, consumers of its
+     * artifact), so all of them are skipped. Read-only work is not exempted:
+     * when in doubt, skip.
+     */
+    private fun skipGatedSteps(steps: MutableList<StepState>, gateIndex: Int, reason: String) {
+        val end = nextGateIndex(steps, gateIndex)
+        for (i in gateIndex + 1 until end) {
+            if (steps[i].status == StepStatus.PENDING) {
+                steps[i] = steps[i].copy(status = StepStatus.SKIPPED, failure = reason)
+            }
+        }
+    }
+
+    /**
+     * Marks a run for human review without executing anything. Used when a run
+     * restored from a backup holds side effects after a COMPLETED gate whose
+     * outcome is unknown. Unsettled side-effect steps are moved to NEEDS_REVIEW
+     * so [resolveReview] can act on them. Terminal runs are returned unchanged.
+     */
+    fun markNeedsReview(runId: String, reason: String): AgentRun {
+        val existing = runs[runId] ?: throw IllegalArgumentException("unknown run $runId")
+        if (existing.status in TERMINAL_STATUSES) return existing
+        val now = clock()
+        val note = reason.trim().take(Limits.MAX_GATE_SUMMARY_CHARS).ifEmpty { "needs review" }
+        val steps = existing.steps.map { state ->
+            if (state.spec.isSideEffect &&
+                state.status in setOf(StepStatus.PENDING, StepStatus.RUNNING, StepStatus.INTERRUPTED)
+            ) {
+                state.copy(status = StepStatus.NEEDS_REVIEW, failure = note)
+            } else {
+                state
+            }
+        }
+        val updated = existing.copy(
+            steps = steps,
+            status = RunStatus.NEEDS_REVIEW,
+            updatedAt = now,
+            failure = note,
+        )
+        runs[runId] = updated
+        return updated
     }
 
     /**
@@ -555,6 +617,10 @@ class WorkflowEngine(
         } else {
             existing.steps[index].copy(status = StepStatus.SKIPPED, failure = "skipped after review")
         }
+        if (!retry && existing.steps[index].spec.kind == StepKind.HUMAN_APPROVAL) {
+            // Skipping a gate is a veto: everything bound to it goes too.
+            skipGatedSteps(steps, index, "skipped after review of gate '$stepId'")
+        }
         val updated = existing.copy(
             steps = steps.toList(),
             status = RunStatus.RUNNING,
@@ -605,6 +671,7 @@ class WorkflowEngine(
         data class RetryLater(override val stepIndex: Int, override val state: StepState) : StepOutcome
         data class HardFail(override val stepIndex: Int, override val state: StepState) : StepOutcome
         data class Interrupted(override val stepIndex: Int, override val state: StepState) : StepOutcome
+        data class Review(override val stepIndex: Int, override val state: StepState) : StepOutcome
     }
 
     private class BranchJump(
@@ -675,6 +742,7 @@ class WorkflowEngine(
         val idem = "$runId${Limits.IDEMPOTENCY_SEPARATOR}${step.id}${Limits.IDEMPOTENCY_SEPARATOR}$attempt"
 
         val priorOutputs = buildPriorOutputs(steps, index)
+        val gate = nearestGateBefore(steps, index)
         val priorEvidence = steps.subList(0, index)
             .flatMap { it.evidence }
             .take(Limits.MAX_EVIDENCE_PER_STEP * 2)
@@ -705,6 +773,17 @@ class WorkflowEngine(
             )
         }
 
+        if (step.kind == StepKind.DATA_PERSIST && gate != null && !gateBindingValid(gate)) {
+            return StepOutcome.HardFail(
+                index,
+                failState(
+                    state, attempt, now,
+                    "data_persist refused: nearest gate '${gate.spec.id}' is ${gate.status}, " +
+                        "not COMPLETED with a matching approval hash",
+                ),
+            )
+        }
+
         val cached = attemptResults[idem]
         if (step.isSideEffect && cached == null) {
             // Checkpoint BEFORE the executor: a crash after this point restores as
@@ -726,21 +805,22 @@ class WorkflowEngine(
         }
 
         val result: Attempt = try {
-            cached ?: runRoute(step, ctx)
+            cached ?: runRoute(step, ctx, gate)
         } catch (t: Throwable) {
-            attemptResults[idem] = Attempt.Failed("executor threw: ${t.javaClass.simpleName}: ${t.message}")
+            val summary = "executor threw: " + SynCodec.safeMessage(t, MAX_THROWABLE_MESSAGE_CHARS)
+            rememberAttempt(idem, Attempt.Failed(summary))
             return StepOutcome.Interrupted(
                 index,
                 state.copy(
                     status = StepStatus.INTERRUPTED,
                     attempts = attempt,
                     lastAttemptAt = now,
-                    failure = "executor threw: ${t.javaClass.simpleName}: ${t.message.orEmpty().take(200)}",
+                    failure = summary.take(Limits.MAX_GATE_SUMMARY_CHARS),
                 ),
             )
         }
         if (attemptResults[idem] == null) {
-            attemptResults[idem] = result
+            rememberAttempt(idem, result)
         }
 
         return settleAttempt(runId, index, state, attempt, now, result)
@@ -795,6 +875,17 @@ class WorkflowEngine(
         val step = state.spec
         if (step.kind == StepKind.HUMAN_APPROVAL) {
             // A completed gate artifact OPENS the gate; it never closes the step.
+            // The hash must cover the whole artifact: a cut copy is refused, not hashed.
+            if (result.output.length > Limits.MAX_OUTPUT_CHARS) {
+                return StepOutcome.HardFail(
+                    index,
+                    failState(
+                        state, attempt, now,
+                        "gate artifact is ${result.output.length} chars, over the ${Limits.MAX_OUTPUT_CHARS}-char " +
+                            "limit; refusing to hash a truncated copy",
+                    ),
+                )
+            }
             val parsed = runCatching { JSONObject(result.output) }.getOrNull()
             if (parsed == null) {
                 return StepOutcome.HardFail(
@@ -805,7 +896,7 @@ class WorkflowEngine(
             val opened = state.copy(
                 status = StepStatus.WAITING_USER,
                 attempts = attempt,
-                artifact = result.output.take(Limits.MAX_OUTPUT_CHARS),
+                artifact = result.output,
                 artifactContentHash = CanonicalJson.contentHash(parsed),
                 failure = "",
                 lastAttemptAt = now,
@@ -826,6 +917,12 @@ class WorkflowEngine(
         val outbound = if (step.isSideEffect) outboundEventFor(runId, step, completed) else null
         return StepOutcome.Done(index, completed, advancePointer = true, outbound = outbound)
     }
+
+    /** A gate binds downstream work only when COMPLETED and its approved hash matches the artifact. */
+    private fun gateBindingValid(gate: StepState): Boolean =
+        gate.status == StepStatus.COMPLETED &&
+            gate.approvedContentHash.isNotEmpty() &&
+            gate.approvedContentHash == gate.artifactContentHash
 
     /** The nearest HUMAN_APPROVAL step before [index], whatever its status. */
     private fun nearestGateBefore(steps: List<StepState>, index: Int): StepState? =
@@ -869,27 +966,33 @@ class WorkflowEngine(
             checkpoint(run)
             null
         } catch (t: Throwable) {
-            "${t.javaClass.simpleName}: ${t.message.orEmpty().take(200)}"
+            SynCodec.safeMessage(t, MAX_THROWABLE_MESSAGE_CHARS)
         }
     }
 
-    private fun runRoute(step: StepSpec, ctx: ExecContext): Attempt = when (step.kind) {
+    private fun runRoute(step: StepSpec, ctx: ExecContext, gate: StepState?): Attempt = when (step.kind) {
         StepKind.REASON -> routes.reason.execute(ctx, step)
         StepKind.BROWSER_AUTOMATION -> routes.browser.execute(ctx, step)
         StepKind.APP_AUTOMATION -> routes.app.execute(ctx, step)
         StepKind.METRIC_COLLECT -> routes.metric.execute(ctx, step)
-        StepKind.DATA_PERSIST -> dataPersist(ctx, step)
+        StepKind.DATA_PERSIST -> dataPersist(ctx, step, gate)
         StepKind.HUMAN_APPROVAL -> gateOpen(ctx, step)
         StepKind.BRANCH, StepKind.RETRY ->
             Attempt.Failed("${step.kind.name} steps are engine-internal and must not reach executors")
     }
 
-    private fun dataPersist(ctx: ExecContext, step: StepSpec): Attempt {
+    private fun dataPersist(ctx: ExecContext, step: StepSpec, gate: StepState?): Attempt {
         if (step.artifactType !in Prompts.ARTIFACT_KINDS) {
             return Attempt.Failed("data_persist artifactType '${step.artifactType}' is not a registry kind")
         }
-        val payloadJson = ctx.priorOutputs.values.lastOrNull { it.trim().startsWith("{") }
-            ?: return Attempt.Failed("data_persist needs a JSON artifact from a prior step")
+        // Behind a gate, persist exactly what the human approved, never a later output.
+        val payloadJson = if (gate != null) {
+            gate.output.takeIf { it.trim().startsWith("{") }
+                ?: return Attempt.Failed("data_persist needs the approved gate artifact (JSON)")
+        } else {
+            ctx.priorOutputs.values.lastOrNull { it.trim().startsWith("{") }
+                ?: return Attempt.Failed("data_persist needs a JSON artifact from a prior step")
+        }
         val payload = runCatching { JSONObject(payloadJson) }.getOrNull()
             ?: return Attempt.Failed("data_persist prior output is not valid JSON")
         val id = rowNaturalId(step.artifactType, payload)
@@ -967,6 +1070,20 @@ class WorkflowEngine(
         reason: String,
         now: Long,
     ): StepOutcome {
+        if (state.spec.isSideEffect) {
+            // Defence in depth: WorkflowPolicy rejects retry policies on side effects,
+            // and the engine never schedules one. A failed side effect needs a human.
+            return StepOutcome.Review(
+                index,
+                state.copy(
+                    status = StepStatus.NEEDS_REVIEW,
+                    attempts = attempt,
+                    failure = "side effect failed, not retried: ${reason.take(Limits.MAX_GATE_SUMMARY_CHARS)}",
+                    lastAttemptAt = now,
+                    externalTicket = "",
+                ),
+            )
+        }
         val retry = state.spec.retry
         return if (retry != null && attempt < retry.attemptsMax) {
             val backoff = retry.backoffFor(attempt)
@@ -1046,16 +1163,22 @@ class WorkflowEngine(
         else -> ""
     }
 
-    private fun nextGateIndexAfter(run: AgentRun, gateIndex: Int): Int {
-        for (i in gateIndex + 1 until run.steps.size) {
-            if (run.steps[i].spec.kind == StepKind.HUMAN_APPROVAL) return i
+    private fun nextGateIndex(steps: List<StepState>, gateIndex: Int): Int {
+        for (i in gateIndex + 1 until steps.size) {
+            if (steps[i].spec.kind == StepKind.HUMAN_APPROVAL) return i
         }
-        return run.steps.size
+        return steps.size
     }
 
     companion object {
         /** Ticket prefix marking a side-effect attempt checkpointed before its executor ran. */
         const val INFLIGHT_PREFIX: String = "inflight:"
+
+        /** Newest attempt results kept for idempotent replay. */
+        const val MAX_REMEMBERED_ATTEMPTS: Int = 20
+
+        /** Exception text persisted into a step failure is cut to this many chars. */
+        const val MAX_THROWABLE_MESSAGE_CHARS: Int = 160
 
         private val RESUMABLE_STATUSES = setOf(RunStatus.PENDING, RunStatus.RUNNING)
         private val TERMINAL_STATUSES = setOf(
