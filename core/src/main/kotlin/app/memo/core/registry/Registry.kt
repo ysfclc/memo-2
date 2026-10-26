@@ -10,6 +10,12 @@ import org.json.JSONObject
  * rows instead of throwing, which lets the registry quarantine them.
  */
 interface RegScheme<T> {
+    /** Schema major of rows written by this scheme; default 1, overridable. */
+    val schemaMajor: Int get() = 1
+
+    /** Schema minor of rows written by this scheme; default 0, overridable. */
+    val schemaMinor: Int get() = 0
+
     /** Natural-key id; blank means "cannot be keyed" (quarantined by the registry). */
     fun id(item: T): String
 
@@ -139,4 +145,11 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
     }
 
     fun freeCapacity(): Int = (Limits.MAX_ENTRIES_PER_REGISTRY - byId.size).coerceAtLeast(0)
+
+    /** Semantic version of [item]: the scheme's schema major.minor plus the row's patch revision. */
+    fun semVerOf(item: T): SemVer =
+        SemVer(scheme.schemaMajor, scheme.schemaMinor, scheme.versionOf(item))
+
+    /** Schema version of this registry's rows, as "major.minor". */
+    fun schemaVersion(): String = "${scheme.schemaMajor}.${scheme.schemaMinor}"
 }

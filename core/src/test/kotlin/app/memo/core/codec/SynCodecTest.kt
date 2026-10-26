@@ -34,7 +34,7 @@ class SynCodecTest {
         val text = original.serialize(exportedAt = 1_700_000_010_000)
         val outcome = SynCodec.parse(text)
         assertIs<SynCodec.ParseOutcome.Ok>(outcome)
-        assertEquals(1, outcome.fromVersion)
+        assertEquals(2, outcome.fromVersion)
         assertEquals(false, outcome.migrated)
         assertEquals(1, outcome.workspace.people.size)
         assertEquals(1, outcome.workspace.companies.size)
@@ -42,6 +42,20 @@ class SynCodecTest {
         val person = outcome.workspace.people.items().single()
         assertEquals("Ada Lovelace", person.fullName)
         assertEquals("Consultant", person.role)
+    }
+
+    @Test
+    fun serializeWritesV2EnvelopeWithSchemasMap() {
+        val envelope = JSONObject(freshWorkspace().serialize(exportedAt = 1L))
+        assertEquals(2, envelope.getInt("schemaVersion"))
+        val schemas = envelope.getJSONObject("schemas")
+        val registries = envelope.getJSONObject("registries")
+        assertEquals(16, schemas.length())
+        assertEquals(16, registries.length())
+        schemas.keys().forEach { kind ->
+            assertEquals("1.0", schemas.getString(kind))
+            assertTrue(registries.has(kind), "registry $kind missing from envelope")
+        }
     }
 
     @Test
