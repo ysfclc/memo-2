@@ -7,7 +7,7 @@ kotlin {
 }
 
 dependencies {
-    implementation("org.json:json:20240303")
+    implementation("org.json:json:20260814")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.21")
