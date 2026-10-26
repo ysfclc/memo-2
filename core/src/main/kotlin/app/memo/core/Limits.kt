@@ -48,6 +48,10 @@ object Limits {
     const val MAX_METRIC_TARGET_CHARS: Int = 300
     const val REMINDER_MIN_LEAD_MS: Long = 60_000L
 
+    // ---- Knowledge & library (domain v2) --------------------------------
+    const val MAX_LIST_ITEMS: Int = 32                  // tags, variables, channels, do-nots
+    const val MAX_JSON_PAYLOAD_CHARS: Int = 64_000      // 12 steps x 4000-char prompts plus framing
+
     // ---- Audit ----------------------------------------------------------
     const val AUDIT_ACTION_MAX_CHARS: Int = 300
     const val AUDIT_TARGET_MAX_CHARS: Int = 200
@@ -55,7 +59,7 @@ object Limits {
         "0000000000000000000000000000000000000000000000000000000000000000"
 
     // ---- Codec / workspace ---------------------------------------------
-    const val WORKSPACE_SCHEMA_VERSION: Int = 1
+    const val WORKSPACE_SCHEMA_VERSION: Int = 2     // v2: 16 registries + per-registry schema versions (D-020)
     const val MAX_WORKSPACE_BYTES: Int = 8_000_000
     const val MAX_ENTRIES_PER_REGISTRY: Int = 2_000
 

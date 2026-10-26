@@ -1,4 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -6,9 +9,78 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Pinned native toolchain. Installed in CI by sdkmanager (see .github/workflows/build-memo-apk.yml).
+val pinnedNdkVersion = "27.2.12479018"
+val pinnedCmakeVersion = "3.22.1"
+
+// Pinned offline-speech AAR (sherpa-onnx v1.13.8). Downloaded by fetchSherpaAar, never committed.
+val sherpaAarFileName = "sherpa-onnx-1.13.8.aar"
+val sherpaAarUrl =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-static-link-onnxruntime-1.13.8.aar"
+val sherpaAarSha256 = "b22c3fc1b6a45666d28892bb2f7694beeb77a8362d7ebd77c1a5431ec9435471"
+
+fun sha256Of(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(1 shl 16)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+val fetchSherpaAar by tasks.registering {
+    val libsDir = layout.projectDirectory.dir("libs").asFile
+    val target = File(libsDir, sherpaAarFileName)
+    outputs.file(target)
+    doLast {
+        libsDir.mkdirs()
+        if (target.isFile && sha256Of(target) == sherpaAarSha256) {
+            logger.lifecycle("fetchSherpaAar: ${target.name} present with pinned SHA-256, skipping download")
+            return@doLast
+        }
+        val partial = File(libsDir, "$sherpaAarFileName.part")
+        partial.delete()
+        val connection = URL(sherpaAarUrl).openConnection() as HttpURLConnection
+        connection.instanceFollowRedirects = true
+        connection.connectTimeout = 30_000
+        connection.readTimeout = 120_000
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                throw GradleException("fetchSherpaAar: HTTP $status downloading $sherpaAarUrl")
+            }
+            connection.inputStream.use { input -> partial.outputStream().use { input.copyTo(it) } }
+        } finally {
+            connection.disconnect()
+        }
+        val actual = sha256Of(partial)
+        if (actual != sherpaAarSha256) {
+            partial.delete()
+            target.delete()
+            throw GradleException(
+                "fetchSherpaAar: SHA-256 mismatch for $sherpaAarFileName. expected=$sherpaAarSha256 actual=$actual"
+            )
+        }
+        if (!partial.renameTo(target)) {
+            partial.delete()
+            throw GradleException("fetchSherpaAar: could not move verified download to ${target.path}")
+        }
+        logger.lifecycle("fetchSherpaAar: downloaded and verified ${target.name} (${target.length()} bytes)")
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(fetchSherpaAar)
+}
+
 android {
     namespace = "app.memo"
     compileSdk = 35
+    ndkVersion = pinnedNdkVersion
 
     defaultConfig {
         applicationId = "app.memo"
@@ -16,6 +88,26 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
+        externalNativeBuild {
+            cmake {
+                // Always optimise native code: a Debug-built llama.cpp is unusably slow on device
+                // and bloats the APK with symbols. AGP passes CMAKE_BUILD_TYPE first; this later value wins.
+                arguments += listOf("-DANDROID_STL=c++_shared", "-DCMAKE_BUILD_TYPE=Release")
+                cppFlags += "-std=c++17"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = pinnedCmakeVersion
+        }
     }
 
     buildTypes {
@@ -41,6 +133,10 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            // llama.cpp (c++_shared via ANDROID_STL) and sherpa-onnx both ship libc++_shared.so.
+            pickFirsts += listOf("**/libc++_shared.so")
+        }
     }
 
     lint {
@@ -58,6 +154,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    implementation(files("libs/$sherpaAarFileName"))
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
@@ -68,6 +165,14 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("androidx.webkit:webkit:1.17.1")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.21")

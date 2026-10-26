@@ -18,7 +18,7 @@ jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
 
     steps:
       - name: Checkout repository
@@ -87,7 +87,9 @@ jobs:
           "${{ steps.android.outputs.sdkmanager }}" --sdk_root="$ANDROID_HOME" \
             'platform-tools' \
             'platforms;android-35' \
-            'build-tools;35.0.0'
+            'build-tools;35.0.0' \
+            'ndk;27.2.12479018' \
+            'cmake;3.22.1'
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -95,14 +97,15 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            app/libs
           key: gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties', '**/build.gradle.kts', '**/*.gradle.kts') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      - name: Build (unit tests, lint, debug APK)
+      - name: Build (core tests, app unit tests, lint, debug APK)
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+          ./gradlew --no-daemon --stacktrace :core:test testDebugUnitTest lintDebug assembleDebug
 
       - name: Verify APK
         id: apk
@@ -117,6 +120,16 @@ jobs:
           file "$apk"
           sha256sum "$apk"
           echo "path=$apk" >> "$GITHUB_OUTPUT"
+
+      - name: List APK native libraries
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          unzip -l "$apk" > apk-contents.txt
+          unzip -l "$apk" | grep 'lib/' || true
+          grep -q 'lib/arm64-v8a/libmemo_llama.so' apk-contents.txt || { echo "::error::libmemo_llama.so (arm64-v8a) missing from APK"; exit 1; }
+          grep -q 'lib/x86_64/libmemo_llama.so' apk-contents.txt || { echo "::error::libmemo_llama.so (x86_64) missing from APK"; exit 1; }
+          echo "Total APK size: $(stat -c %s "$apk") bytes"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

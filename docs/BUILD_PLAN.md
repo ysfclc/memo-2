@@ -199,7 +199,7 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
 
 ### Channel priority
 1. **In-Memo web runtime (primary).** Every service with a web app runs inside Memo's own WebView sessions: frontier AIs, LinkedIn/X, job boards, webmail, metrics pages. These run **headless in the background**. The user is involved only at approval gates and at takeover moments (login, captcha, 2FA, unexpected page). The router always prefers this channel when an adapter exists.
-2. **Native app automation (fallback, only when no web app exists).** On stock Android, accessibility automation can only act on an app that is on screen. These steps therefore run in a **screen session**: the user starts it with one tap from the bubble or notification, the bubble console stays on top, and Memo returns itself to the front when the step ends. The planner marks such steps "needs your screen" so they are batched and never surprise the user.
+2. **Native app automation (first-class, §2c).** On stock Android, accessibility automation can only act on an app that is on screen. These steps therefore run in a **screen session**: the user starts it with one tap from the bubble or notification, the bubble console stays on top, and Memo returns itself to the front when the step ends. The planner marks such steps "needs your screen" so they are batched and never surprise the user.
 
 ### Headless web runtime (architecture)
 - **`WebWorkService`:**
@@ -231,6 +231,578 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
   - overlay permission requested with a rationale screen
   - hidden on the lock screen and in secure windows; never captures password fields
   - never taps itself (no tapjacking); approve buttons need a deliberate tap
+
+## 2c. Native apps on the device: the SynthOS Runtime pattern, done properly
+
+**User requirement:** Memo operates the **mobile apps installed on the phone** (not their websites), the way the SynthOS Runtime did:
+1. Memo launches the target app.
+2. `MemoAccessibilityService` drives it.
+3. Memo's floating console (§2b) sits on top as the control and inspector surface.
+
+The user doesn't operate anything; the agent works on its own and only surfaces approvals or takeovers. This is a **first-class channel**, used alongside the in-Memo web runtime. The router picks per step: native app when the user prefers the app or no web adapter exists, web otherwise.
+
+**Improvements over the SynthOS Runtime** (which had: launch, tap-text, wait-text, back, delay only; English regex policy; no gestures/typing; static singletons; overlay built in the service):
+- The full §2a loop and closed vocabulary: launch, tap, type, scroll, swipe, back, wait_text, read, commit. Multi-strategy locators. The envelope is bound to the approved gate.
+- Guards: lock pause, wrong-app pause with auto-resume, `ActionPolicy` before every action, password/OTP fields never touched, bounded retries, UNVERIFIED unless the postcondition is observed.
+- Screen state: needs the screen on and unlocked while acting. Memo batches native steps. When the phone is locked, they wait, and the console/notification says "ready to run N app steps — unlock to let Memo work". After unlock they run without further prompts unless a gate needs approval.
+- Memo returns itself (or the previous app) to the front after the session.
+
+## 2d. Human-like interaction (anti-ban)
+
+**Requirement:** automation must behave like a person, to minimise the chance of platform bans. This is risk reduction, not a guarantee. Platform terms still apply, and Memo shows this note once in Settings. Implemented as a pure `core/automation/Humanizer` (seeded RNG, fully unit-tested) used by both the app and web executors.
+
+- **Timing:** delays come from a log-normal distribution (not constant), with think pauses before decisions and reading pauses proportional to the visible text length (~200–300 wpm). The minimum gap between actions is never under 250 ms.
+- **Typing:**
+  - App: chunked `ACTION_SET_TEXT` that grows the text in 1–4 character bursts with per-character cadence (~40–90 wpm), occasional micro-pauses, and no instant full-paste for long text unless the user enables "fast mode".
+  - Web: per-chunk `execCommand('insertText')` at the same cadence.
+- **Touch:** taps land at a random point inside the element's bounds (biased to the centre, never on the edge), with a press duration of 40–120 ms. Swipes and scrolls use curved Bézier `dispatchGesture` paths with variable speed, slight overshoot, and natural fling lengths.
+- **Navigation:** realistic scrolling while reading lists, with no teleporting jumps. Occasional idle dwell.
+- **Session pacing:**
+  - per-app and per-site action rate limits
+  - daily caps (e.g. job applications/day, posts/day, connection requests/day), all configurable
+  - optional working-hours window
+  - cooldowns after errors
+  - automatic backoff when a site shows rate-limit or "unusual activity" signals; those signals pause the channel and notify
+- **Consistency:** one stable session per service (same profile and cookies). No parallel sessions on the same account. No automation of logins (the user logs in once).
+- **Tests:** distribution bounds, monotonic typing growth, gesture path continuity, and pacing/cap enforcement.
+
+## 2e. Full control: everything editable, workflow editor, settings, autonomy
+
+**Requirement:** nothing is read-only. The user can create, edit, update and delete everything manually, and has full control over settings and how much the agent asks.
+
+- **CRUD everywhere:** People, Companies, Tasks, Projects, Notes, Drafts, Posts, Metrics (manual samples), Job postings/applications, Workflow templates, Prompt templates, Principles, Content preferences, Channel accounts, Provider/app adapters (advanced).
+  - Every edit goes through `Registry.upsert`: reuse-first, version bump on real change, history kept.
+  - Edits are audited locally. Delete is soft (archive) with undo; purge is an explicit confirmation.
+- **Workflow editor:**
+  - Create a workflow from scratch or from a template, or edit a generated plan before running.
+  - Add, remove and reorder steps. Edit every step field (kind, title, prompt, provider/app, envelope actions, artifact type, metric URL, retry, branches), with live validation via `PlanProposalParser`/`WorkflowPolicy`. Errors show inline per step.
+  - Save as a template (versioned), duplicate, run, schedule (one-off or recurring via WorkManager).
+  - The run history per workflow lets the user edit and re-run.
+- **Autonomy and approval policy** (Settings → Autonomy), defaults first:
+  - Per action class (read/capture, draft, persist, consult frontier AI, send message, publish, apply to job, app UI action, purchase/payment), a level:
+    - *Always ask*
+    - *Ask once per workflow* (one approval covers the run's envelope)
+    - *Auto, summarise after*
+    - *Auto, silent*
+  - Defaults: read/capture/draft/persist = Auto, summarise; consult = Ask once per workflow; send/publish/apply/app UI = Always ask.
+  - **Payments, passwords, OTP and account-security actions are permanently Always ask / human-only** and cannot be relaxed.
+  - Auto levels still build the envelope and write the audit; "auto" means the engine delivers the gate itself with the user's standing rule recorded as the approver. That is a new `GateApprover.STANDING_RULE` value in core, so the audit shows which rule approved it.
+  - Per-channel and per-provider overrides; a quiet-hours window during which nothing interrupts (approvals queue).
+- **Settings** (complete, searchable):
+  - Profile
+  - Autonomy and approvals
+  - Channels (web services, device apps, discovery toggles)
+  - Human-like behaviour (speed presets, caps, working hours)
+  - Models (defaults per role, per-model parameters, storage)
+  - Voice (ASR/TTS models, voice, speed, wake word, sensitivity, screen-off wake)
+  - Notifications
+  - Floating console
+  - Privacy and security (vault, app lock, redaction rules editor, outbound log, kill switch)
+  - Data (backup/export/import, storage, purge)
+  - Appearance (light/dark/system, density, motion reduce)
+  - Advanced (adapters, diagnostics, developer log)
+  - About and permissions centre
+
+## 2f. Wake by voice with the screen off
+
+**Requirement:** say "Hey Memo" while the phone is idle, with the screen off and locked, and Memo wakes up.
+
+- `WakeWordService`:
+  - a foreground service (`microphone` type) running the sherpa keyword spotter continuously with low-power settings (small KWS model, 16 kHz, VAD-gated)
+  - holds a `PARTIAL_WAKE_LOCK` only while listening is enabled
+  - started from the foreground (in-app toggle) and kept alive by the FGS
+- On detection:
+  - acquire a screen-on wake (`turnScreenOn` + `showWhenLocked` on `AssistActivity`)
+  - play an earcon and speak through the voice loop
+  - pure steps run while the phone is locked; side effects queue behind "unlock to approve" (or run under standing autonomy rules for allowed classes)
+- **Honest limits** (stated in Settings):
+  - Android 14+ forbids starting a microphone FGS from boot or background, so after a reboot Memo posts a notification "tap to re-arm Hey Memo".
+  - Some OEMs kill background services, so Memo shows OEM-specific battery-optimisation guidance and a "don't optimise" deep link.
+  - Battery cost is measured and shown in Settings.
+  - Thermal and low-battery auto-pause.
+- The default-assistant role (long-press power) remains the zero-battery path.
+
+## 2g. Local agent engine + media engine
+
+**User requirement:** upgrade the local agent for advanced work. It must be able to create content assets itself: text, images, carousels, video. The user can also route any such task to a frontier AI through the in-Memo web runtime. This **refines A6/D-016**: the local model is no longer orchestrator-only. Routing per task class is a user setting (Settings → Autonomy/Routing), defaulting to "local first, frontier when the local result fails quality checks or the task class is marked heavy".
+
+### Local agent (tool-using)
+- **`AgentEngine`** (core, pure; app supplies `LlmRuntime`) runs a bounded loop:
+  1. The model receives the goal, ContextPacket and tool schemas, and replies with ONE JSON tool call or a final answer.
+  2. Core validates the call against the tool's schema; invalid calls get up to 2 repairs.
+  3. The tool executes.
+  4. The observation is appended (capped).
+  5. Bounds: ≤ 12 tool calls, token and wall-clock budgets, no-progress detection.
+- Every side-effecting tool is a **workflow step** (gated or envelope-bound per §2a/§2e). The agent cannot bypass the engine.
+- **Tools:**
+  - `search_workspace`, `get_record`
+  - `create_record` / `update_record` (gated per autonomy)
+  - `draft_text`, `summarize`, `extract_json`
+  - `generate_image`, `render_carousel`, `compose_video`
+  - `consult_frontier` (routed via ModelRouter → web or app)
+  - `browse_capture` (web runtime, read-only)
+  - `run_workflow`, `schedule_workflow`
+  - `ask_user` (queues a question in Live and the console)
+- **Models:** the agent runs on the user's chosen local model, recommended Gemma 4 E4B / Qwen3-4B / Phi-4-mini (thinking where supported), on either runtime. Smaller models fall back to a planner-only mode.
+- **Quality checks:**
+  - drafts: length/format/forbidden-claims checks against ContentPreference
+  - JSON: schema
+  - images: safety + resolution checks
+  - A failure escalates to the frontier route if the user's routing allows it.
+
+### Media engine
+- **Images:**
+  1. Local: MediaPipe `com.google.mediapipe:tasks-vision-image-generator:0.10.26.1` (Stable-Diffusion-class model, downloaded through the Hub, pinned + SHA-verified; prompt, negative prompt, steps, seed). The API is verified from the AAR's classes at implementation time.
+  2. Advanced local (capability-gated): litert-community diffusion pipelines (FLUX.2-klein-4B-LiteRT, Z-Image-Turbo-LiteRT) via the LiteRT runtime, following each model's published pipeline. Enabled only on devices passing a RAM/accelerator check.
+  3. Frontier: image generation in ChatGPT/Gemini inside the in-Memo web runtime. The generated image is downloaded from the page as an artifact (a consult, gated by autonomy).
+- **Carousels:** slides rendered locally from design tokens and templates (title, body, image slots) to PNG + PDF.
+- **Video:** local MediaCodec/MediaMuxer H.264 composer: scenes (images/slides) with Ken-Burns motion, captions, transitions, and a Kokoro voice-over track mixed to AAC. Storyboards are written by the agent.
+- **Gates** show the real rendered assets with target channels. Assets are stored encrypted, then exported to app-private cache only for upload.
+
+## 2h. Languages: English, Polish, Turkish (first-class)
+
+**User requirement:** Polish and Turkish language options alongside English, across the whole product.
+
+- **App UI:**
+  - all strings in resources: `values/` (en), `values-pl/`, `values-tr/`
+  - no hard-coded UI text in Kotlin (lint `HardcodedText` + a grep check)
+  - `res/xml/locales_config.xml` and an in-app language picker (Settings → Language: System / English / Polski / Türkçe), using `LocaleManager` on API 33+ and a configuration-context wrapper on API 30–32
+  - plurals and date/number formatting via `Locale`
+  - Turkish casing: always `Locale.ROOT` for internal keys, and the user locale only for display
+- **Voice:**
+  - **ASR:** multilingual Whisper (sherpa-onnx; small/base/turbo per device) for pl/tr. Live mode runs VAD-segmented Whisper with near-live partials. Streaming Zipformer is used for English where available.
+  - **TTS:** Kokoro for English. Piper/VITS voices for Polish and Turkish (sherpa-onnx `vits-piper-pl_PL-*`, `vits-piper-tr_TR-*`; the most natural available voice is chosen per language, pinned + SHA-verified in the Hub). Voice picker per language.
+  - The wake word "Hey Memo" works in any UI language. Custom wake phrases are allowed.
+- **Commands:**
+  - `CommandGrammar` gains Polish and Turkish patterns (reminders, tasks, CRM add, drafts, cancel), with locale-aware time phrases ("za 10 minut", "o 17:30", "10 dakika sonra", "saat 17:30'da").
+  - Anything else goes to the local agent, which understands all three languages.
+- **Agent and prompts:** the agent replies in the user's language (detected per message, overridable). Frontier consult envelopes ask for answers in the user's language. Templates and preferences are language-tagged.
+- **Automation:**
+  - `ActionPolicy` terms include pl/tr (plus de/es/fr).
+  - Provider adapters' send/stop/busy detection and locators include pl/tr labels.
+  - Humanizer reading speed is per language.
+- **Tests:** string-resource parity (every key exists in all 3 locales; a unit test parses the XML), grammar tests per language, policy tests per language.
+
+## 2i. Alive, professional, fast: motion language + performance
+
+**User requirement:** the app must feel alive, with proper motion graphics and transitions, and be professional and fast.
+
+### Motion principles
+1. Motion explains state: something spawned, progressed, waits for you, is done.
+2. Physics over curves: springs for anything the user touches, tweens only for ambient loops.
+3. Fast first. Interactions respond within one frame. Transitions run 180–320 ms, never block input, and are interruptible.
+4. Never fake progress: a progress animation always maps to real engine or download state.
+5. Respect the system animator scale and the "reduce motion" setting, with a static fallback for every animation.
+
+### Motion tokens (`MemoMotion`)
+- **Springs:**
+  - `snappy` (dampingRatio 0.85, stiffness 700): presses, toggles, chips
+  - `smooth` (0.9, 380): cards, sheets, layout changes
+  - `gentle` (1.0, 200): large surfaces, page transitions
+  - `bouncy` (0.6, 500): only celebratory moments (approval done)
+- **Durations:**
+  - micro 90 ms, short 180 ms, medium 260 ms, long 360 ms
+  - stagger 28 ms per item (max 9 items, then all at once)
+  - ambient orb breathing 1650 ms, shimmer 1150 ms
+- **Easing:** emphasized decelerate (0.05, 0.7, 0.1, 1) for entrances; emphasized accelerate (0.3, 0, 0.8, 0.15) for exits.
+- **Haptics** (via `HapticFeedbackConstants`, gated by setting):
+  - tick on press
+  - confirm on approve
+  - reject on veto
+  - long-press on drag start
+  - a gentle "attention" pattern when a gate opens while the app is in the foreground
+
+### Transition catalogue (all implemented, no placeholders)
+- **Navigation:**
+  - `SharedTransitionLayout` + `AnimatedContent` between tabs and detail screens
+  - shared-element transitions for record card → record detail, workflow card → run view, model card → model detail, and chat message → full-screen artifact
+  - **predictive back** with a scale/fade preview (`PredictiveBackHandler`) on every screen and sheet
+- **Lists:** `Modifier.animateItem()` for insert, remove and reorder; staggered first-appear; swipe-to-archive with spring settle and an undo snackbar.
+- **Workflow spawn:** a plan card unfolds from the message that created it. Steps cascade in (stagger), each step's kind icon morphs in, and the rail line draws progressively (path trim).
+- **Step progression:**
+  - the running step's node pulses (scale 1.0↔1.08 plus a glow ring)
+  - on completion the node morphs into a check (path morph) and the rail segment fills with an animated gradient sweep to the next node
+  - failure gives a short horizontal shake plus the amber tint
+  - waiting for you gives a breathing amber halo
+- **Approval transitions:**
+  - the gate card rises with a shared-element expansion into the full artifact view
+  - approve: the card compresses into a check, flies into the run rail and the rail continues (choreographed ~420 ms)
+  - veto: the card slides out with fade and desaturate
+  - editing an artifact crossfades fields and re-computes the hash badge, which flips
+- **Live status:**
+  - PresenceOrb: a shader-based gradient blob (`RuntimeShader` on API 33+, Canvas radial gradient fallback) that reacts to state, mic level and TTS amplitude
+  - counters tick with animated digit rolls
+  - sparklines draw in
+  - the "since you were away" digest stacks cards in
+- **Chat:**
+  - streaming text appears per token with a soft caret, and no layout jumps (text measured incrementally)
+  - code blocks fade in when closed
+  - voice-message waveform animates live while recording, then collapses into a playable bubble
+  - live-conversation mode morphs from the composer mic button into a full-screen orb (shared bounds)
+- **Models and downloads:** a progress ring with real bytes, and on finish the ring morphs into an "installed" badge. Skeleton shimmer while catalogs load.
+- **Floating console:** the bubble expands into the panel with a container transform from the bubble's bounds, and collapses back. Drag uses fling physics and edge snapping.
+- **Sheets and dialogs:** spring-driven bottom sheets with scrim fade; never instant pop-ins.
+
+### Performance (fast app)
+- **Targets:**
+  - cold start < 900 ms to first frame on a mid-range phone; warm start < 300 ms
+  - 0 janky frames in scroll, navigation and streaming benchmarks (≥ 60/120 fps)
+  - typing latency < 16 ms
+- **Engineering:**
+  - heavy work never on the main thread (inference, crypto, file I/O, JSON parse of large blobs)
+  - Compose stability: immutable UI models, `@Immutable`/`@Stable`, `derivedStateOf`, keys on lazy lists
+  - no allocation in draw lambdas
+  - images decoded at display size
+  - lazy model and catalog loading
+  - startup work deferred via `androidx.startup` and lazy singletons
+- **Release build:**
+  - a **release variant**: R8 full mode, resource shrinking, `debuggable=false`, with keep rules for LiteRT-LM, sherpa-onnx, llama JNI and ML Kit
+  - signed with a **persistent release key** held in GitHub Actions secrets (`MEMO_KEYSTORE_B64`, `MEMO_KEYSTORE_PASSWORD`, `MEMO_KEY_ALIAS`, `MEMO_KEY_PASSWORD`), so updates install over each other
+  - CI uploads `memo-release-apk`, which becomes the APK the user installs; the debug APK stays for diagnostics
+- **Baseline profiles:**
+  - `androidx.baselineprofile` + a macrobenchmark module generated on the CI emulator, covering startup, tab switching, chat streaming and list scroll
+  - `androidx.profileinstaller` in the app
+- **Benchmarks in CI** (emulator): startup and frame-timing macrobenchmarks, with results posted to the run summary and regressions flagged.
+
+## 2j. Everyday product completeness
+
+These are the capabilities a full product needs that the spec implied but didn't list, plus everything found in the reference apps (cross-checked in `docs/FEATURES.md` §R).
+
+### Notifications, reminders, timers, alarms
+- **Reminders:**
+  - exact alarms (`SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM` with a rationale flow, falling back to inexact with a visible note)
+  - one-off and recurring (daily, weekdays, weekly, custom RRULE subset)
+  - snooze (5/10/30 min, custom); actions Done / Snooze / Open
+  - re-armed after boot (`BOOT_COMPLETED`) and after time or zone changes
+  - lock-screen privacy: content hidden unless the user allows it
+- **Timers and stopwatches:** by voice ("timer 10 minutes" in en/pl/tr) or UI; foreground countdown notification with a live chronometer; alarm sound with full-screen intent on the lock screen (`USE_FULL_SCREEN_INTENT`); multiple concurrent timers.
+- **Alarms:** wake-up alarms with sound and vibration, dismiss/snooze (full-screen).
+- **Notification channels** (user-configurable): Reminders, Timers & alarms, Approvals, Takeover needed, Background work, Downloads, Digest, Wake word.
+- **Approvals and takeovers** notify with deep links. **Daily digest** and **"since you were away"** are notifications too.
+- **Quiet hours and nudge caps:** at most N interruptions per hour (configurable); approvals queue during quiet hours, except alarms and timers.
+- Reminders and timers are also exposed to the agent and workflows as a `notify` step via `Scheduler`/`Notifier`.
+
+### Capture into Memo from anywhere
+- **Share target:** `SEND` / `SEND_MULTIPLE` for text, URLs, images, PDFs and files (bounded sizes). The user picks: chat about it, add to project, CRM, task, or source.
+- **"Ask Memo" on selected text** (`PROCESS_TEXT`) in any app.
+- **Camera capture:**
+  - business-card or badge scan → OCR → filled Person/Company → gate (UC-2 fast path)
+  - document/whiteboard photo → note
+- **Clipboard helper** in the console (explicit tap only; never background clipboard reads).
+- **Share out:** export a draft, note or artifact (text, PDF, image, MP4) through the Android share sheet.
+
+### Knowledge: Sources, Memory, Search, Today
+- **Sources:**
+  - import files and notes (SAF document picker, user-chosen documents; this is not used for AI discovery)
+  - web pages captured in the in-Memo browser
+  - chat transcripts
+  - consult answers
+  - all with provenance, deduplicated by content hash, chunked and indexed
+- **Memory graph:** a visual graph of linked records (people ↔ companies ↔ projects ↔ notes ↔ jobs ↔ posts) with an explanation of each link ("from source X, quote Y"). Facts, inferences and sources are kept distinct.
+- **Global search:** across every registry, chats, sources and runs. On-device full-text index, plus semantic search with an embedding model (EmbeddingGemma via LiteRT-LM, from the Hub).
+- **Today:** the one thing to move now; due tasks and reminders; waiting approvals; running work; yesterday's outputs; metric movements.
+- **Briefings:** a morning briefing (spoken or as a notification).
+- **Driving mode:** voice-only, large UI, no visual approvals; side effects queue.
+
+### Multi-AI collaboration modes
+Council modes in UC-1/UC-5 consults:
+- **compare** (independent answers)
+- **critique & refine** (chained: first answer → skeptic → refiner)
+- **converge** (proposal → critique → reconcile)
+
+The local agent synthesises an agreement/disagreement map. **Entities are extracted from answers only when backed by verbatim evidence** (`OutcomeParser`), then reuse-first into the registry.
+
+### Optional API channel (opt-in)
+For users who *do* have keys, an `API_OPTIN` channel supports OpenAI-compatible endpoints and Anthropic/Gemini official APIs (keys in the vault). Requirements: HTTPS only, explicit per-run cloud consent, redaction plus audit, and never the default. The router treats it as another frontier target.
+
+### App capability map
+When Memo operates a device app (§2c), it records an **AppCapability** profile: screens seen, actions that worked, field locators, versioned. Future runs reuse it (reuse-first). The user can view and edit it in Settings → Channels.
+
+### Onboarding, help, updates
+- **First run:**
+  1. language
+  2. what Memo is (short motion intro)
+  3. permissions centre (each with its rationale; skippable)
+  4. pick and download a local model (recommended for this phone)
+  5. voice setup (download ASR/TTS for the chosen language, voice sample)
+  6. wake word opt-in
+  7. floating console opt-in
+  8. optional sign-in to services in the in-Memo browser
+- **Help:** contextual tips plus a "What can Memo do?" gallery of ready workflow templates.
+- **In-app updates:**
+  - Memo checks the repo's latest GitHub **release** for a newer signed APK (CI publishes releases on `v*` tags)
+  - it shows the changelog, downloads, verifies the SHA-256 and signer, and installs via `PackageInstaller` (`REQUEST_INSTALL_PACKAGES`)
+  - the update check is opt-in, with no telemetry
+
+### Memo's own accessibility and quality
+- TalkBack labels, a 48 dp minimum touch target, font scaling up to 200%, contrast-checked colours, and RTL-safe layouts.
+- Every screen has empty, loading, error and offline states. Errors are human-readable with a recovery action.
+- Contacts import into the CRM (`READ_CONTACTS`, opt-in) and an optional place tag for "met at P" (coarse location, opt-in).
+
+## 2k. Capability Compiler: assemble the competence a task needs, at the moment it needs it
+
+**Idea (user):** before an AI executes a job, the machine works out what the job needs: instructions, persona, skills, knowledge, data, experience, tools, constraints, and how success is judged. It then **stitches those components together on demand** into a task-specific execution package. Memo does not keep a zoo of fixed agents. It keeps a **library of typed, versioned capability components** and a **compiler** that assembles them per task. The executing model (local, or frontier via web/app/API) becomes interchangeable.
+
+### Pipeline (core, pure; models plug in through `LlmRuntime` / ModelRouter)
+`Objective → TaskSpec → RequirementGraph → Assembly → Readiness → ExecutionPackage → Execute → Evaluate → Diagnose → Repair | Finish → Learn`
+
+1. **TaskSpec.** Turn the user intent into: objective, success definition, constraints, deliverables, deadline, risk class, and language. Produced by the **task architect** (an LLM role, routed per §2g; it may ask a second AI to propose the spec, then a different AI critiques it: the user's "ask another AI for the prompt" loop). The output is strict JSON validated by core.
+2. **RequirementGraph.** A typed DAG of needs. Node kinds: `knowledge`, `skill/procedure`, `data`, `tool`, `persona`, `constraint`, `evaluator`, `experience`, `human_input`. Requirements can spawn sub-requirements; expansion is bounded by depth ≤ 4 and ≤ 40 nodes. Each node is critical or optional and carries an uncertainty note.
+3. **Assembly (linker, deterministic).** Match nodes against the **Capability Library** by declared `provides` / `requires` / `compatibleWith` / `conflictsWith`, language, and trust level. It resolves dependencies, removes conflicts, and checks permissions against `ChannelSwitches` and autonomy. Unmatched nodes can be resolved by:
+   - (a) adapting a near-match component (creating a new *draft* version)
+   - (b) generating a candidate component with an LLM, which enters as `UNTRUSTED`
+   - (c) asking the user (`ask_user`)
+   - (d) declaring a **capability gap**: never pretending to have access or data it lacks
+4. **Readiness validator** (deterministic): every critical node is covered, required tools are available and permitted, the evaluator can actually test the deliverable, and the token/time/cost budget fits. If not ready, the run reports exactly what is missing.
+5. **ExecutionPackage.** A structured manifest: persona, procedure steps, knowledge excerpts (loaded lazily, packet-budgeted), data bindings, tool list with permissions, constraints, evaluator spec, chosen executor(s) per stage, and budgets. It is **rendered** into the actual prompt for the chosen model and size (compact for small local models, fuller for frontier). Rendering is deterministic from the manifest.
+6. **Execute** through the existing engine: the package becomes a `WorkflowSpec` (REASON / agent tool loop / web / app / gates), so all gates, envelopes, audit and humanizer rules apply unchanged.
+7. **Evaluate.** Evaluator components run: schema checks, evidence checks (`OutcomeParser`), rubric scoring by a *different* model than the executor where routing allows, deterministic tests, and user feedback.
+8. **Diagnose + repair.** Classify failures (missing knowledge, bad procedure, broken tool, insufficient evidence, executor weakness, ambiguous spec). Repair **only the responsible component(s)**, then re-run, within a hard budget (≤ 2 repair cycles, ≤ N tokens). Never append prompt text endlessly.
+9. **Learn.** Record an **Experience** row: task class, components and versions used, executor, outcome scores, cost, failure modes. Component reliability stats update per (component, model, task class). Components are promoted `UNTRUSTED → TRIAL → TRUSTED` only on evidence (N successful evaluated uses), never because an AI wrote them.
+
+### Capability Library (registry kinds, versioned, reuse-first)
+- `Persona`: role, perspective, tone, language
+- `Skill`: procedure steps, preconditions, outputs (extends the PromptTemplate idea)
+- `KnowledgePack`: domain notes and references, with sources
+- `DataBinding`: a query over Memo registries or sources, or required user input
+- `ToolSpec`: maps to the closed action vocabulary / agent tools, with required permissions
+- `Constraint`
+- `Evaluator`: schema, rubric, tests, required evidence
+- `Experience`: outcome records
+- `ArchitecturalPrinciple` (exists)
+
+Every component has `provides`, `requires`, `compatibleWith`, `conflictsWith`, `languages`, `trust`, `stats`, and a semver. Components are **editable by the user** (§2e), and the user can pin or ban components.
+
+### Seed library
+Shipped components cover the core use cases (all `TRUSTED` after tests): research, CRM enrichment, job application, CV tailoring, content drafting, metric reading, brainstorm council, web form filling, app chores, plus evaluators for each.
+
+### UI ("Compiler" view inside a run)
+- the TaskSpec
+- the requirement graph, animated as it expands
+- the components chosen and why, with their trust badges
+- gaps and questions
+- the rendered prompt (inspectable)
+- evaluation results and repairs
+
+Users can edit the spec or graph and recompile.
+
+### Safety
+AI interprets; deterministic code enforces schemas, permissions, budgets, trust levels and validation. Untrusted components can never authorise side effects, and they are sandboxed to read-only tools until promoted.
+
+## 2l. The Self Model: representing the user, and generating artifacts from it
+
+**Requirement (user):** Memo must represent the user as a person, built from their website, LinkedIn, CVs and other material, and keep it in sync both ways. From it Memo generates **personalised CVs and other artifacts**, with proper tools. The key use case is applying for jobs with a CV tailored to each one.
+
+### Self Model (encrypted, user-owned, versioned)
+- **Sections:** identity (name, headline, locations, languages, contact), summary/positioning variants, experience (roles, dates, organisations, responsibilities, **achievements with metrics**), projects, education, certifications, skills (with evidence and proficiency), publications/talks, awards, volunteering, references (opt-in), preferences (target roles, industries, locations, salary band, remote/hybrid), voice and tone samples, and the visual brand (colours, fonts, photo).
+- **Every fact carries provenance:** the source (website URL, LinkedIn section, CV file, user entry), a capture date, and a confidence level. Conflicting values from different sources are surfaced for the user to resolve; they are never silently merged.
+
+### Ingestion (all inside Memo)
+- **Website:** captured via the in-Memo web runtime (read-only), parsed into sections.
+- **LinkedIn:** the user's own profile, viewed in the in-Memo web runtime under the user's logged-in session (read-only capture of their own sections), or imported from LinkedIn's official data export archive (ZIP via the document picker).
+- **CVs and documents:** PDF, DOCX or text, imported via the picker and parsed (on-device; OCR fallback for scanned PDFs).
+- **Manual editing** of everything (§2e).
+- Re-ingestion produces a **diff**: new, changed and conflicting facts are presented for approval before the Self Model updates (a HUMAN_APPROVAL gate with the diff as the artifact).
+
+### Vice versa (outbound sync)
+Memo proposes updates *to* the website or LinkedIn from the Self Model (e.g. a new role or achievement). The proposal shows the exact text per field as an envelope-bound side effect, is approved, and is then applied via the web runtime or the LinkedIn app (§2c/§2d humanized). It never runs automatically unless the autonomy settings allow it, and profile edits are Always ask by default.
+
+### Artifact Studio (tools)
+- **CV generator:**
+  - templates (ATS-safe single column, modern two-column, academic, Europass-style)
+  - languages en/pl/tr
+  - length targets (1 or 2 pages)
+  - export to **PDF** (on-device renderer), **DOCX** (OOXML writer), plain text, and JSON Resume
+- **Per-job tailoring** (Capability Compiler task class `cv_tailoring`):
+  1. Parse the job posting into requirements.
+  2. Map them to Self Model evidence and score the fit.
+  3. Select and reorder experience and achievements.
+  4. Rewrite bullets in the posting's language and keywords **using only facts present in the Self Model**. Every bullet links to its source facts.
+  5. Flag gaps honestly ("no evidence for Kubernetes").
+  6. Run an ATS keyword-coverage check.
+  7. Show a diff against the base CV.
+- **Cover letters, bios, LinkedIn headline/about variants, portfolio one-pagers, intro emails**, all generated with the same evidence discipline.
+- **Fabrication guard (evaluator):** an evaluator rejects any claim, date, metric, employer or skill that is not in the Self Model. The user must add a fact to the Self Model before it can appear.
+- **Versioning:** every generated CV and letter is a versioned artifact linked to its JobPosting and JobApplication. UC-3 gates show the job, the tailored CV, the cover letter and the exact form fields.
+- **Editing:** a rich editor for generated artifacts. Edits can be written back to the Self Model as new facts (with confirmation).
+
+## 2m. Teach & Select: DOM and app-element selection tools for workflow creation, plus versioned, regenerable automation schemas
+
+**Requirement (user):** workflow creation needs proper DOM and element selection tools. What the user selects or demonstrates becomes **versioned schemas** that are reused, and that the **local AI can regenerate** when a site or app changes.
+
+### Artifacts (registry kinds, semver, reuse-first, user-editable)
+- **`ExtractionSchema`:**
+  - target entity schema (e.g. `job_posting`, `person`, `metric`, or a custom schema)
+  - field rules: field → locator set (multi-strategy, §2a), transform (trim, number parse via `OutcomeParser`, date parse, URL absolutise, regex capture), required flag, type validation
+  - list mode: container locator + item locator, so one selected item generalises to its repeating siblings, with pagination ("next" locator or scroll-to-load)
+  - sample values (for validation and self-healing)
+  - DOM or a11y **structural fingerprint**
+  - target host or package
+- **`ActionRecipe`:**
+  - an ordered list of steps in the closed action vocabulary (§2a), each with a locator set, **parameters** (`{{cover_letter}}`, `{{cv_file}}`, `{{post_text}}`), wait conditions and postconditions
+  - the commit step marked explicitly
+  - target host or package, and preconditions (logged in, on page X)
+- **`CustomSchema`:** user-defined entity schemas (fields, types, required), so the user can extract things Memo didn't ship with. They are versioned, and migrations are generated when fields change.
+
+All are linked from `ProviderAdapter` / `AppCapability` and usable from any workflow ("Run recipe", "Extract with schema") and from the Capability Compiler as `ToolSpec`/`DataBinding` components.
+
+### Web element picker (in the in-Memo browser)
+- **Inspect mode toggle.** An injected, isolated picker script highlights the element under the finger with a box, label and size. The selection is made from a **visual tap plus a breadcrumb** (ancestors), with expand/shrink-selection controls (parent/child) and "select similar" for lists.
+- **Locator generation:** produces a multi-strategy locator set (test id, role + accessible name, label, placeholder, text, stable attributes, CSS path). Each candidate is scored for stability. Unstable signals (generated class names, positional indices) are penalised. A **live match count** shows "1 match" (green) or "N matches" (list), and ambiguous single-target locators are rejected.
+- **Field mapping panel:** choose a schema field for the selection, see the extracted value preview live, and pick a transform. In list mode, every item is previewed in a table.
+- **Shadow DOM and iframes:** the picker traverses open shadow roots and same-origin iframes. Cross-origin iframes are reported as not selectable; there is no workaround hack.
+- **Secure:** the picker never captures password field values, and it is removed when inspect mode ends. Picker scripts are data-driven, with no `eval` of model output.
+
+### App element picker (device apps, §2c)
+- In a native-app session, an **overlay inspector** draws the accessibility node bounds of the target app. Tap a node to see resource-id, text, content-description, class, clickable/editable flags and its ancestor chain. Selection works the same way (expand/shrink, similar siblings).
+- Generates the app locator set (view id → text/desc → class + position-within-parent as a last resort) with a live match count.
+- Password or secure fields are shown as "protected" with no value.
+
+### "Show Memo" recorder (teach by demonstration)
+- In the in-Memo browser or in a native-app session, the user performs the task once. Memo records the actions (click, input, select, navigation, scroll) as recipe steps, with locator sets resolved at record time. Typed values become **parameters**, with a suggested name and the value as an example.
+- The **local AI generalises the recording:**
+  - it names steps
+  - it detects the commit action
+  - it proposes waits and postconditions
+  - it parameterises values
+  - it removes noise (accidental taps)
+- The user reviews and edits everything in the workflow editor, then saves the recipe as a version.
+
+### Self-healing and regeneration (local AI)
+1. When a locator fails at runtime, or a structural fingerprint changes, the step pauses. **The commit action is never retried silently.**
+2. The **regenerator** gives the local agent the stored schema or recipe step (field meaning, sample values, previous locators, fingerprint) plus a fresh observation. The agent proposes new locator candidates.
+3. Core validates the candidates deterministically: match count, the extracted value type-checks against the field, and the samples still parse.
+4. A passing set becomes a new **patch version** with `TRIAL` trust. It applies automatically for read-only extraction steps if autonomy allows. Action and commit steps need user approval of the new version.
+5. Every regeneration is recorded as Experience. A repeatedly failing schema is flagged for re-teaching.
+6. When a site or app changes too much, Memo asks the user to re-select only the broken fields, not to rebuild the workflow.
+
+### Workflow editor integration (§2e)
+- In any web or app step: "Pick on page" / "Pick in app" opens the picker in context and returns the locator set to the step.
+- "Extract…" opens the schema builder.
+- "Record…" starts Show Memo.
+- Steps show their recipe or schema version, trust badge and last success, and can be upgraded or pinned to a version.
+
+## 2n. Council: role-based debate between local models and frontier AIs
+
+User requirement (2026-10-26): chats with local AIs are not one model at a time, and not only local models talking to each other. They are discussions between local models **and** frontier AIs reached through the in-Memo web runtime (§2b) or device apps (§2c). Every participant gets a **relevant role**, and the discussion is a real debate.
+
+### Participants
+- **Seats:** a participant is a seat `{seatId, target, role, persona, stance?}`. `target` is a local model (LiteRT-LM or GGUF), a frontier via web (provider id), a frontier via app (package), or the optional API channel (§2j). The user is always a seat and can speak at any time.
+- **Role library** (a versioned registry kind `CouncilRole`, user-editable, reuse-first):
+  - Moderator: runs the agenda and keeps time. It is the local model by default, so control stays on the device.
+  - Proposer
+  - Domain expert (persona generated for the topic by the Capability Compiler, §2k)
+  - Skeptic / red team
+  - Devil's advocate (argues an assigned stance)
+  - Fact-checker (must cite sources or verbatim evidence)
+  - User advocate (uses the Self Model, §2l; local only)
+  - Synthesizer / judge
+- **Role assignment by relevance:**
+  1. The Moderator reads the topic and builds a TaskSpec (§2k).
+  2. It proposes a seat plan: which roles the topic needs, and which target fills each role. Targets are scored by ModelRouter role affinity, health, rate limits and the privacy class of the content.
+  3. Private data (Self Model, vault, CRM) is only given to local seats. Frontier seats get the redacted, audited packet only.
+  4. The user can accept the seat plan or edit any seat (add, remove, swap model, change role or stance) before the debate starts and between rounds.
+
+### Debate protocol (pure state machine in core, `Council`)
+- **Formats:** `compare` (independent answers), `critique_refine` (chain), `converge` (propose → critique → reconcile), `debate` (opening → rebuttal rounds → closing → judgment), `round_table` (moderated turns, free order), `red_team` (attack a plan; the defender responds).
+- **Rounds:** each round has an agenda item, a turn order, and a speaking budget per seat (tokens and wall time).
+  - Every turn sees the transcript so far, filtered to what that seat may see.
+  - A seat must address the previous claims by id. Claims are tagged with ids such as `C3`; rebuttals reference them (`↳ C3`).
+- **Claims ledger:** every turn is parsed into claims `{id, seat, text, kind: assertion|rebuttal|concession|question|evidence, refs[], evidence?}`.
+  - A fact-checker or judge can mark a claim `supported`, `contested`, `refuted` or `unsupported`.
+  - Entities and facts enter registries only with verbatim evidence (`OutcomeParser`, §2j).
+- **Stopping rules:**
+  - consensus reached (the judge sees no open contested claims)
+  - max rounds
+  - budget exhausted
+  - no-progress detection (the same claims repeat)
+  - the user ends the debate
+- **Output:** the Synthesizer produces a `CouncilOutcome`:
+  - decision or recommendation
+  - agreement/disagreement map
+  - open questions
+  - minority positions kept explicitly, never averaged away
+  - cited claims
+  - proposed next steps (gated as Tasks)
+- **Anti-sycophancy:**
+  - Opening answers are generated blind: seats don't see each other's openings.
+  - The devil's advocate's stance is fixed by the moderator.
+  - The judge is a different model from the proposer when routing allows.
+  - Frontier answers are labelled with their source and never presented as Memo's own.
+
+### Execution
+- Each frontier turn is an async step: web turns go through the `FrontierExecutor` (§2a/§2b, headless, in the background); app turns go through a native-app session (§2c, batched into one screen session).
+- They use `Attempt.Pending` + `deliverExternal`. Every outbound prompt is redacted and audited, and needs consent per run (a standing rule can allow it, §2e).
+- Local turns stream through `InferenceManager`, one model resident at a time. The orchestrator orders turns to minimise model swaps. Turns that don't depend on each other run in parallel: local and web at the same time.
+- A failed or blocked seat (login wall, rate limit, CAPTCHA → takeover) is marked absent for that round. The debate continues and says so.
+
+### UI ("Council" in Talk)
+- A group thread. Each seat has an avatar, a model badge (local/web/app) and a role chip. Seats speak with their own streaming bubble and a subtle per-seat accent from the token palette.
+- Above the thread:
+  - the seat plan sheet (drag roles onto models)
+  - a round indicator
+  - the agenda
+- Claim ids are tappable chips; a rebuttal draws a link to its target claim.
+- **Live claims ledger panel:** supported, contested and refuted, with the evidence.
+- The user can:
+  - interject, pause, skip a seat, or ask a specific seat
+  - "steelman X"
+  - end the debate early and get the synthesis
+- **Voice mode:** each seat speaks with a distinct Kokoro voice, and the user can barge in (§2f/M2.A3).
+- **Outcome card:** agreement map, minority report, next steps (Run as workflow / Save to Project).
+- Saved councils can be re-run with updated models (versioned `CouncilSession` + `CouncilTemplate`).
+
+## 2o. Live view: watch the AI work in real time
+
+User requirement (2026-10-26): "I want to see the real state on the screen in those sessions. Every time the AI does something (e.g. I say 'go to web'), it shows me in real time what the AI does."
+
+**Law:**
+- Every automation session (web, app, or a council seat) is **watchable live**, and showing the real state is the default.
+- Background mode (§2b) is something the user opts into for a run or a standing rule. It never hides anything: a live preview is always one tap away.
+
+### What "live" means
+- **Real pixels, not a reconstruction.** The live view shows the actual WebView the agent is driving, or the actual app on screen. There are no mock-ups or summaries pretending to be the page.
+- **Web sessions:**
+  - When a run is started by the user (voice or chat: "go to the web", "check LinkedIn"), Memo opens the **Live Session view** in the foreground, and the agent's WebView is attached there, visible and interactive. This is the §2b re-parenting, without a restart.
+  - When the user leaves, the WebView moves back to the headless host and keeps going.
+  - While headless, a **live preview** is drawn from the real WebView at ≤ 4 fps (render to a bitmap on the host, downscaled) and shown in:
+    - the bubble / Memo Overlay (§2b)
+    - the Live tab run card
+    - the council seat tile (§2n)
+    - the ongoing notification (thumbnail updated ≤ 1/s)
+- **App sessions (§2c):** the app is on screen by definition. Memo's console HUD sits on top.
+- **Council:** every frontier seat has a live tile of its page while it types and the answer streams. Tapping the tile opens it full screen.
+
+### Action visualisation (every action, as it happens)
+- **Ghost cursor/finger:** before each action, an animated pointer moves to the target and the element gets a highlight ring:
+  - web: from `getBoundingClientRect` via `evaluateJavascript`, drawn as a native overlay above the WebView, not injected into the page
+  - app: from the node bounds, drawn in the overlay window
+  - The ring stays for the action's duration. It shows a tap ripple, typing happens visibly character by character (the humanizer's cadence, §2d), and scrolls show their movement.
+- **Narration strip:** a one-line caption, live, in the user's language (en/pl/tr):
+  - "Opening linkedin.com" → "Typing 'product manager' in Search" → "Reading 24 results" → "Waiting for your approval to apply"
+  - It is generated deterministically from the action envelope (`ActionNarrator`, pure core), never by the model. What it says is exactly what happens.
+  - It is optionally spoken in voice mode.
+- **Step timeline:** a scrubbable list of every action, with:
+  - its narration line
+  - a before/after thumbnail (kept only for the run, encrypted, auto-purged per settings)
+  - the locator used
+  - its result
+  - Tapping an entry shows the snapshot.
+- **State badge:** Navigating, Reading, Typing, Waiting for page, Waiting for you, Paused, Taken over, Done, Failed. Each state has a distinct motion (§2i).
+
+### Control from the live view
+- Pause / resume; step mode (approve each action); take over (the user drives, then hands back with "continue from here"); stop. The kill switch is always visible.
+- The user's own touches in the live view pause the agent automatically. The agent never fights the user.
+- Approvals appear inline in the live view, at the exact moment the agent reaches a gate.
+
+### Privacy
+- Password fields, payment fields and OTP fields are masked in every thumbnail and snapshot. The live view itself shows the real page, because the user is the owner.
+- Snapshots are never sent off the device, and they are purged when the run's retention ends.
+- `FLAG_SECURE` windows are never captured.
+
+### Performance
+- Preview capture is throttled (≤ 4 fps when visible, 0 fps when no preview is on screen) and done off the main thread.
+- Live view attach/detach takes < 150 ms, without reloading the page.
 
 ## 3. Process (applies to every task)
 
@@ -269,6 +841,11 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
 4. If anything fails, send it back to the same agent (SendMessage) with the exact defects. Repeat until it passes.
 5. Merge into `milestone/Mx` once the gate passes.
 
+### Feature checklist
+- `docs/FEATURES.md` lists every requirement with its task IDs.
+- The lead updates it on every task merge (status + evidence link).
+- At milestone close the lead checks that every item mapped to that milestone is ticked or explicitly carried over.
+
 ### Milestone close
 - Integrate all tasks into `milestone/Mx`, CI green, then a code-review subagent pass and fixes.
 - Open a PR to `main`; merge on green.
@@ -277,6 +854,11 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
 
 ### Parallelism
 - At most 3 Haiku agents at once, only on tasks with disjoint file ownership and no unmet dependencies (see `deps`).
+- **Work packages (2026-10-26, supersedes one agent per task):** tasks that touch the same area, or that share a priority, are bundled into 34 work packages. The waves and the mapping are in `docs/TASKS.md` §0.9.
+  - One agent per package.
+  - One commit per task ID.
+  - LVG once per package.
+  - Small items are done inline by the lead.
 
 ---
 
@@ -427,6 +1009,8 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Per-token callback to Kotlin; atomic cancel flag; free resources.
   3. Map native errors to exceptions.
   4. All API names must be taken from the pinned `llama.h`.
+  5. **Performance:** native code is always built Release (M0 integration). For arm64, enable the ARM CPU feature path at the pinned tag: `GGML_CPU_ALL_VARIANTS=ON` + `GGML_BACKEND_DL=ON` if supported there, so the best variant (dotprod / i8mm / sve) is chosen at runtime. Otherwise build with `-march=armv8.2-a+dotprod+fp16`. Verify against the tag's `ggml/src/ggml-cpu/CMakeLists.txt`.
+  6. Report tokens/s in `GenStats`; the device check records tokens/s for a 1B and a 3B Q4_K_M model.
 - acceptance:
   - CI green
   - the native code compiles for both ABIs
@@ -468,7 +1052,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - acceptance: CI green; the lead reviews the resume and verify paths.
 
 **M1.B3 — Models UI**
-- deps: M1.B2, M2.B0
+- deps: M1.B2, M2.B0d
 - files: `app/.../ui/models/*`
 - steps:
   1. Sections: Installed / Recommended for this phone / Browse (live search, format filter, family chips) / Voice models (filled in M2) / Import.
@@ -505,14 +1089,35 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 
 ### M2 — Voice
 
-**M2.B0 — Design system + motion (prerequisite for UI tasks)**
+**M2.B0 — Design system + motion foundation (prerequisite for UI tasks)**
+Split into small tasks, all following §2i.
+
+**M2.B0a — Tokens + typography + theme**
 - deps: M0
-- files: `app/.../ui/theme/MemoTokens.kt`, `MemoTypography.kt`, `MemoMotion.kt`, `app/.../ui/components/*` (MemoCard, Pill, MemoButton with press scale, Shimmer, SectionHeader, EmptyState, StatTile, StepRail, PresenceOrb)
+- files: `app/.../ui/theme/MemoTokens.kt`, `MemoTypography.kt`, `MemoTheme.kt` (replaces `Theme.kt`)
+- steps: colour roles (light/dark), spacing (4 dp grid), radii, elevation, type scale, and semantic colours (success, attention, danger).
+- acceptance: grep finds no `Color(0x` outside `ui/theme`.
+
+**M2.B0b — Motion tokens + haptics**
+- deps: M2.B0a
+- files: `app/.../ui/motion/MemoMotion.kt`, `Haptics.kt`, `ReduceMotion.kt`
+- steps: §2i springs, durations and easings; haptic vocabulary gated by a setting; reduce-motion and animator-scale awareness.
+- acceptance: unit tests for reduce-motion fallbacks (pure functions).
+
+**M2.B0c — Component kit**
+- deps: M2.B0b
+- files: `app/.../ui/components/*`
 - steps:
-  - D-008 values: press 0.965 at 85–170 ms; entrance 230 ms with +7 dp and easing (0.16, 1, 0.3, 1); stagger 28 ms ×9; crossfade 180 ms; orb breathing 1650 ms (scale 0.78→1.12); shimmer 1150 ms; respect `areAnimatorsEnabled`
-  - PresenceOrb states: idle, listening (level-reactive), thinking, speaking (audio-reactive), waiting
-  - migrate existing screens onto the tokens
-- acceptance: grep shows no `Color(0x` outside `ui/theme`.
+  - MemoButton (press spring + haptic), MemoCard, Pill/Chip, SectionHeader, EmptyState, StatTile with digit-roll counter, Skeleton/Shimmer, MemoSheet (spring), Snackbar with undo, ProgressRing (real progress), Sparkline (draw-in)
+  - StepRail: path-trim line, pulsing node, check morph, failure shake, waiting halo
+  - PresenceOrb: `RuntimeShader` on API 33+ with a Canvas fallback; states plus audio-reactive input
+- acceptance: CI green; the lead reviews every component against §2i values.
+
+**M2.B0d — Navigation shell with shared transitions + predictive back**
+- deps: M2.B0c
+- files: `app/.../ui/nav/*`, `MainActivity.kt`
+- steps: `SharedTransitionLayout` app shell, tab ↔ detail shared-element transitions, `PredictiveBackHandler` on all screens and sheets, and migrating the existing screens onto the kit.
+- acceptance: CI green; every navigation path has an animated transition (the lead walks the nav graph).
 
 **M2.A1 — Audio I/O**
 - deps: M0.B1
@@ -568,7 +1173,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   4. The session summary shows what ran and what is pending.
 - acceptance: CI green; manifest review.
 
-**M2.C2 — "Hey Memo" wake listener**
+**M2.C2 — "Hey Memo" wake listener (works with the screen off and locked, §2f)**
 - deps: M2.A2
 - files: `app/.../platform/android/assist/WakeWordService.kt`, manifest, settings hook
 - steps:
@@ -607,6 +1212,12 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   4. Fallback to the deterministic planner, labelled as such.
   5. Reuse-first: look up an existing template or project before creating.
 - acceptance: tests with a fake LlmRuntime: a good plan, a repaired plan, a fallback, and a reuse hit.
+
+**M3.A4 — Local agent engine (tool-using)**
+- deps: M3.A1, M1.A3
+- files: `core/.../agent/AgentEngine.kt`, `core/.../agent/Tools.kt` (tool schemas + strict arg validation), `app/.../runtime/AgentTools.kt` (tool implementations wired to engine, registries, media, router), tests with a fake LlmRuntime
+- steps: implement §2g's agent loop, tool set, bounds, repairs and quality-check escalation. Side-effecting tools become workflow steps.
+- acceptance: tests for valid calls, invalid → repair → success, budget exhaustion, no-progress stop, gated tool queueing, and escalation to frontier when routing allows it.
 
 **M3.A2 — Context retrieval**
 - deps: M3.A1
@@ -665,6 +1276,272 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 
 **M3 close:** PR. Device checklist: say "I met Ada at Web Summit, add to CRM"; see the plan card, the filled record, approve it, and find it in Work.
 
+### M3.5 — Full control (CRUD, workflow editor, autonomy, settings)
+
+**M3.5.A1 — Standing-rule approvals in core**
+- deps: M0.A1, M0.A5
+- files: `core/.../policy/AutonomyPolicy.kt`, `WorkflowEngine.kt` (a `GateApprover` field on gate delivery and in the audit), tests
+- steps:
+  1. Action classes and levels per §2e. Human-only classes are not configurable.
+  2. The engine can auto-deliver a gate when the standing rule allows it, recording `approver = STANDING_RULE:<ruleId>`.
+  3. Quiet hours.
+- acceptance: tests show human-only classes can never be auto-approved, and the audit records the approver.
+
+**M3.5.A2 — Humanizer**
+- deps: M4.A0
+- files: `core/.../automation/Humanizer.kt`, tests
+- steps: §2d timing, typing, touch and gesture paths, pacing and caps, all with a seeded RNG.
+- acceptance: the tests listed in §2d.
+
+**M3.5.B1 — Editors for every record type**
+- deps: M3.B1
+- files: `app/.../ui/edit/*` (generic form engine driven by field descriptors + per-entity descriptors), `app/.../runtime/EditRepository.kt`
+- steps: create, edit, archive, undo and purge for every §2e entity via `Registry.upsert`, with validation messages from the entity's `isInvalid` rules. A version history view per record.
+- acceptance: CI green; every registry kind has create/edit/archive reachable from the UI (the lead checks the descriptor list against `Workspace.all()`).
+
+**M3.5.B2 — Workflow editor**
+- deps: M3.A1, M3.5.B1
+- files: `app/.../ui/workflow/*`, `app/.../runtime/WorkflowLibrary.kt`
+- steps: §2e workflow editor (step list with drag-reorder, per-kind step forms, live validation, save as template, duplicate, run, schedule one-off/recurring, per-workflow run history with edit and re-run).
+- acceptance: CI green; a unit test that editor-produced specs pass `WorkflowPolicy.validateSpec`.
+
+**M3.5.C1 — Settings suite + autonomy UI**
+- deps: M3.5.A1
+- files: `app/.../ui/settings/*`, `app/.../runtime/SettingsStore.kt` (encrypted)
+- steps: every §2e settings section, searchable, with the autonomy matrix UI, per-channel overrides and quiet hours. Each setting is wired to its consumer; no dead toggles.
+- acceptance: CI green; the lead verifies every setting key has a reader (grep).
+
+### M3.6 — Languages (en / pl / tr)
+
+**M3.6.A1 — Multilingual command grammar**
+- deps: M0.A8
+- files: `core/.../plan/CommandGrammar.kt` (language-aware), `core/.../plan/grammar/{En,Pl,Tr}Grammar.kt`, tests
+- steps:
+  1. Patterns and time phrases per §2h.
+  2. Language detection or explicit locale.
+  3. Turkish-safe casing.
+- acceptance: ≥15 cases per language, including time resolution.
+
+**M3.6.B1 — App localisation + language picker**
+- deps: M2.B0
+- files: `app/src/main/res/values-pl/strings.xml`, `values-tr/strings.xml`, `res/xml/locales_config.xml`, `app/.../ui/settings/LanguageScreen.kt`, `app/src/test/.../StringParityTest.kt`
+- steps:
+  1. Move every UI string into resources.
+  2. Write full Polish and Turkish translations: natural phrasing, not word-for-word.
+  3. Add the picker, wired to the API 33+ locale manager and the fallback.
+- acceptance:
+  - the parity test passes
+  - grep finds no hard-coded `Text("...")` literals outside previews
+  - the lead spot-checks 20 strings per language for natural phrasing
+
+**M3.6.C1 — Voice in Polish and Turkish**
+- deps: M2.A2
+- files: `app/.../platform/android/voice/VoiceModels.kt` (Whisper multilingual + Piper pl/tr entries, pinned), `SherpaAsr.kt` / `SherpaTts.kt` (language routing)
+- steps: per-language ASR/TTS model selection, a voice picker per language, and VAD-segmented Whisper "live" mode.
+- acceptance: CI green; device check holds a Polish and a Turkish live conversation.
+
+### M3.7 — Everyday product (§2j)
+
+**M3.7.A1 — Reminders, timers, alarms engine**
+- deps: M0.C2, M0.A7
+- files: `core/.../time/Recurrence.kt` (RRULE subset, next-occurrence, DST and zone safe), `core/.../time/TimerModel.kt`, tests, `app/.../platform/android/notify/{AlarmScheduler,ReminderReceiver,BootReceiver,TimerService,AlarmActivity}.kt`, `NotificationChannels.kt`, manifest permissions
+- steps: implement everything in §2j "Notifications, reminders, timers, alarms", including exact-alarm permission flow, snooze, boot/time-change re-arm, full-screen alarms, concurrent timers and channels.
+- acceptance:
+  - recurrence/DST tests
+  - CI green
+  - device check: a reminder fires with the screen off, snooze works, a 1-minute timer rings on the lock screen, and the reminder survives a reboot
+
+**M3.7.A2 — Voice and agent hooks for time**
+- deps: M3.7.A1, M3.6.A1
+- files: `CommandGrammar` time intents (timer, alarm, reminder, recurring, in en/pl/tr), the agent tool `set_reminder` / `start_timer`, and the workflow `notify` step via `Scheduler`
+- acceptance: grammar tests in 3 languages.
+
+**M3.7.B1 — Capture from anywhere**
+- deps: M3.B1
+- files: `app/.../capture/{ShareReceiverActivity,ProcessTextActivity,CameraCapture,CardScanner}.kt`, manifest intent filters
+- steps: share target (bounded), PROCESS_TEXT, camera business-card scan → OCR → Person/Company gate, document photo → note, share-out export.
+- acceptance: CI green; a unit test for the card-text → Person parser (en/pl/tr formats).
+
+**M3.7.B2 — Sources + global search + embeddings**
+- deps: M1.A1, M0.C2
+- files: `core/.../knowledge/{Source,Chunker,Index}.kt`, `app/.../platform/android/search/{FtsIndex,EmbeddingIndex}.kt`, `app/.../ui/sources/*`, `app/.../ui/search/*`
+- steps: source import with provenance, hash dedupe and chunking; FTS index; EmbeddingGemma embeddings via the Hub; global search UI with filters.
+- acceptance: tests for the chunker, dedupe and ranking; CI green.
+
+**M3.7.B3 — Memory graph view**
+- deps: M3.7.B2, M2.B0c
+- files: `app/.../ui/memory/*`
+- steps: force-directed graph (Canvas, spring physics), link explanations with evidence, tap a node → shared-element transition to the record.
+- acceptance: CI green.
+
+**M3.7.C1 — Today, briefings, driving mode, quiet hours**
+- deps: M3.B2, M3.7.A1, M2.A3
+- files: `app/.../ui/today/*`, `app/.../runtime/Briefing.kt`, `app/.../runtime/AttentionPolicy.kt` (nudge caps, quiet hours), `app/.../ui/drive/*`
+- acceptance: tests for the attention policy; CI green.
+
+**M3.7.C2 — Onboarding + help + templates gallery**
+- deps: M2.B0d, M1.B3, M2.A2
+- files: `app/.../ui/onboarding/*`, `app/.../ui/help/*`
+- steps: the §2j first-run flow plus contextual tips and a templates gallery.
+- acceptance: CI green; the device check walks a fresh install.
+
+**M3.7.C3 — In-app updates**
+- deps: M2.5.A1
+- files: `app/.../update/{UpdateChecker,UpdateInstaller}.kt`, `.github/workflows/release.yml` (on a `v*` tag: build the signed release, create a GitHub release with the APK, SHA-256 and changelog)
+- acceptance: CI release dry-run; a unit test for the version compare and SHA check.
+
+**M3.7.C4 — Contacts import + place tag**
+- deps: M3.5.B1
+- files: `app/.../platform/android/contacts/ContactsImport.kt`, `app/.../platform/android/location/PlaceTag.kt`
+- steps: opt-in, reuse-first merge into Person/Company.
+- acceptance: CI green.
+
+**M4.A4 — Council (§2n), split into four tasks**
+- **M4.A4a — Council core (pure)**
+  - deps: M3.A4, M0.A6, M3.8.A2
+  - files: `core/.../council/{CouncilRole,Seat,SeatPlanner,Council,ClaimsLedger,ClaimParser,CouncilOutcome,CouncilSession,CouncilTemplate}.kt`, registry schemes + migration, tests
+  - steps: the role library with seeds, relevance seat planning (router affinity + privacy class), all 6 formats as one state machine, visibility filtering, the claims ledger with ids and refs, stopping rules including no-progress, blind openings, and outcome synthesis with the minority report
+  - acceptance: tests for every format's turn order; blind openings never see peers; private data never reaches a non-local seat; a rebuttal must reference an existing claim; no-progress stops the debate; an absent seat lets the round continue; the judge differs from the proposer when ≥2 targets exist; an unsupported claim is never extracted
+- **M4.A4b — Council runtime**
+  - deps: M4.A4a, M4.A2, M1.A3, M4.D1
+  - files: `app/.../runtime/CouncilService.kt`
+  - steps: seats are dispatched to InferenceManager / FrontierExecutor / app session; parallel independent turns; swap-minimising order; per-run consent; audit; takeover → the seat is absent
+  - acceptance: a JVM test with fake channels for a 3-seat debate (local + web + app); emulator test with a fixture "AI" page as a web seat
+- **M4.A4c — Council UI**
+  - deps: M4.A4b, M2.B0c, M1.C2
+  - files: `app/.../ui/council/*`
+  - steps: the group thread, seat plan sheet, claim chips and links, ledger panel, interject/pause/steelman, outcome card, voice mode with a distinct voice per seat
+  - acceptance: CI green; emulator screenshots; tokens only
+- **M4.A4d — Evidence-backed entity extraction**
+  - deps: M4.A4a
+  - files: `core/.../agent/EntityExtraction.kt`, tests
+  - acceptance: tests including a rejected unsupported claim
+
+**M4.A5 — Optional API channel**
+- deps: M0.C1, M0.A6
+- files: `app/.../platform/android/api/{OpenAiCompatibleClient,AnthropicClient,GeminiClient}.kt`, Settings section
+- steps: HTTPS only, keys in the vault, per-run consent, redaction + audit, router integration (never the default).
+- acceptance: tests for request building and redaction; CI green.
+
+**M4.B4 — App capability map**
+- deps: M4.B1, M0.A3
+- files: `core/.../domain/AppCapability.kt` (+ registry scheme), `app/.../platform/android/automation/CapabilityRecorder.kt`, the Settings view and editor
+- acceptance: tests + CI green.
+
+**M6.10 — Memo's own accessibility audit:** TalkBack pass, touch targets, 200% font scale, contrast; fix everything found. Every screen has empty, loading, error and offline states.
+
+### M3.8 — Capability Compiler (§2k)
+
+**M3.8.A1 — Capability library schemas**
+- deps: M0.A4
+- files: `core/.../capability/{Persona,Skill,KnowledgePack,DataBinding,ToolSpec,Constraint,Evaluator,Experience}.kt` + registry schemes + Workspace registration + a SynCodec v2→v3 migration, tests
+- steps:
+  - fields per §2k: provides / requires / compatibleWith / conflictsWith / languages / trust / stats / semver
+  - natural keys
+  - trust state machine UNTRUSTED → TRIAL → TRUSTED with evidence thresholds
+- acceptance: round-trip, key, trust-transition and migration tests.
+
+**M3.8.A2 — TaskSpec + RequirementGraph + Assembler + Readiness (pure)**
+- deps: M3.8.A1, M0.A5, M0.A6
+- files: `core/.../capability/{TaskSpec,RequirementGraph,Assembler,Readiness}.kt`, tests
+- steps:
+  - strict JSON parsing of TaskSpec and graph
+  - bounded expansion
+  - deterministic matching with dependency resolution, conflict removal and permission checks
+  - gap reporting and the readiness verdict
+- acceptance: tests for covered, conflict, missing-tool gap, untrusted-component restriction, and bounds.
+
+**M3.8.A3 — ExecutionPackage + renderer + compile-to-workflow**
+- deps: M3.8.A2, M3.A4
+- files: `core/.../capability/{ExecutionPackage,PromptRenderer,PackageCompiler}.kt`, tests
+- steps:
+  - the manifest
+  - a deterministic renderer per executor size class
+  - compile to a `WorkflowSpec` (agent loop / web / app / gates) that passes `WorkflowPolicy.validateSpec`
+- acceptance: golden tests of rendered prompts per size class; compiled specs validate.
+
+**M3.8.A4 — Evaluate / diagnose / repair / learn loop**
+- deps: M3.8.A3
+- files: `core/.../capability/{EvaluationRunner,Diagnoser,RepairPlanner,ExperienceRecorder}.kt`, app wiring in `app/.../runtime/CompilerService.kt`, tests with a fake LlmRuntime
+- steps:
+  - evaluator execution, with a cross-model rubric where routing allows
+  - failure classification
+  - targeted component repair within the budget
+  - Experience rows and reliability stats
+  - promotion rules
+- acceptance: tests for repair success, budget exhaustion, a no-endless-loop guarantee, and promotion only on evidence.
+
+**M3.8.A5 — Architect/critic loop**
+- deps: M3.8.A2, M4.A2
+- files: `core/.../capability/ArchitectLoop.kt`, tests
+- steps: an architect model proposes the TaskSpec and graph; a different model critiques; at most 2 rounds; the result is strict JSON. The models are routed per §2g, either local or frontier via web.
+- acceptance: tests with fake models, including disagreement resolution and round limits.
+
+**M3.8.B1 — Seed capability library**
+- deps: M3.8.A1
+- files: `core/src/main/resources/capabilities/*.json` + loader + tests
+- steps: seed components for every use case in §2k, plus evaluators, each with a test case.
+- acceptance: every seed loads and validates, and each has an evaluator.
+
+**M3.8.C1 — Compiler UI**
+- deps: M3.8.A4, M2.B0c
+- files: `app/.../ui/compiler/*`
+- steps: the §2k view: animated requirement graph, component cards with trust badges, gaps and questions, inspectable rendered prompt, evaluation and repair timeline, edit + recompile.
+- acceptance: CI green.
+
+### M3.9 — Self Model + Artifact Studio (§2l)
+
+**M3.9.A1 — Self Model schema + provenance + conflict resolution**
+- deps: M0.A4, M0.C1
+- files: `core/.../self/{SelfModel,Fact,Provenance,Conflict,SelfDiff}.kt`, tests
+- steps:
+  - typed sections
+  - per-fact provenance and confidence
+  - diff between an ingestion result and the current model
+  - conflicts surfaced, never silently merged
+- acceptance: tests for diff, conflict and merge-after-approval.
+
+**M3.9.A2 — Ingestion: website, LinkedIn, CV/docs**
+- deps: M3.9.A1, M4.A1, M3.7.B2
+- files: `app/.../self/{WebsiteIngest,LinkedInIngest,LinkedInExportImport,DocumentIngest}.kt`, `core/.../self/parse/*` (pure section parsers with fixtures)
+- steps:
+  1. Read-only capture through the in-Memo web runtime (the user's own profile, own session).
+  2. LinkedIn official export ZIP import.
+  3. PDF/DOCX/text parsing on-device, with an OCR fallback.
+  4. Every ingestion produces a gated SelfDiff.
+- acceptance: parser tests on fixtures (website HTML, LinkedIn export CSVs, a sample CV text); CI green.
+
+**M3.9.B1 — Artifact Studio: CV generator + exporters**
+- deps: M3.9.A1, M2.B0c
+- files: `app/.../studio/cv/{CvTemplates,CvLayout,PdfRenderer,DocxWriter,JsonResumeExport}.kt`, `app/.../ui/studio/cv/*`, tests
+- steps:
+  - 4 templates in 3 languages
+  - 1- and 2-page fitting
+  - PDF (Android `PdfDocument`) and DOCX (minimal OOXML ZIP writer) export
+  - JSON Resume export
+  - a rich editor with write-back to the Self Model (confirmed)
+- acceptance: tests that DOCX opens as a valid OOXML ZIP (structure validated) and PDF page count fitting; a device check opens the exports.
+
+**M3.9.B2 — Tailoring + fabrication guard**
+- deps: M3.9.B1, M3.8.A4
+- files: `core/.../self/{JobRequirements,FitScorer,TailoringPlan,FabricationGuard,AtsCoverage}.kt`, a `cv_tailoring` seed capability, tests
+- steps:
+  1. Job → requirements.
+  2. Evidence mapping and fit score.
+  3. Bullet selection and rewrite linked to facts.
+  4. The guard rejects unsupported claims.
+  5. ATS keyword coverage.
+  6. Diff against the base CV.
+- acceptance: the guard test rejects an invented employer, metric and skill; a coverage test; an end-to-end test from fake job to tailored CV.
+
+**M3.9.B3 — Other artifacts:** cover letter, bio, LinkedIn headline/about variants, portfolio one-pager, intro email. Same evidence discipline, templates in en/pl/tr. Tests for the guard per artifact type.
+
+**M3.9.C1 — Outbound profile sync**
+- deps: M3.9.A2, M4.A1, M4.D1
+- files: `app/.../self/ProfileSyncPlanner.kt`
+- steps: propose website/LinkedIn updates from the Self Model as an envelope-bound gated side effect (Always ask by default), executed via the web runtime or app with the humanizer.
+- acceptance: tests for envelope building; the device check applies a test edit to the user's own site or profile.
+
 ### M4 — Channels
 
 **M4.0 — Emulator test job in CI**
@@ -721,6 +1598,45 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   7. Every send goes through a redaction preview and the audit.
 - acceptance: JS-string unit tests (escaping, selector tables) + CI green.
 
+**M4.L — Live view (§2o), split into four tasks**
+- **M4.L1 — ActionNarrator + session state (pure)**
+  - deps: M4.A0
+  - files: `core/.../automation/{ActionNarrator,SessionState,ActionTimeline}.kt`, tests
+  - acceptance:
+    - narration in en/pl/tr for every action in the closed vocabulary
+    - masked values never appear in narration
+    - state transitions are tested
+    - timeline retention and purge
+- **M4.L2 — Web live view**
+  - deps: M4.A1, M4.L1, M2.B0c
+  - files: `app/.../ui/live/session/{LiveSessionScreen,GhostCursorOverlay,NarrationStrip,StepTimeline}.kt`, `app/.../platform/android/browser/{PreviewCapturer,TargetRects}.kt`
+  - steps:
+    - auto-open on user-started web runs
+    - attach/detach of the real WebView
+    - throttled preview capture
+    - ghost cursor and highlight from target rects
+    - visible typing
+    - pause, step, take over, stop
+    - touch auto-pause
+    - inline approvals
+    - masked snapshots
+  - acceptance:
+    - emulator test: a fixture run opened in the live view shows the highlight at the target rect
+    - detach/attach keeps the page state with no reload
+    - a user touch pauses the agent
+    - preview fps is 0 when nothing is visible
+- **M4.L3 — App live HUD**
+  - deps: M4.D1, M4.L1
+  - files: `app/.../ui/host/{TargetHighlight,ScreenSessionHud}.kt`
+  - steps: highlight ring at the node bounds, narration and timeline in the console, touch auto-pause
+  - acceptance: emulator test against the test target activity
+- **M4.L4 — Previews everywhere**
+  - deps: M4.L2, M4.D2, M3.B2, M4.A4c
+  - files: live tiles in the overlay, the Live tab, council seats and the notification
+  - acceptance:
+    - CI green
+    - a device check watches a background run from the bubble, then expands it to full screen
+
 **M4.A3 — Browser tab (visible sessions, login once, watch/take over background runs)**
 - deps: M4.A1
 - files: `app/.../ui/browser/*`
@@ -770,7 +1686,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Router decisions are shown on each step ("why this provider").
 - acceptance: CI green.
 
-**M4.D1 — Native-app screen sessions (fallback channel)**
+**M4.D1 — Native-app sessions (SynthOS Runtime pattern, §2c)**
 - deps: M4.B1, M2.C3
 - files: `app/.../platform/android/automation/ScreenSession.kt`, `app/.../ui/host/ScreenSessionHud.kt`
 - steps:
@@ -791,6 +1707,56 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   - CI green
   - emulator test: the overlay is shown over the test target activity, and "act on this screen" runs a safe fill action with approval
   - the lead reviews the diff line by line against §2a and §2b
+
+### M4.E — Teach & Select (§2m)
+
+**M4.E0 — Schemas in core**
+- deps: M4.A0, M0.A4
+- files: `core/.../automation/{ExtractionSchema,ActionRecipe,CustomSchema,LocatorSet,Fingerprint,Transforms}.kt` + registry schemes + migration, tests
+- steps:
+  - strict validation
+  - semver
+  - locator-set stability scoring
+  - transform functions
+  - CustomSchema field-change → migration generation
+- acceptance: round-trip, validation, scoring, transform and migration tests.
+
+**M4.E1 — Web element picker + locator generator**
+- deps: M4.A1, M4.E0
+- files: `app/src/main/assets/picker/picker.js` (isolated, data-driven), `app/.../platform/android/browser/PickerBridge.kt`, `app/.../ui/browser/InspectMode.kt`, an androidTest fixture page, and instrumented tests
+- steps: everything in §2m "Web element picker". Results return only through `evaluateJavascript` polling; there is no JS interface.
+- acceptance: emulator tests on fixtures: a single element gets a unique locator; a list item generalises to N siblings; the shadow DOM element is selectable; the password value is never captured; the live match count is correct.
+
+**M4.E2 — Schema builder UI (field mapping + list mode + preview)**
+- deps: M4.E1
+- files: `app/.../ui/teach/SchemaBuilder*.kt`
+- acceptance: the emulator test builds a JobPosting extraction schema on a fixture list page and extracts all items correctly.
+
+**M4.E3 — Web "Show Memo" recorder**
+- deps: M4.E1, M3.A4
+- files: `app/src/main/assets/picker/recorder.js`, `app/.../platform/android/browser/Recorder.kt`, `core/.../automation/RecordingGeneralizer.kt` (deterministic part) + agent prompt, tests
+- acceptance: the emulator test records a fixture form fill, producing a recipe with parameterised values and a detected commit step; replay passes.
+
+**M4.E4 — App element picker + recorder**
+- deps: M4.B1, M4.D1, M4.E0
+- files: `app/.../platform/android/automation/{NodeInspector,AppRecorder}.kt`, `app/.../ui/teach/AppInspectOverlay.kt`
+- acceptance: the emulator test against the test target activity covers node selection, the locator set, recording and replay, and the protected password field.
+
+**M4.E5 — Self-healing regenerator**
+- deps: M4.E0, M3.A4, M3.8.A4
+- files: `core/.../automation/{Regenerator,CandidateValidator}.kt`, `app/.../runtime/HealingService.kt`, tests + emulator fixture where the DOM changes between versions
+- acceptance:
+  - core tests for candidate validation
+  - emulator test: the fixture v2 changes class names, and a read-only schema heals to a new TRIAL patch version automatically
+  - the commit step requires approval
+  - Experience is recorded
+
+**M4.E6 — Workflow editor integration**
+- deps: M4.E2, M4.E3, M4.E4, M3.5.B2
+- files: `app/.../ui/workflow/*` (step pickers, recipe/schema version badges, upgrade/pin)
+- acceptance: CI green; the device check builds a workflow by picking on a real page.
+
+**Humanizer:** every web and app executor action goes through `Humanizer` (§2d), and the emulator tests assert non-constant timing.
 
 **Automation acceptance (all of M4.A1–M4.D2):** the §2a emulator tests for that component are green, and the lead has reviewed the diff line by line against §2a.
 
@@ -813,7 +1779,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - acceptance: an E2E JVM test with fake channels + CI green.
 
 **M5.B1 — UC-3 jobs**
-- deps: M3, M4
+- deps: M3, M4, M3.9.B2, M3.8.A4
 - files: `core/.../plan/templates/Jobs.kt`, `app/.../runtime/JobFlows.kt`, `app/.../ui/work/JobsScreen.kt`, tests
 - steps:
   1. Discovery: browser capture of job search pages produces JobPostings (CAPTURE role, evidence-checked).
@@ -835,6 +1801,30 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   6. Studio: per-post charts plus strategy hints fed back into the packet.
 - acceptance: E2E test + CI green.
 
+**M5.C1a — Local image generation runtime**
+- deps: M1.B2
+- files: `app/.../platform/android/media/ImageGenRuntime.kt` (MediaPipe ImageGenerator 0.10.26.1; API taken from the AAR classes), `app/.../platform/android/media/LiteRtDiffusion.kt` (capability-gated FLUX.2-klein / Z-Image pipelines per their model cards), Hub entries for the image models (pinned + SHA)
+- steps:
+  1. Load the model, generate with prompt/negative/steps/seed, and report progress.
+  2. Cancel.
+  3. RAM/accelerator capability check.
+  4. Save the output as an encrypted artifact.
+- acceptance: CI green; device check generates a 512×512 image.
+
+**M5.C1b — UC-4 media assets (image / carousel / video)**
+- deps: M5.C1, M5.C1a, M3.A4, M4.A2, M2.A2
+- files: `core/.../content/MediaSpec.kt` (asset specs: image prompt, carousel slides, video storyboard with scenes, captions, duration), `app/.../platform/android/media/CarouselRenderer.kt` (slides rendered from design tokens to PNG + PDF), `app/.../platform/android/media/VideoComposer.kt` (MediaCodec/MediaMuxer H.264 slideshow with Ken-Burns motion, captions, Kokoro voice-over), `app/.../runtime/ImageGeneration.kt` (frontier image generation via the in-Memo web runtime; the downloaded image is saved as an artifact), tests
+- steps:
+  1. The draft step chooses the asset type from ContentPreference.
+  2. Carousels and videos are rendered locally.
+  3. Images come from a frontier web consult (gated like any consult) or from user-supplied files.
+  4. The gate shows the actual rendered assets plus target channels.
+  5. Publishing uploads the files through the web/app adapter.
+- acceptance:
+  - tests for the spec → slides/storyboard mapping
+  - CI green
+  - device check: a carousel PDF and an MP4 render
+
 **M5.C2 — UC-5 arbitrary plans**
 - deps: M5.C1, M4.B2
 - files: `core/.../plan/templates/Generic.kt`, tests
@@ -844,6 +1834,35 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - acceptance: tests + CI green.
 
 **M5 close:** PR. Device checklist: run UC-1, UC-3, UC-4 and UC-5 on a real phone.
+
+### M2.5 — Speed (release build, profiles, benchmarks)
+
+**M2.5.A1 — Release variant + persistent signing**
+- deps: M0.B1
+- files: `app/build.gradle.kts`, `app/proguard-rules.pro`, `.github/workflows/build-memo-apk.yml`, `docs/BUILD.md` (signing section)
+- steps:
+  1. Release build: R8 full mode, resource shrinking, keep rules for LiteRT-LM, sherpa-onnx, llama JNI and ML Kit.
+  2. Signing config from env vars.
+  3. A one-time `workflow_dispatch` job `create-release-key` that generates a keystore with `keytool` on the runner and prints setup instructions. The lead then stores the key as repo secrets (`MEMO_KEYSTORE_B64` etc.) with `gh secret set`; the key file is never committed.
+  4. The build job assembles `assembleRelease` when the secrets exist and uploads `memo-release-apk`.
+- acceptance: CI green with a signed release APK artifact; `apksigner verify` runs in CI.
+
+**M2.5.A2 — Baseline profiles + macrobenchmarks**
+- deps: M2.5.A1, M4.0, M2.B0d
+- files: new module `:baselineprofile` (macrobenchmark), `app/build.gradle.kts` (profileinstaller, baselineprofile plugin), CI emulator job
+- steps:
+  1. Generate the profile on the CI emulator, covering startup, tab switches, chat streaming and list scroll.
+  2. Add startup and frame-timing benchmarks, with results in the run summary.
+- acceptance: the profile is bundled in the release APK, and benchmark numbers are reported against the §2i targets.
+
+**M2.5.A3 — Performance pass**
+- deps: M2.5.A2
+- files: any UI file flagged by benchmarks or Compose reports
+- steps:
+  1. Enable Compose compiler metrics/reports in CI.
+  2. Fix unstable params and main-thread I/O (StrictMode in debug).
+  3. Meet the §2i targets.
+- acceptance: benchmarks meet the targets on the CI emulator, and a device check confirms the app feels fast.
 
 ### M6 — Hardening + release
 

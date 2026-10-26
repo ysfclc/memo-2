@@ -10,6 +10,12 @@ import org.json.JSONObject
  * rows instead of throwing, which lets the registry quarantine them.
  */
 interface RegScheme<T> {
+    /** Schema major of rows written by this scheme; default 1, overridable. */
+    val schemaMajor: Int get() = 1
+
+    /** Schema minor of rows written by this scheme; default 0, overridable. */
+    val schemaMinor: Int get() = 0
+
     /** Natural-key id; blank means "cannot be keyed" (quarantined by the registry). */
     fun id(item: T): String
 
@@ -61,8 +67,19 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
 
     data class Quarantined(val kind: String, val reason: String, val raw: String)
 
+    companion object {
+        /** Quarantine cap per registry; the oldest quarantined row is dropped first. */
+        const val MAX_QUARANTINED_ROWS: Int = 200
+    }
+
     private val byId = LinkedHashMap<String, T>()
     private val quarantined = mutableListOf<Quarantined>()
+
+    /** Adds a quarantined row, dropping the oldest once the cap is reached. */
+    private fun addQuarantined(row: Quarantined) {
+        quarantined += row
+        while (quarantined.size > MAX_QUARANTINED_ROWS) quarantined.removeAt(0)
+    }
 
     val size: Int get() = byId.size
 
@@ -72,6 +89,39 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
 
     fun quarantinedRows(): List<Quarantined> = quarantined.toList()
 
+    /**
+     * Re-adds quarantined rows read back from a saved envelope, unchanged.
+     * Restored rows never enter the valid rows here; they stay quarantined
+     * until the user fixes and releases them with [releaseQuarantined].
+     */
+    internal fun restoreQuarantined(rows: List<Quarantined>) {
+        rows.forEach { addQuarantined(it.copy(kind = kind)) }
+    }
+
+    /**
+     * Fixes-and-re-imports one quarantined row. The row's raw text is parsed
+     * again with the scheme; if it is now valid it is upserted (reuse, bump, or
+     * create, exactly like any other write) and removed from the quarantine.
+     * If it is still invalid, or the upsert is rejected, the row stays
+     * quarantined and nothing changes. [index] is the position in [quarantinedRows].
+     */
+    fun releaseQuarantined(index: Int, now: Long): Put<T> {
+        if (index !in quarantined.indices) {
+            return Put.Failed("no quarantined row at index $index")
+        }
+        val row = quarantined[index]
+        val obj = runCatching { JSONObject(row.raw) }.getOrNull()
+            ?: return Put.Failed("quarantined row $index is not a JSON object")
+        val decoded = scheme.fromJson(obj)
+            ?: return Put.Failed("quarantined row $index is still structurally invalid")
+        // Checked here, not left to upsert: a blank key makes upsert quarantine a new copy.
+        if (scheme.id(decoded).isBlank()) return Put.Failed("quarantined row $index has a blank natural key")
+        val result = upsert(decoded, now)
+        if (result is Put.Failed) return result
+        quarantined.removeAt(index)
+        return result
+    }
+
     fun findFirst(predicate: (T) -> Boolean): T? = byId.values.firstOrNull(predicate)
 
     fun filter(predicate: (T) -> Boolean): List<T> = byId.values.filter(predicate)
@@ -79,7 +129,7 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
     fun upsert(item: T, now: Long): Put<T> {
         val id = scheme.id(item)
         if (id.isBlank()) {
-            quarantined += Quarantined(kind, "blank natural key", scheme.toJson(item).toString())
+            addQuarantined(Quarantined(kind, "blank natural key", scheme.toJson(item).toString()))
             return Put.Failed("blank natural key")
         }
         if (byId.size >= Limits.MAX_ENTRIES_PER_REGISTRY && id !in byId) {
@@ -106,27 +156,29 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
         for (i in 0 until rows.length()) {
             val raw = rows.optJSONObject(i)
             if (raw == null) {
-                quarantined += Quarantined(kind, "row $i not an object", rows.optString(i))
+                addQuarantined(Quarantined(kind, "row $i not an object", rows.optString(i)))
                 continue
             }
             val decoded = scheme.fromJson(raw)
             if (decoded == null) {
-                quarantined += Quarantined(kind, "row $i structurally invalid", raw.toString())
+                addQuarantined(Quarantined(kind, "row $i structurally invalid", raw.toString()))
                 continue
             }
             val id = scheme.id(decoded)
             if (id.isBlank()) {
-                quarantined += Quarantined(kind, "row $i blank natural key", raw.toString())
+                addQuarantined(Quarantined(kind, "row $i blank natural key", raw.toString()))
                 continue
             }
             val existing = byId[id]
             if (existing == null) {
                 byId[id] = decoded
             } else if (scheme.contentSignature(decoded) != scheme.contentSignature(existing)) {
-                quarantined += Quarantined(
-                    kind,
-                    "row $i conflicts with already-loaded row $id",
-                    raw.toString(),
+                addQuarantined(
+                    Quarantined(
+                        kind,
+                        "row $i conflicts with already-loaded row $id",
+                        raw.toString(),
+                    ),
                 )
             }
         }
@@ -139,4 +191,11 @@ class Registry<T>(val kind: String, val scheme: RegScheme<T>) {
     }
 
     fun freeCapacity(): Int = (Limits.MAX_ENTRIES_PER_REGISTRY - byId.size).coerceAtLeast(0)
+
+    /** Semantic version of [item]: the scheme's schema major.minor plus the row's patch revision. */
+    fun semVerOf(item: T): SemVer =
+        SemVer(scheme.schemaMajor, scheme.schemaMinor, scheme.versionOf(item))
+
+    /** Schema version of this registry's rows, as "major.minor". */
+    fun schemaVersion(): String = "${scheme.schemaMajor}.${scheme.schemaMinor}"
 }

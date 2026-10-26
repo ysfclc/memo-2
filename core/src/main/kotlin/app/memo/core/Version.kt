@@ -10,5 +10,5 @@ object Version {
     const val PRODUCT: String = "Memo"
     const val VERSION: String = "1.0.0"
     const val DSL_SCHEMA_VERSION: Int = 1
-    const val WORKSPACE_SCHEMA_VERSION: Int = 1
+    const val WORKSPACE_SCHEMA_VERSION: Int = Limits.WORKSPACE_SCHEMA_VERSION
 }

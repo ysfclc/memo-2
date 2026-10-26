@@ -19,3 +19,8 @@ local.properties
 *.jks
 gradle.properties.local
 .env
+.claude/
+
+
+# Downloaded native AARs (fetched and SHA-256 verified by the fetchSherpaAar Gradle task)
+app/libs/

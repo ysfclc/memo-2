@@ -65,6 +65,7 @@ import app.memo.core.domain.StepKind
 import app.memo.core.domain.StepStatus
 import app.memo.runtime.MemoRuntime
 import app.memo.runtime.Planner
+import app.memo.ui.theme.MemoTheme
 import org.json.JSONObject
 
 enum class Tab(val label: String, val icon: ImageVector) {
@@ -116,6 +117,9 @@ fun MemoRoot(runtime: MemoRuntime) {
                     auditCount = snap.auditCount,
                     auditOk = snap.auditOk,
                     quarantined = snap.quarantined,
+                    storageError = snap.storageError,
+                    recoveryPending = snap.recoveryPending,
+                    onConfirmRecovery = { runtime.confirmRecovery() },
                     onStopAll = { runtime.stopEverything() },
                 )
             }
@@ -130,7 +134,7 @@ fun ScreenHeader(title: String, subtitle: String) {
     Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
         Text(title, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(4.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MemoColors.MutedInk)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MemoTheme.colors.inkMuted)
     }
 }
 
@@ -151,10 +155,10 @@ fun Pill(text: String, emphasis: Boolean = false) {
     Box(
         Modifier
             .clip(RoundedCornerShape(50))
-            .background(if (emphasis) MemoColors.Mint else MemoColors.Hairline)
+            .background(if (emphasis) MemoTheme.colors.accentSoft else MemoTheme.colors.outline)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Text(text, fontSize = 12.sp, color = MemoColors.Ink)
+        Text(text, fontSize = 12.sp, color = MemoTheme.colors.ink)
     }
 }
 
@@ -196,7 +200,7 @@ fun LiveScreen(
         }
         if (message.isNotBlank()) {
             Spacer(Modifier.height(10.dp))
-            Text(message, modifier = Modifier.padding(horizontal = 20.dp), color = MemoColors.MutedInk, fontSize = 13.sp)
+            Text(message, modifier = Modifier.padding(horizontal = 20.dp), color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
         }
         Spacer(Modifier.height(12.dp))
 
@@ -211,20 +215,20 @@ fun LiveScreen(
                     MemoCard {
                         Text(run.spec.title, style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
-                        Text("Review the filled artifact before it is saved.", color = MemoColors.MutedInk, fontSize = 13.sp)
+                        Text("Review the filled artifact before it is saved.", color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
                         Spacer(Modifier.height(10.dp))
                         Box(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(MemoColors.Paper)
+                                .background(MemoTheme.colors.canvas)
                                 .padding(12.dp),
                         ) {
                             Text(
                                 step.artifact.ifBlank { "(nothing filled yet)" }.let(::pretty),
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
-                                color = MemoColors.Ink,
+                                color = MemoTheme.colors.ink,
                             )
                         }
                         Spacer(Modifier.height(12.dp))
@@ -252,7 +256,7 @@ fun LiveScreen(
                 item {
                     Text(
                         "Nothing yet. Say or type a command in Talk.",
-                        color = MemoColors.MutedInk,
+                        color = MemoTheme.colors.inkMuted,
                         fontSize = 14.sp,
                     )
                 }
@@ -271,14 +275,14 @@ fun LiveScreen(
                     }
                     if (run.failure.isNotBlank()) {
                         Spacer(Modifier.height(6.dp))
-                        Text(run.failure, color = MemoColors.Amber, fontSize = 13.sp)
+                        Text(run.failure, color = MemoTheme.colors.attention, fontSize = 13.sp)
                     }
                 }
             }
 
             if (active > 0) {
                 item {
-                    TextButton(onClick = onStopAll) { Text("Stop all active runs", color = MemoColors.Amber) }
+                    TextButton(onClick = onStopAll) { Text("Stop all active runs", color = MemoTheme.colors.attention) }
                 }
             }
         }
@@ -294,7 +298,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
             .padding(horizontal = 10.dp, vertical = 12.dp),
     ) {
         Text(value, style = MaterialTheme.typography.titleLarge, fontSize = 20.sp)
-        Text(label, fontSize = 11.sp, color = MemoColors.MutedInk)
+        Text(label, fontSize = 11.sp, color = MemoTheme.colors.inkMuted)
     }
 }
 
@@ -358,7 +362,7 @@ fun TalkScreen(runtime: MemoRuntime) {
         MemoCard {
             Text("Examples", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
-            Text(Planner.helpText(), color = MemoColors.MutedInk, fontSize = 13.sp)
+            Text(Planner.helpText(), color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
         }
     }
 }
@@ -382,7 +386,7 @@ fun WorkScreen(
         items(people, key = { it.fullName + it.phone }) { p ->
             MemoCard(Modifier.padding(horizontal = 20.dp)) {
                 Text(p.fullName, style = MaterialTheme.typography.titleMedium)
-                if (p.notes.isNotBlank()) Text(p.notes, color = MemoColors.MutedInk, fontSize = 13.sp)
+                if (p.notes.isNotBlank()) Text(p.notes, color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
             }
         }
         item { Text("Companies (${companies.size})", modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.titleMedium) }
@@ -407,7 +411,7 @@ fun WorkScreen(
 
 @Composable
 private fun EmptyLine(text: String) {
-    Text(text, modifier = Modifier.padding(horizontal = 20.dp), color = MemoColors.MutedInk, fontSize = 13.sp)
+    Text(text, modifier = Modifier.padding(horizontal = 20.dp), color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
 }
 
 // ----------------------------------------------------------------- Studio
@@ -428,7 +432,7 @@ fun StudioScreen(drafts: List<app.memo.core.domain.ContentDraft>) {
                     Pill(humanize(d.kind.name))
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(d.body, color = MemoColors.MutedInk, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                Text(d.body, color = MemoTheme.colors.inkMuted, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -441,6 +445,9 @@ fun SettingsScreen(
     auditCount: Int,
     auditOk: Boolean,
     quarantined: Int,
+    storageError: String,
+    recoveryPending: Boolean,
+    onConfirmRecovery: () -> Unit,
     onStopAll: () -> Unit,
 ) {
     Column(
@@ -451,22 +458,33 @@ fun SettingsScreen(
     ) {
         ScreenHeader("Settings", "Trust, audit and controls. Everything stays on this device.")
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (storageError.isNotEmpty()) {
+                MemoCard {
+                    Text("Storage", style = MaterialTheme.typography.titleMedium, color = MemoTheme.colors.attention)
+                    Spacer(Modifier.height(4.dp))
+                    Text(storageError, color = MemoTheme.colors.ink, fontSize = 13.sp)
+                    if (recoveryPending) {
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(onClick = onConfirmRecovery) { Text("I reviewed my data, resume saving") }
+                    }
+                }
+            }
             MemoCard {
                 Text("Audit trail", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "$auditCount outbound entries · chain " + if (auditOk) "verified" else "BROKEN",
-                    color = if (auditOk) MemoColors.MutedInk else MemoColors.Amber,
+                    color = if (auditOk) MemoTheme.colors.inkMuted else MemoTheme.colors.attention,
                     fontSize = 13.sp,
                 )
                 if (quarantined > 0) {
-                    Text("$quarantined stored rows were quarantined on load.", color = MemoColors.Amber, fontSize = 13.sp)
+                    Text("$quarantined stored rows were quarantined on load.", color = MemoTheme.colors.attention, fontSize = 13.sp)
                 }
             }
             MemoCard {
                 Text("Kill switch", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(4.dp))
-                Text("Stops every active run. Side effects already approved are not undone.", color = MemoColors.MutedInk, fontSize = 13.sp)
+                Text("Stops every active run. Side effects already approved are not undone.", color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(onClick = onStopAll) { Text("Stop all runs") }
             }
@@ -475,7 +493,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Workspace, runs, audit and models live in app-private storage. Nothing leaves the device except pinned model downloads you start.",
-                    color = MemoColors.MutedInk,
+                    color = MemoTheme.colors.inkMuted,
                     fontSize = 13.sp,
                 )
             }

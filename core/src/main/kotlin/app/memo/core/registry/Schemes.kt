@@ -2,20 +2,29 @@ package app.memo.core.registry
 
 import app.memo.core.domain.Company
 import app.memo.core.domain.ContentDraft
+import app.memo.core.domain.ArchitecturalPrinciple
+import app.memo.core.domain.ChannelAccount
+import app.memo.core.domain.ContentPreference
 import app.memo.core.domain.DraftKind
 import app.memo.core.domain.JobApplication
 import app.memo.core.domain.JobPosting
 import app.memo.core.domain.JobApplicationState
 import app.memo.core.domain.MetricSample
+import app.memo.core.domain.Note
 import app.memo.core.domain.Person
+import app.memo.core.domain.Project
+import app.memo.core.domain.PromptTemplate
+import app.memo.core.domain.ProviderAdapter
 import app.memo.core.domain.SocialPost
 import app.memo.core.domain.Task
 import app.memo.core.domain.TaskState
+import app.memo.core.domain.WorkflowTemplate
 import org.json.JSONObject
 
 /**
- * The eight v1 registry schemes. Each one states its natural key rule and
- * its bookkeeping stamps; everything else is delegated to the domain codecs.
+ * The eight v1 registry schemes and the eight v2 knowledge and library
+ * schemes. Each one states its natural key rule and its bookkeeping stamps;
+ * everything else is delegated to the domain codecs.
  */
 object Schemes {
 
@@ -120,6 +129,111 @@ object Schemes {
         override fun fromJson(raw: JSONObject): MetricSample? = MetricSample.fromJson(raw)
         override fun versionOf(item: MetricSample): Int = item.version
         override fun stamped(item: MetricSample, existing: MetricSample?, now: Long, nextVersion: Int): MetricSample =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object Projects : RegScheme<Project> {
+        override fun id(item: Project): String = NaturalKeys.project(item.name)
+        override fun toJson(item: Project): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): Project? = Project.fromJson(raw)
+        override fun versionOf(item: Project): Int = item.version
+        override fun stamped(item: Project, existing: Project?, now: Long, nextVersion: Int): Project =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object Notes : RegScheme<Note> {
+        /** Natural key: project + title-slug + creation day (the item's own createdAt, as Drafts does). */
+        override fun id(item: Note): String = NaturalKeys.note(item.projectKey, item.title, item.createdAt)
+        override fun toJson(item: Note): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): Note? = Note.fromJson(raw)
+        override fun versionOf(item: Note): Int = item.version
+        override fun stamped(item: Note, existing: Note?, now: Long, nextVersion: Int): Note =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: item.createdAt.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object WorkflowTemplates : RegScheme<WorkflowTemplate> {
+        override fun id(item: WorkflowTemplate): String = NaturalKeys.workflowTemplate(item.name)
+        override fun toJson(item: WorkflowTemplate): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): WorkflowTemplate? = WorkflowTemplate.fromJson(raw)
+        override fun versionOf(item: WorkflowTemplate): Int = item.version
+        override fun stamped(item: WorkflowTemplate, existing: WorkflowTemplate?, now: Long, nextVersion: Int): WorkflowTemplate =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object PromptTemplates : RegScheme<PromptTemplate> {
+        override fun id(item: PromptTemplate): String = NaturalKeys.promptTemplate(item.name)
+        override fun toJson(item: PromptTemplate): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): PromptTemplate? = PromptTemplate.fromJson(raw)
+        override fun versionOf(item: PromptTemplate): Int = item.version
+        override fun stamped(item: PromptTemplate, existing: PromptTemplate?, now: Long, nextVersion: Int): PromptTemplate =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object Principles : RegScheme<ArchitecturalPrinciple> {
+        override fun id(item: ArchitecturalPrinciple): String = NaturalKeys.principle(item.title)
+        override fun toJson(item: ArchitecturalPrinciple): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): ArchitecturalPrinciple? = ArchitecturalPrinciple.fromJson(raw)
+        override fun versionOf(item: ArchitecturalPrinciple): Int = item.version
+        override fun stamped(item: ArchitecturalPrinciple, existing: ArchitecturalPrinciple?, now: Long, nextVersion: Int): ArchitecturalPrinciple =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object ContentPreferences : RegScheme<ContentPreference> {
+        override fun id(item: ContentPreference): String = NaturalKeys.preference(item.scope)
+        override fun toJson(item: ContentPreference): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): ContentPreference? = ContentPreference.fromJson(raw)
+        override fun versionOf(item: ContentPreference): Int = item.version
+        override fun stamped(item: ContentPreference, existing: ContentPreference?, now: Long, nextVersion: Int): ContentPreference =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object ChannelAccounts : RegScheme<ChannelAccount> {
+        override fun id(item: ChannelAccount): String = NaturalKeys.channelAccount(item.platform, item.handle)
+        override fun toJson(item: ChannelAccount): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): ChannelAccount? = ChannelAccount.fromJson(raw)
+        override fun versionOf(item: ChannelAccount): Int = item.version
+        override fun stamped(item: ChannelAccount, existing: ChannelAccount?, now: Long, nextVersion: Int): ChannelAccount =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object ProviderAdapters : RegScheme<ProviderAdapter> {
+        override fun id(item: ProviderAdapter): String = NaturalKeys.adapter(item.channel, item.targetId)
+        override fun toJson(item: ProviderAdapter): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): ProviderAdapter? = ProviderAdapter.fromJson(raw)
+        override fun versionOf(item: ProviderAdapter): Int = item.version
+        override fun stamped(item: ProviderAdapter, existing: ProviderAdapter?, now: Long, nextVersion: Int): ProviderAdapter =
             item.copy(
                 createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
                 updatedAt = now,

@@ -1,0 +1,83 @@
+name: Publish preview APK
+
+# Publishes the APK artifact of an existing, green "Build Memo APK" run as a
+# GitHub pre-release, so it can be downloaded directly on a phone. Runs
+# server-side: nothing is uploaded from a developer machine.
+#
+# Inputs never reach the shell as code: they pass through env vars and are
+# validated. The release tag targets the source run's own commit, and the
+# source run must be a successful "Build Memo APK" run on main or a
+# milestone branch that was not triggered by a pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run id of a successful Build Memo APK run"
+        required: true
+      tag:
+        description: "Pre-release tag, e.g. preview-m0 (letters, digits, . _ -)"
+        required: true
+      title:
+        description: "Release title"
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id }}
+      TAG: ${{ inputs.tag }}
+      TITLE: ${{ inputs.title }}
+    steps:
+      - name: Validate inputs and source run
+        id: src
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::run_id must be numeric"; exit 1; }
+          [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { echo "::error::tag must start with a letter or digit and match ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"; exit 1; }
+          [[ "${#TITLE}" -le 120 ]] || { echo "::error::title too long"; exit 1; }
+          info="$(gh run view "$RUN_ID" -R "$REPO" --json conclusion,workflowName,headBranch,event,headSha)"
+          conclusion="$(jq -r .conclusion <<<"$info")"
+          workflow="$(jq -r .workflowName <<<"$info")"
+          branch="$(jq -r .headBranch <<<"$info")"
+          event="$(jq -r .event <<<"$info")"
+          sha="$(jq -r .headSha <<<"$info")"
+          [[ "$conclusion" == "success" ]] || { echo "::error::source run concluded '$conclusion'"; exit 1; }
+          [[ "$workflow" == "Build Memo APK" ]] || { echo "::error::source run is '$workflow', not 'Build Memo APK'"; exit 1; }
+          [[ "$event" != "pull_request" && "$event" != "pull_request_target" ]] || { echo "::error::refusing artifacts from pull_request runs"; exit 1; }
+          [[ "$branch" == "main" || "$branch" =~ ^milestone/ ]] || { echo "::error::source branch '$branch' is not main or milestone/*"; exit 1; }
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::bad head sha"; exit 1; }
+          if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            echo "::error::release '$TAG' already exists; choose a new tag (existing releases are never deleted)"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK artifact from the source run
+        uses: actions/download-artifact@v4
+        with:
+          name: memo-apk
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: apk
+
+      - name: Create pre-release
+        env:
+          SRC_SHA: ${{ steps.src.outputs.sha }}
+        run: |
+          set -euo pipefail
+          src="apk/app-debug.apk"
+          [[ -s "$src" ]] || { echo "::error::APK missing from artifact"; exit 1; }
+          out="apk/memo-${TAG}.apk"
+          cp -- "$src" "$out"
+          sum="$(sha256sum -- "$out" | cut -d' ' -f1)"
+          notes="Preview build from run ${RUN_ID} (commit ${SRC_SHA}). SHA-256: ${sum}. Debug build for testing; install by opening the APK on the phone and allowing installs from this source."
+          gh release create "$TAG" "$out" -R "$REPO" --prerelease \
+            --title "$TITLE" --notes "$notes" --target "$SRC_SHA"
