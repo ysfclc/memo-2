@@ -98,11 +98,11 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties', '**/build.gradle.kts', '**/*.gradle.kts') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      - name: Build (unit tests, lint, debug APK)
+      - name: Build (core tests, app unit tests, lint, debug APK)
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+          ./gradlew --no-daemon --stacktrace :core:test testDebugUnitTest lintDebug assembleDebug
 
       - name: Verify APK
         id: apk

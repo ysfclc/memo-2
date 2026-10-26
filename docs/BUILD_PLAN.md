@@ -199,7 +199,7 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
 
 ### Channel priority
 1. **In-Memo web runtime (primary).** Every service with a web app runs inside Memo's own WebView sessions: frontier AIs, LinkedIn/X, job boards, webmail, metrics pages. These run **headless in the background**. The user is involved only at approval gates and at takeover moments (login, captcha, 2FA, unexpected page). The router always prefers this channel when an adapter exists.
-2. **Native app automation (fallback, only when no web app exists).** On stock Android, accessibility automation can only act on an app that is on screen. These steps therefore run in a **screen session**: the user starts it with one tap from the bubble or notification, the bubble console stays on top, and Memo returns itself to the front when the step ends. The planner marks such steps "needs your screen" so they are batched and never surprise the user.
+2. **Native app automation (first-class, §2c).** On stock Android, accessibility automation can only act on an app that is on screen. These steps therefore run in a **screen session**: the user starts it with one tap from the bubble or notification, the bubble console stays on top, and Memo returns itself to the front when the step ends. The planner marks such steps "needs your screen" so they are batched and never surprise the user.
 
 ### Headless web runtime (architecture)
 - **`WebWorkService`:**
@@ -231,6 +231,96 @@ These follow the same loop, using a provider adapter: `fill(composer, prompt)`, 
   - overlay permission requested with a rationale screen
   - hidden on the lock screen and in secure windows; never captures password fields
   - never taps itself (no tapjacking); approve buttons need a deliberate tap
+
+## 2c. Native apps on the device: the SynthOS Runtime pattern, done properly
+
+**User requirement:** Memo operates the **mobile apps installed on the phone** (not their websites), the way the SynthOS Runtime did:
+1. Memo launches the target app.
+2. `MemoAccessibilityService` drives it.
+3. Memo's floating console (§2b) sits on top as the control and inspector surface.
+
+The user doesn't operate anything; the agent works on its own and only surfaces approvals or takeovers. This is a **first-class channel**, used alongside the in-Memo web runtime. The router picks per step: native app when the user prefers the app or no web adapter exists, web otherwise.
+
+**Improvements over the SynthOS Runtime** (which had: launch, tap-text, wait-text, back, delay only; English regex policy; no gestures/typing; static singletons; overlay built in the service):
+- The full §2a loop and closed vocabulary: launch, tap, type, scroll, swipe, back, wait_text, read, commit. Multi-strategy locators. The envelope is bound to the approved gate.
+- Guards: lock pause, wrong-app pause with auto-resume, `ActionPolicy` before every action, password/OTP fields never touched, bounded retries, UNVERIFIED unless the postcondition is observed.
+- Screen state: needs the screen on and unlocked while acting. Memo batches native steps. When the phone is locked, they wait, and the console/notification says "ready to run N app steps — unlock to let Memo work". After unlock they run without further prompts unless a gate needs approval.
+- Memo returns itself (or the previous app) to the front after the session.
+
+## 2d. Human-like interaction (anti-ban)
+
+**Requirement:** automation must behave like a person, to minimise the chance of platform bans. This is risk reduction, not a guarantee. Platform terms still apply, and Memo shows this note once in Settings. Implemented as a pure `core/automation/Humanizer` (seeded RNG, fully unit-tested) used by both the app and web executors.
+
+- **Timing:** delays come from a log-normal distribution (not constant), with think pauses before decisions and reading pauses proportional to the visible text length (~200–300 wpm). The minimum gap between actions is never under 250 ms.
+- **Typing:**
+  - App: chunked `ACTION_SET_TEXT` that grows the text in 1–4 character bursts with per-character cadence (~40–90 wpm), occasional micro-pauses, and no instant full-paste for long text unless the user enables "fast mode".
+  - Web: per-chunk `execCommand('insertText')` at the same cadence.
+- **Touch:** taps land at a random point inside the element's bounds (biased to the centre, never on the edge), with a press duration of 40–120 ms. Swipes and scrolls use curved Bézier `dispatchGesture` paths with variable speed, slight overshoot, and natural fling lengths.
+- **Navigation:** realistic scrolling while reading lists, with no teleporting jumps. Occasional idle dwell.
+- **Session pacing:**
+  - per-app and per-site action rate limits
+  - daily caps (e.g. job applications/day, posts/day, connection requests/day), all configurable
+  - optional working-hours window
+  - cooldowns after errors
+  - automatic backoff when a site shows rate-limit or "unusual activity" signals; those signals pause the channel and notify
+- **Consistency:** one stable session per service (same profile and cookies). No parallel sessions on the same account. No automation of logins (the user logs in once).
+- **Tests:** distribution bounds, monotonic typing growth, gesture path continuity, and pacing/cap enforcement.
+
+## 2e. Full control: everything editable, workflow editor, settings, autonomy
+
+**Requirement:** nothing is read-only. The user can create, edit, update and delete everything manually, and has full control over settings and how much the agent asks.
+
+- **CRUD everywhere:** People, Companies, Tasks, Projects, Notes, Drafts, Posts, Metrics (manual samples), Job postings/applications, Workflow templates, Prompt templates, Principles, Content preferences, Channel accounts, Provider/app adapters (advanced).
+  - Every edit goes through `Registry.upsert`: reuse-first, version bump on real change, history kept.
+  - Edits are audited locally. Delete is soft (archive) with undo; purge is an explicit confirmation.
+- **Workflow editor:**
+  - Create a workflow from scratch or from a template, or edit a generated plan before running.
+  - Add, remove and reorder steps. Edit every step field (kind, title, prompt, provider/app, envelope actions, artifact type, metric URL, retry, branches), with live validation via `PlanProposalParser`/`WorkflowPolicy`. Errors show inline per step.
+  - Save as a template (versioned), duplicate, run, schedule (one-off or recurring via WorkManager).
+  - The run history per workflow lets the user edit and re-run.
+- **Autonomy and approval policy** (Settings → Autonomy), defaults first:
+  - Per action class (read/capture, draft, persist, consult frontier AI, send message, publish, apply to job, app UI action, purchase/payment), a level:
+    - *Always ask*
+    - *Ask once per workflow* (one approval covers the run's envelope)
+    - *Auto, summarise after*
+    - *Auto, silent*
+  - Defaults: read/capture/draft/persist = Auto, summarise; consult = Ask once per workflow; send/publish/apply/app UI = Always ask.
+  - **Payments, passwords, OTP and account-security actions are permanently Always ask / human-only** and cannot be relaxed.
+  - Auto levels still build the envelope and write the audit; "auto" means the engine delivers the gate itself with the user's standing rule recorded as the approver. That is a new `GateApprover.STANDING_RULE` value in core, so the audit shows which rule approved it.
+  - Per-channel and per-provider overrides; a quiet-hours window during which nothing interrupts (approvals queue).
+- **Settings** (complete, searchable):
+  - Profile
+  - Autonomy and approvals
+  - Channels (web services, device apps, discovery toggles)
+  - Human-like behaviour (speed presets, caps, working hours)
+  - Models (defaults per role, per-model parameters, storage)
+  - Voice (ASR/TTS models, voice, speed, wake word, sensitivity, screen-off wake)
+  - Notifications
+  - Floating console
+  - Privacy and security (vault, app lock, redaction rules editor, outbound log, kill switch)
+  - Data (backup/export/import, storage, purge)
+  - Appearance (light/dark/system, density, motion reduce)
+  - Advanced (adapters, diagnostics, developer log)
+  - About and permissions centre
+
+## 2f. Wake by voice with the screen off
+
+**Requirement:** say "Hey Memo" while the phone is idle, with the screen off and locked, and Memo wakes up.
+
+- `WakeWordService`:
+  - a foreground service (`microphone` type) running the sherpa keyword spotter continuously with low-power settings (small KWS model, 16 kHz, VAD-gated)
+  - holds a `PARTIAL_WAKE_LOCK` only while listening is enabled
+  - started from the foreground (in-app toggle) and kept alive by the FGS
+- On detection:
+  - acquire a screen-on wake (`turnScreenOn` + `showWhenLocked` on `AssistActivity`)
+  - play an earcon and speak through the voice loop
+  - pure steps run while the phone is locked; side effects queue behind "unlock to approve" (or run under standing autonomy rules for allowed classes)
+- **Honest limits** (stated in Settings):
+  - Android 14+ forbids starting a microphone FGS from boot or background, so after a reboot Memo posts a notification "tap to re-arm Hey Memo".
+  - Some OEMs kill background services, so Memo shows OEM-specific battery-optimisation guidance and a "don't optimise" deep link.
+  - Battery cost is measured and shown in Settings.
+  - Thermal and low-battery auto-pause.
+- The default-assistant role (long-press power) remains the zero-battery path.
 
 ## 3. Process (applies to every task)
 
@@ -568,7 +658,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   4. The session summary shows what ran and what is pending.
 - acceptance: CI green; manifest review.
 
-**M2.C2 — "Hey Memo" wake listener**
+**M2.C2 — "Hey Memo" wake listener (works with the screen off and locked, §2f)**
 - deps: M2.A2
 - files: `app/.../platform/android/assist/WakeWordService.kt`, manifest, settings hook
 - steps:
@@ -664,6 +754,41 @@ Format: **ID — title** · deps · files owned · steps · acceptance
 - acceptance: an end-to-end JVM test with fake executors.
 
 **M3 close:** PR. Device checklist: say "I met Ada at Web Summit, add to CRM"; see the plan card, the filled record, approve it, and find it in Work.
+
+### M3.5 — Full control (CRUD, workflow editor, autonomy, settings)
+
+**M3.5.A1 — Standing-rule approvals in core**
+- deps: M0.A1, M0.A5
+- files: `core/.../policy/AutonomyPolicy.kt`, `WorkflowEngine.kt` (a `GateApprover` field on gate delivery and in the audit), tests
+- steps:
+  1. Action classes and levels per §2e. Human-only classes are not configurable.
+  2. The engine can auto-deliver a gate when the standing rule allows it, recording `approver = STANDING_RULE:<ruleId>`.
+  3. Quiet hours.
+- acceptance: tests show human-only classes can never be auto-approved, and the audit records the approver.
+
+**M3.5.A2 — Humanizer**
+- deps: M4.A0
+- files: `core/.../automation/Humanizer.kt`, tests
+- steps: §2d timing, typing, touch and gesture paths, pacing and caps, all with a seeded RNG.
+- acceptance: the tests listed in §2d.
+
+**M3.5.B1 — Editors for every record type**
+- deps: M3.B1
+- files: `app/.../ui/edit/*` (generic form engine driven by field descriptors + per-entity descriptors), `app/.../runtime/EditRepository.kt`
+- steps: create, edit, archive, undo and purge for every §2e entity via `Registry.upsert`, with validation messages from the entity's `isInvalid` rules. A version history view per record.
+- acceptance: CI green; every registry kind has create/edit/archive reachable from the UI (the lead checks the descriptor list against `Workspace.all()`).
+
+**M3.5.B2 — Workflow editor**
+- deps: M3.A1, M3.5.B1
+- files: `app/.../ui/workflow/*`, `app/.../runtime/WorkflowLibrary.kt`
+- steps: §2e workflow editor (step list with drag-reorder, per-kind step forms, live validation, save as template, duplicate, run, schedule one-off/recurring, per-workflow run history with edit and re-run).
+- acceptance: CI green; a unit test that editor-produced specs pass `WorkflowPolicy.validateSpec`.
+
+**M3.5.C1 — Settings suite + autonomy UI**
+- deps: M3.5.A1
+- files: `app/.../ui/settings/*`, `app/.../runtime/SettingsStore.kt` (encrypted)
+- steps: every §2e settings section, searchable, with the autonomy matrix UI, per-channel overrides and quiet hours. Each setting is wired to its consumer; no dead toggles.
+- acceptance: CI green; the lead verifies every setting key has a reader (grep).
 
 ### M4 — Channels
 
@@ -770,7 +895,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Router decisions are shown on each step ("why this provider").
 - acceptance: CI green.
 
-**M4.D1 — Native-app screen sessions (fallback channel)**
+**M4.D1 — Native-app sessions (SynthOS Runtime pattern, §2c)**
 - deps: M4.B1, M2.C3
 - files: `app/.../platform/android/automation/ScreenSession.kt`, `app/.../ui/host/ScreenSessionHud.kt`
 - steps:
@@ -791,6 +916,8 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   - CI green
   - emulator test: the overlay is shown over the test target activity, and "act on this screen" runs a safe fill action with approval
   - the lead reviews the diff line by line against §2a and §2b
+
+**Humanizer:** every web and app executor action goes through `Humanizer` (§2d), and the emulator tests assert non-constant timing.
 
 **Automation acceptance (all of M4.A1–M4.D2):** the §2a emulator tests for that component are green, and the lead has reviewed the diff line by line against §2a.
 
