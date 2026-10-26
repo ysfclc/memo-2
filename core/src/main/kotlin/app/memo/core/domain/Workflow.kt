@@ -222,6 +222,7 @@ data class StepState(
     val approvedContentHash: String = "",  // hash the user actually bound at the gate
     val lastAttemptAt: Long = 0,
     val resumeAt: Long = 0,               // earliest next execution (backoff / deferral)
+    val externalTicket: String = "",      // ticket of in-flight external work (async Attempt.Pending)
 ) {
     fun toJson(): JSONObject {
         val evd = JSONArray()
@@ -237,6 +238,7 @@ data class StepState(
             .put("approvedContentHash", approvedContentHash)
             .put("lastAttemptAt", lastAttemptAt)
             .put("resumeAt", resumeAt)
+            .put("externalTicket", externalTicket)
             .put("evidence", evd)
         return o
     }
@@ -260,6 +262,7 @@ data class StepState(
                 approvedContentHash = raw.optString("approvedContentHash"),
                 lastAttemptAt = raw.optLong("lastAttemptAt", 0L),
                 resumeAt = raw.optLong("resumeAt", 0L),
+                externalTicket = raw.optString("externalTicket"),
                 evidence = buildList {
                     for (i in 0 until evd.length()) {
                         val item = evd.optJSONObject(i) ?: continue
