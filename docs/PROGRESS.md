@@ -67,3 +67,24 @@ Chronological notes kept by the lead while building. They cover what the user as
 - Local SDK: the old `sdkmanager` now forwards to the new Android CLI (`android sdk install`), which uses **slash** package names (`build-tools/35.0.0`). The first installer "succeeded" without installing anything because its output was hidden. Rewritten with the new CLI and visible output. The network sped up: the system image downloads at ~12 MB/s.
 - The user proposed the **Capability Compiler** (assemble the competence per task) and the **Self Model** (website/LinkedIn/CVs → tailored CVs). Designed as §2k and §2l. Teach & Select (§2m) was added for DOM/app element selection and regenerable schemas.
 - M0 all tasks merged; final milestone CI dispatched (run 40378577135).
+
+### M0 independent review (before merging to main)
+- Ran a review subagent (Sonnet) over the whole milestone diff. CI was green, yet it found 11 real defects. **Lesson: per-task verification plus CI is not enough; the milestone review stays mandatory.**
+- Confirmed by the lead:
+  - HIGH: a branch jump or failure rescue skipping a gate let a later side effect run under an older approval.
+  - HIGH: quarantined rows were destroyed on the next save.
+  - HIGH: no durable "in flight" marker before a side effect, so a crash could duplicate it.
+  - HIGH: a stale `.tmp` could block the migration forever.
+  - MEDIUM: plaintext was left behind if removal failed.
+  - MEDIUM: read-only mode still ran side effects without a durable audit.
+  - MEDIUM: vault recovery was silent and backups rotated too fast.
+  - MEDIUM: the router ignored the "frontier" switch.
+  - MEDIUM: a pin overrode LOCAL_ONLY.
+  - MEDIUM: policy misses (check out, PayPal, plurals, NFKC/zero-width obfuscation, unknown submit buttons).
+  - MEDIUM: injection and provenance gaps in `publish-preview.yml`.
+- Fix pass:
+  - M0.F1 (engine: nearest-gate binding, branch-over-gate rejection, checkpoint before side effects, `recoverAfterRestart`)
+  - M0.F3 (quarantine preserved, router switches/pins, policy hardening)
+  - M0.F2 (app persistence and runtime) after F1
+  - `publish-preview.yml` fixed by the lead
+- Local run: Memo installed and launched on the emulator (`Memo_API34`, WHPX acceleration) with no crash. Settings shows "0 outbound entries · chain verified", so the vault load works on a real Android 14 system. Launcher: `Desktop\gptun-memo-emulator.cmd`.
