@@ -24,7 +24,7 @@ class MemoVaultTest {
         val ws2 = MemoVault.load(bis)
         assertNotNull(ws2)
         assertEquals(1, ws2.people.size)
-        assertEquals("Ada", ws2.people.values.first().fullName)
+        assertEquals("Ada", ws2.people.findFirst { it.fullName == "Ada" }?.fullName)
     }
 
     @Test
