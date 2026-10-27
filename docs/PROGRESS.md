@@ -1028,3 +1028,13 @@ VERIFICATION: git diff --check -> pass; the CI row now links run 40518483948 on 
 NEXT STEP: Commit and push the CI verification note; confirm the worktree is clean and CI remains green.
 NOTES: The run completed all checks successfully before this status edit; code and verification scope are unchanged.
 ---
+
+---
+TIMESTAMP: 2026-10-27T14:23:23Z
+STEP: 96 — Save final CI result and resume point
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: `gh run watch 40519945444` -> pass in 3m57s; tests, lint, APK verification, native listing and upload passed; git diff --check -> pass
+NEXT STEP: Trace how LiteRtLmRuntime cancellation reaches onDone/onError and how ChatService.finish clears streaming; make no further emulator attempt or source edit until that path is understood.
+NOTES: Both pushed documentation checkpoints have green CI. Current Stop failure is still unresolved; the planned M1 model/download/import device checklist remains open.
+---
