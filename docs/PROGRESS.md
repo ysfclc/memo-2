@@ -620,3 +620,13 @@ VERIFICATION: git ls-files --eol -> both files use workspace CRLF; git diff --ch
 NEXT STEP: Review the complete documentation diff and repository status, then commit and push the checkpoint.
 NOTES: Repaired mixed line endings introduced by the appended checkpoint entries; no text content changed.
 ---
+
+---
+TIMESTAMP: 2026-10-27T08:32:18Z
+STEP: 51 — Record documentation checkpoint CI
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; gh run watch 40473402964 -> pass in 5m9s
+NEXT STEP: Use a fresh test AVD to install the CI APK and complete the smallest-model demo and M1 device checklist; ask before removing the existing app/data.
+NOTES: CI ran on f665323; platform notices are documented in ENGINEERING_LOG.md C-010.
+---

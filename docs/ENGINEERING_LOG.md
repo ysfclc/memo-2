@@ -146,6 +146,8 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 **C-009 · 2026-10-27 · Emulator coexistence requires all instances to be read-only.** Android Emulator 37.2.12 rejected a second `Memo_API34` instance because the existing instance was started writable, even when the new instance used `-read-only`. A fresh test AVD is the safe install target; do not remove the existing app/data without approval.
 
+**C-010 · 2026-10-27 · CI runner notices.** Run `40473402964` passed but emitted GitHub annotations that actions/cache@v4, actions/checkout@v4, and actions/upload-artifact@v4 target Node.js 20 and are being forced to Node.js 24, and that `ubuntu-latest` will migrate to Ubuntu 26. These were platform notices, not failed checks.
+
 ---
 
 ## NOTES BY MILESTONE
@@ -342,3 +344,6 @@ Second independent review of M0 (M0.F5). One commit per group, in the order B, A
 - CI run [40461314345](https://github.com/ysfclc/memo-2/actions/runs/40461314345) passed on `a1a7ec4`: core/app unit tests, lint, APK verification, native-library listing, and artifact upload. The artifact `memo-apk` was available.
 - `adb install -r` rejected the CI APK with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because the pre-existing `app.memo.debug` uses a different signing certificate. The existing app and its data were preserved. A second read-only AVD was rejected because the active AVD is writable (C-009).
 - Actual model loading/generation remains **UNVERIFIED** on device. Verification path: use a fresh test AVD (or obtain approval before removing the existing app/data), install the CI APK, download a small model, then chat and stop generation. The current emulator has no files in `files/models/imported`.
+
+### M1 · CHAT continuation — documentation checkpoint CI
+- Follow-up docs commit `f665323` passed CI run [40473402964](https://github.com/ysfclc/memo-2/actions/runs/40473402964) in 5m9s: tests, lint, APK verification, native-library listing, and artifact upload all succeeded. See C-010 for the platform notices.
