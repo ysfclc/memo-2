@@ -187,3 +187,14 @@ VERIFICATION: each wrapper compiled immediately after writing (`:app:compileDebu
 NEXT STEP: one commit + push + CI dispatch; then the M2.A2 emulator Build step (synthesize a sentence to a WAV) is the next plan item, needing the emulator session.
 NOTES: Config discipline: paths + sample rate + thread counts only; everything else stays at AAR defaults until device tuning. SherpaTts's chunk callback (true = stop) is the M2.A3 barge-in hook. KWS uses the archive keywords until M2.C2 authors "hey memo".
 ---
+
+---
+TIMESTAMP: 2026-10-27T18:10:00+01:00
+STEP: 8 — M2.A2 emulator Build step: Kokoro TTS verified on-device
+PLAN REF: TASKS.md M2.A2 "Build: emulator: synthesize a sentence to a WAV in app files, pull it with adb, listen"; D-040
+STATUS: done (test PASS; WAV pulled; human listen pending the lead's ears)
+FILES CHANGED: app/build.gradle.kts (testInstrumentationRunner + androidx.test.ext:junit 1.3.0, androidx.test:runner 1.7.0), app/src/androidTest/java/app/memo/platform/android/voice/SherpaTtsDeviceTest.kt (NEW — repo's first androidTest), docs/ENGINEERING_LOG.md (D-040 vehicle, C-009 Windows ninja PATH, installer↔engine layout contract), docs/PROGRESS.md (this entry)
+VERIFICATION: `connectedDebugAndroidTest` PASS 1/1 on Memo_API34_CHAT (API 34 x86_64), 14m43s, EXIT=0 — the full product path: VoiceModelInstaller downloaded the pinned 319,625,534 B kokoro archive through the app's HTTPS/Range-resume/pin-verify chain, unpacked behind the path guard, SherpaTts.kokoro loaded from filesDir and synthesized. Logcat evidence: wav seconds=3.9739583 sampleRate=24000 bytes=190794. First run FAILED with the layout lesson (test passed archiveRoot subpath; installer renames it away — see log). Manual `am instrument` rerun OK (1 test) 688.8s so the WAV survived for pulling; `run-as` pull byte-identical 190,790 B; header verified locally: RIFF/WAVE PCM mono 24000 Hz 16-bit. WAV kept at %TEMP%\opencode\kokoro-hello.wav for the lead to listen (quality judgment is human, pending).
+NEXT STEP: commit + CI; then M2.A3 Conversation loop — pure TurnTaking state machine first (TASKS order).
+NOTES: Only the kokoro pack is device-exercised; the other four pins stay engine-compile-verified with the same wrapper pattern (device probes come with their own milestones). The androidTest never runs on CI (no emulator) — CI green ≠ device-verified; this entry is the device record. 320 MB re-downloads on every clean install; the installer's resume+marker keeps reruns incremental within one install.
+---

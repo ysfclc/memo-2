@@ -88,6 +88,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -188,4 +189,9 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.21")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.4.21")
+
+    // Device-verification tests (androidTest): the M2.A2 emulator Build step runs through these.
+    // 1.3.0 / 1.7.0 are the newest stable androidx.test releases (verified on Google Maven).
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }
