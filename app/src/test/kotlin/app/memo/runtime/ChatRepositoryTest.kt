@@ -134,4 +134,24 @@ class ChatRepositoryTest {
             assertTrue(ChatIds.PATTERN.matches(ChatRepository.newId()))
         }
     }
+
+    @Test
+    fun firstDraftSaveDoesNotOverwriteCorruptDraftsEntry() {
+        val vault = MemoryVault()
+        val original = byteArrayOf(0x7b, 0x6e, 0x6f, 0x74, 0x2d, 0x6a, 0x73, 0x6f, 0x6e, 0x7d)
+        vault.data[ChatRepository.DRAFTS_NAME] = original.copyOf()
+        val repo = ChatRepository(vault)
+        val latch = CountDownLatch(1)
+        var failure: Throwable? = null
+
+        repo.saveDraft(ChatRepository.NEW_CHAT_DRAFT, "new draft") {
+            failure = it
+            latch.countDown()
+        }
+
+        assertTrue("draft save should finish", latch.await(5, TimeUnit.SECONDS))
+        assertNotNull("corrupt drafts must refuse the write", failure)
+        assertEquals(original.toList(), vault.data[ChatRepository.DRAFTS_NAME]?.toList())
+        repo.close()
+    }
 }

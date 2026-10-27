@@ -64,6 +64,14 @@ class ChatRepository(private val vault: Vault) : AutoCloseable {
         submitAsync(onResult) { deleteOnWriter(conversationId) }
     }
 
+    /** Drafts by key (a conversation id, or [NEW_CHAT_DRAFT] for an unsaved chat). Blocking. */
+    fun loadDrafts(): Map<String, String> = onWriter { readDraftsOnWriter() }
+
+    /** Stores one draft in the background. An empty [text] removes the draft. */
+    fun saveDraft(key: String, text: String, onResult: (Throwable?) -> Unit = {}) {
+        submitAsync(onResult) { saveDraftOnWriter(key, text) }
+    }
+
     /** Waits for queued writes, then stops the writer thread. */
     override fun close() {
         writer.shutdown()
@@ -78,8 +86,11 @@ class ChatRepository(private val vault: Vault) : AutoCloseable {
         problemList.clear()
         indexWritable = true
 
-        val entryNames = vault.list(ENTRY_PREFIX).filter { it != INDEX_NAME }
-        val onDisk = entryNames.map { it.removePrefix(ENTRY_PREFIX) }.toSet()
+        // Only conversation entries: the index and the drafts entry share the prefix.
+        val onDisk = vault.list(ENTRY_PREFIX)
+            .map { it.removePrefix(ENTRY_PREFIX) }
+            .filter { ChatIds.PATTERN.matches(it) }
+            .toSet()
 
         val fromIndex: List<Conversation>? = try {
             vault.read(INDEX_NAME)?.let { ConversationCodec.decodeIndex(it.toString(Charsets.UTF_8)) }
@@ -166,6 +177,42 @@ class ChatRepository(private val vault: Vault) : AutoCloseable {
         publishProblems()
     }
 
+    private var draftsBlocked = false
+
+    private fun readDraftsOnWriter(): Map<String, String> {
+        val bytes = try {
+            vault.read(DRAFTS_NAME)
+        } catch (e: VaultException) {
+            blockDrafts("could not be read")
+            return emptyMap()
+        }
+        bytes ?: return emptyMap()
+        return try {
+            val root = org.json.JSONObject(bytes.toString(Charsets.UTF_8))
+            root.keys().asSequence().associateWith { root.getString(it) }
+        } catch (e: org.json.JSONException) {
+            blockDrafts("is not valid")
+            emptyMap()
+        }
+    }
+
+    private fun blockDrafts(reason: String) {
+        draftsBlocked = true
+        val message = "drafts $reason; they are kept and not overwritten"
+        if (message !in problemList) problemList += message
+        publishProblems()
+    }
+
+    private fun saveDraftOnWriter(key: String, text: String) {
+        if (draftsBlocked) throw VaultException("drafts entry is corrupt and was not overwritten")
+        val drafts = LinkedHashMap(readDraftsOnWriter())
+        if (text.isBlank()) drafts.remove(key) else drafts[key] = text.take(MAX_DRAFT_CHARS)
+        if (drafts.size > MAX_DRAFTS) drafts.keys.take(drafts.size - MAX_DRAFTS).forEach { drafts.remove(it) }
+        val json = org.json.JSONObject()
+        drafts.forEach { (k, v) -> json.put(k, v) }
+        vault.write(DRAFTS_NAME, json.toString().toByteArray(Charsets.UTF_8))
+    }
+
     private fun writeIndex() {
         if (!indexWritable) return
         val encoded = ConversationCodec.encodeIndex(index.values)
@@ -205,6 +252,15 @@ class ChatRepository(private val vault: Vault) : AutoCloseable {
 
         /** Vault name of the conversation index. */
         const val INDEX_NAME = "chat_index"
+
+        /** Vault name of the draft map (conversation id to draft text). */
+        const val DRAFTS_NAME = "chat_drafts"
+
+        /** Draft key for a chat that is not saved yet. */
+        const val NEW_CHAT_DRAFT = "new"
+
+        const val MAX_DRAFT_CHARS = 20_000
+        const val MAX_DRAFTS = 50
 
         private const val CLOSE_TIMEOUT_SECONDS = 10L
         private val random = SecureRandom()
