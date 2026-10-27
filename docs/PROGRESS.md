@@ -176,3 +176,14 @@ VERIFICATION: `gh run watch` on run 40532557529 (`wp/voice` @ aad007f): Build An
 NEXT STEP: docs commit + CI re-dispatch to keep the branch tip green, then Path B: read-only trace of LiteRtLmRuntime cancellation → onDone/onError → ChatService.finish in the wp/chat worktree (inherited checkpoint from the prior agent; no source edits until the path is understood).
 NOTES: M2.A1 ticked because its contract (named tests + code-level checks + CI) is met; runtime audio behavior on a device (AEC actually attached, no leaked AudioRecord in practice) stays UNVERIFIED until M2.B1's emulator run. M2.A2 header stays unticked: engine mini-tasks 506-509 and the emulator WAV build step remain.
 ---
+
+---
+TIMESTAMP: 2026-10-27T18:20:00+01:00
+STEP: 7 — sherpa engine wrappers: SherpaAsr, SherpaOfflineAsr, SherpaTts, SherpaVad, SherpaKws
+PLAN REF: TASKS.md M2.A2 mini-tasks (streaming/offline ASR, TTS, VAD+KWS)
+STATUS: done (engines written; device Build step still open)
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/voice/{SherpaAsr,SherpaOfflineAsr,SherpaTts,SherpaVad,SherpaKws}.kt (all NEW), docs/ENGINEERING_LOG.md (construction note retired to bytecode-verified), docs/TASKS.md (506/507/509 ticked; 508 stays open on the AudioPlayback hookup), docs/PROGRESS.md (this entry)
+VERIFICATION: each wrapper compiled immediately after writing (`:app:compileDebugKotlin` EXIT=0 per step); null-AssetManager file-mode dispatch bytecode-verified (javap -c, ifnull -> newFromFile) for Vad, OfflineRecognizer and OfflineTts; full worktree baseline `:core:test testDebugUnitTest` -> BUILD SUCCESSFUL in 47s, EXIT=0.
+NEXT STEP: one commit + push + CI dispatch; then the M2.A2 emulator Build step (synthesize a sentence to a WAV) is the next plan item, needing the emulator session.
+NOTES: Config discipline: paths + sample rate + thread counts only; everything else stays at AAR defaults until device tuning. SherpaTts's chunk callback (true = stop) is the M2.A3 barge-in hook. KWS uses the archive keywords until M2.C2 authors "hey memo".
+---

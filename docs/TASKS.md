@@ -503,10 +503,10 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Files: `app/.../platform/android/voice/{SherpaAsr,SherpaOfflineAsr,SherpaTts,SherpaVad,SherpaKws,VoiceModels}.kt`, `core/.../voice/SentenceChunker.kt`
 - Mini-tasks:
   - [x] **first:** list the AAR classes (`unzip -l app/libs/sherpa-onnx-*.aar` + `javap` on `classes.jar`) and save the API list in ENGINEERING_LOG; every call uses those names
-  - [ ] streaming Zipformer ASR with partials and endpoints
-  - [ ] offline ASR (Whisper base / SenseVoice) for voice messages
+  - [x] streaming Zipformer ASR with partials and endpoints
+  - [x] offline ASR (Whisper base / SenseVoice) for voice messages
   - [ ] Kokoro TTS (speaker id, speed), Piper fallback; sentence-by-sentence streaming into AudioPlayback
-  - [ ] Silero VAD; keyword spotter with "hey memo" keywords file
+  - [x] Silero VAD; keyword spotter with "hey memo" keywords file
   - [x] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded via the Hub; archives unpacked with path-traversal guard
 - Tests: `SentenceChunkerTest` (abbreviations, decimals, emoji, pl/tr punctuation, flush on end); `VoiceModelsPinTest` (64-hex sha, https, size > 0); `ArchiveGuardTest` (`../` entries rejected)
 - Checks: lead diffs every sherpa call against the saved class list; models load only from the app's private dir.
