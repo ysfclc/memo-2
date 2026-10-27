@@ -119,3 +119,414 @@ Chronological notes kept by the lead while building. They cover what the user as
 - M0.F5 verified by the lead (run 40405257386 green on 9167f22; engine veto/persist diff read) and merged.
 - Open decision "non-ASCII re-key", resolved by the lead: `Registry.load` derives every natural key from row content (`scheme.id(decoded)`); keys are not stored. Rows re-key on load and no migration is needed. Rows that previously had a blank key were quarantined, and can now be released with `releaseQuarantined`.
 - UI follow-ups from F5 (reset confirmation, review/resume buttons, displayed-hash `decide`) are lead inline on milestone/M1 after M0 merges in.
+
+---
+TIMESTAMP: 2026-10-27T05:48:24Z
+STEP: 2 — Preserve corrupt chat drafts
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/ChatRepository.kt; app/src/test/kotlin/app/memo/runtime/ChatRepositoryTest.kt
+VERIFICATION: git diff --check -> pass; .\gradlew.bat --no-daemon :app:testDebugUnitTest --tests app.memo.runtime.ChatRepositoryTest.firstDraftSaveDoesNotOverwriteCorruptDraftsEntry -> blocked before task execution by Gradle loopback connection failure
+NEXT STEP: Finish M1.C2 by wiring ChatRepository and ChatService into MemoRuntime, then add the chat screen.
+NOTES: readDraftsOnWriter can set draftsBlocked while returning an empty fallback; saveDraftOnWriter must re-check that flag before writing. Test asserts original corrupt bytes remain unchanged. Local baseline Gradle failure is environmental and unverified in CI.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:49:10Z
+STEP: 3 — Specify encrypted per-model settings
+STATUS: partial
+FILES CHANGED: app/src/test/kotlin/app/memo/runtime/ChatSettingsRepositoryTest.kt
+VERIFICATION: .\gradlew.bat --no-daemon --stacktrace :app:testDebugUnitTest --tests app.memo.runtime.ChatSettingsRepositoryTest -> not run yet; the previous targeted test was blocked by Gradle wrapper lock access, and the full baseline also failed loopback initialization
+NEXT STEP: Implement ChatSettingsRepository against Vault and satisfy these tests.
+NOTES: Tests require missing-value defaults, strict decoding, no overwrite of invalid JSON, and catalog-only natural keys. Keep settings in KeystoreVault.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:49:45Z
+STEP: 4 — Store chat settings in the encrypted vault
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/ChatSettingsRepository.kt
+VERIFICATION: git diff --check -> pending; :app:testDebugUnitTest --tests app.memo.runtime.ChatSettingsRepositoryTest -> blocked until Gradle can start
+NEXT STEP: Wire the chat repository, service, and settings repository into MemoRuntime.
+NOTES: Settings use catalog IDs for validated vault names. Existing JSON is decoded before a write, so malformed settings and vault read failures leave stored bytes unchanged.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:50:30Z
+STEP: 5 — Wire chat to verified local inference
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt
+VERIFICATION: git diff --check -> pending; :app:compileDebugKotlin and ChatServiceTest -> blocked pending CI because Gradle cannot acquire its wrapper lock in this environment
+NEXT STEP: Add a Compose chat screen that uses these runtime services and the existing ChatController.
+NOTES: ModelRef is constructed only from ModelCatalog plus ModelHub.installedFile, which checks the pinned size and SHA sidecar. Frontier providers are not routed through a fake local runtime.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:52:00Z
+STEP: 6 — Bind composer send state to inference
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatController.kt
+VERIFICATION: git diff --check -> pending; ComposerStateTest and ChatServiceTest -> blocked pending Gradle/CI
+NEXT STEP: Render the conversation thread and real streaming response in Compose.
+NOTES: The controller now refuses a send while ChatService.streaming is non-null, preserving the draft during the service's one-request-at-a-time guard.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:54:00Z
+STEP: 7 — Render streaming Markdown blocks
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatMarkdown.kt
+VERIFICATION: git diff --check -> pending; :core:test --tests app.memo.core.chat.MarkdownParserTest and :app:compileDebugKotlin -> CI required
+NEXT STEP: Add message rows, real streaming display, scroll handling, and message actions.
+NOTES: Rendering re-parses the current stream snapshot using MarkdownParser; links are only activated for HTTPS URLs. Compose compiler compatibility is UNVERIFIED locally.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:56:10Z
+STEP: 8 — Add chat composer, stop, and bounded attachment input
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatComposer.kt
+VERIFICATION: git diff --check -> pending; ComposerStateTest and app compilation -> CI required
+NEXT STEP: Render conversation messages and real streaming output with actions and scroll-to-bottom behavior.
+NOTES: Picker reads at most 200 KB + 1 byte; `Attachments.fromBytes` rejects oversize, binary, and invalid UTF-8 content. Local voice control is disabled until the M2 local speech UI exists.
+---
+
+---
+TIMESTAMP: 2026-10-27T05:57:20Z
+STEP: 8a — Keep attachment errors accurate
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatComposer.kt; app/src/main/kotlin/app/memo/ui/chat/ChatController.kt
+VERIFICATION: git diff --check -> pending; Compose compilation -> CI required
+NEXT STEP: Render conversation messages and real streaming output with actions and scroll-to-bottom behavior.
+NOTES: File-open errors now report a read failure instead of manufacturing an oversize attachment result. Corrected the runtime ChatService import and remove icon.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:00:00Z
+STEP: 9 — Render thread, stream, and message actions
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatThread.kt
+VERIFICATION: git diff --check -> pending; MarkdownParserTest, ChatServiceTest, and app compilation -> CI required
+NEXT STEP: Add chat history/model sheets and connect the new screen to the Talk route.
+NOTES: Stream bubbles are shown only when their conversation ID matches the open document. New stream text auto-scrolls only while the reader is at the bottom; otherwise a Latest control appears.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:02:00Z
+STEP: 9a — Correct Compose coroutine and renderer wiring
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatComposer.kt; app/src/main/kotlin/app/memo/ui/chat/ChatMarkdown.kt; app/src/main/kotlin/app/memo/ui/chat/ChatThread.kt
+VERIFICATION: git diff --check -> pending; Compose compile -> CI required
+NEXT STEP: Add chat history/model sheets and connect the new screen to the Talk route.
+NOTES: Scroll animation now runs in a remembered coroutine scope; renderer builder and composer spacing imports are explicit. Removed unused message action parameters found in static review.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:04:00Z
+STEP: 10 — Add history and model picker sheets
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatSheets.kt
+VERIFICATION: git diff --check -> pending; app compile and chat test suites -> CI required
+NEXT STEP: Assemble ChatScreen, wire the Talk route, and expose undo feedback.
+NOTES: History search uses ChatController's asynchronous message index; picker lists only ModelEntry values already verified as installed by the caller. Frontier route is explicitly deferred to M4.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:06:00Z
+STEP: 11 — Assemble chat screen
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatScreen.kt
+VERIFICATION: git diff --check -> pending; :app:compileDebugKotlin and chat tests -> CI required
+NEXT STEP: Add draft flush support, then replace the legacy Talk body with ChatScreen.
+NOTES: Screen reads verified models through ModelStore state and ChatController; it flushes a draft on disposal and uses actual ChatService StateFlows for stream and model status.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:08:30Z
+STEP: 11a — Protect draft and screen lifecycle state
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatController.kt; app/src/main/kotlin/app/memo/ui/chat/ChatThread.kt; app/src/main/kotlin/app/memo/ui/chat/ChatScreen.kt
+VERIFICATION: git diff --check -> pending; Compose compile and controller behavior -> CI required
+NEXT STEP: Replace the legacy Talk screen body with ChatScreen and remove Android recognizer popup behavior.
+NOTES: New-chat draft is restored after async vault load; pending debounce is flushed on disposal; corrupt settings produce a visible notice before defaults are used. Model install state is read from ModelStore's observable snapshot.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:10:30Z
+STEP: 12 — Connect TALK to local chat
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/MemoRoot.kt; app/src/main/kotlin/app/memo/ui/chat/ChatSheets.kt
+VERIFICATION: git diff --check -> pending; app compile -> CI required
+NEXT STEP: Implement the M1.B3 model browser sections, fit/license/gated details, and per-model settings sheet.
+NOTES: `TalkScreen` delegates to `ChatScreen`; Android RecognizerIntent speech was removed. M2 local speech remains a later task. Removed an invalid/nonessential scope-extension import from the history sheet.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:12:00Z
+STEP: 12a — Fix chat search and active-stream actions
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatController.kt; app/src/main/kotlin/app/memo/ui/chat/ChatThread.kt; app/src/main/kotlin/app/memo/ui/chat/ChatSheets.kt
+VERIFICATION: git diff --check -> pending; Compose compile -> CI required
+NEXT STEP: Implement M1.B3 model sections and settings sheet.
+NOTES: Search index is observable and debounced; edit/delete/regenerate actions are hidden while any inference request is active.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:14:00Z
+STEP: 13 — Specify safe inference unload
+STATUS: partial
+FILES CHANGED: app/src/test/kotlin/app/memo/runtime/InferenceManagerTest.kt
+VERIFICATION: .\gradlew.bat --no-daemon :app:testDebugUnitTest --tests app.memo.runtime.InferenceManagerTest -> blocked before task execution by wrapper lock/loopback environment
+NEXT STEP: Add idle-only unload to InferenceManager and ChatService, then use it before uninstalling a model.
+NOTES: Tests require unload to release a resident runtime only with no active or queued inference; active generation must remain untouched.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:16:00Z
+STEP: 14 — Unload inference only while idle
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/InferenceManager.kt; app/src/main/kotlin/app/memo/runtime/ChatService.kt; docs/ENGINEERING_LOG.md
+VERIFICATION: InferenceManagerTest idle/busy cases -> blocked pending CI; git diff --check -> pending
+NEXT STEP: Serialize model download/uninstall file operations and expose removal through ModelStore.
+NOTES: `InferenceManager.unloadIfIdle` holds the request lock while unloading; queued/active work refuses. ChatService clears its model status only after successful unload. Decision D-038 records the safety contract.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:18:00Z
+STEP: 15 — Serialize hub download and uninstall
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/hub/ModelHub.kt
+VERIFICATION: git diff --check -> pending; app compile and WorkManager/device uninstall behavior -> CI/device required
+NEXT STEP: Add a ModelStore uninstall wrapper that unloads inference first.
+NOTES: Uninstall awaits unique-work cancellation, then acquires the same per-model mutex as runDownload. It checks the verified install before deleting hub-owned files and refreshes state if filesystem removal fails.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:20:00Z
+STEP: 16 — Expose uninstall through ModelStore
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pending; app compile -> CI required
+NEXT STEP: Build the model screen sections, cards, settings editor, and uninstall confirmation.
+NOTES: The runtime-idle callback gates removal; successful deletion clears the persisted active/default model selection. Results return on the main Compose scope.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:22:00Z
+STEP: 17 — Specify discovered model pin persistence
+STATUS: partial
+FILES CHANGED: core/src/test/kotlin/app/memo/core/catalog/ModelEntryCodecTest.kt
+VERIFICATION: :core:test --tests app.memo.core.catalog.ModelEntryCodecTest -> blocked pending Gradle; local wrapper lock and loopback failures prevent task execution
+NEXT STEP: Implement a strict versioned ModelEntryCodec and persist discovered pins from ModelStore.
+NOTES: Tests use seed ModelEntry values to verify all catalog fields round-trip, and require exact envelope keys.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:23:30Z
+STEP: 18 — Add strict model entry codec
+STATUS: partial
+FILES CHANGED: core/src/main/kotlin/app/memo/core/catalog/ModelEntryCodec.kt
+VERIFICATION: git diff --check -> pending; ModelEntryCodecTest -> blocked pending Gradle
+NEXT STEP: Persist discovered entries in ModelStore and resolve them for chat.
+NOTES: Codec caps records at 500 entries/1 MB, requires exact envelope and entry fields, rejects duplicate ids, and delegates pin shape validation to ModelEntry.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:26:30Z
+STEP: 19 — Persist live-discovered model pins
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: ModelEntryCodecTest and app compile -> blocked pending CI; git diff --check -> pending
+NEXT STEP: Resolve dynamic model entries in ChatController/MemoRuntime and connect model settings to the screen.
+NOTES: Candidate IDs are looked up before save; same ID with changed revision updates only when repo/file identity matches. Invalid or conflicting saved data is preserved and blocks candidate persistence; download requires an exact persisted entry.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:28:30Z
+STEP: 20 — Resolve dynamic model pins in chat
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt; app/src/main/kotlin/app/memo/ui/chat/ChatController.kt; app/src/main/kotlin/app/memo/ui/chat/ChatScreen.kt; app/src/main/kotlin/app/memo/runtime/ChatSettingsRepository.kt
+VERIFICATION: ChatServiceTest, ChatSettingsRepositoryTest, and app compile -> CI required; local Gradle remains blocked
+NEXT STEP: Implement the five M1.B3 model sections and model card settings/download/default/delete actions.
+NOTES: ModelRef resolution still passes through Hub.installedFile, which requires the current pinned file size and digest. Settings keys accept only safe slug IDs that fit VaultName limits.
+---
+
+---
+TIMESTAMP: 2026-10-27T06:30:30Z
+STEP: 21 — Implement model browser and settings sheet
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsBrowser.kt
+VERIFICATION: FitBadgeTest, ModelEntryCodecTest, app compile -> CI required; local Gradle wrapper/loopback failures persist
+NEXT STEP: Replace the old ModelsScreen body with this browser, wire it to MemoRoot, and correct static compile issues from source review.
+NOTES: Browse is debounced live search; unpersisted candidates are view-only. Settings use ChatSettingsRepository; downloads show actual ModelStore progress; uninstall requires ChatService idle-unload.
+---
+---
+TIMESTAMP: 2026-10-27T06:11:24Z
+STEP: 22 — Guard discovered model IDs and Compose state
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pass; Gradle app/test tasks remain blocked by the recorded wrapper-lock/loopback environment failures
+NEXT STEP: Wire ModelsBrowserScreen into the existing ModelsScreen route and remove the superseded screen implementation.
+NOTES: Static seed IDs now remain authoritative; mismatching live metadata is reported as a collision, and only dynamic IDs can update by stable repo/file identity. Added Compose delegated-state imports required by discoveryError.
+---
+---
+TIMESTAMP: 2026-10-27T06:11:50Z
+STEP: 23 — Import vertical scrolling for model settings
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsBrowser.kt
+VERIFICATION: git diff --check -> pass; source review confirms verticalScroll extension import is used by settings sheet
+NEXT STEP: Replace the superseded ModelsScreen implementation with a thin browser entry point.
+NOTES: Full Compose compilation remains pending CI because local Gradle is blocked by the recorded environment failures.
+---
+---
+TIMESTAMP: 2026-10-27T06:12:12Z
+STEP: 24 — Replace the old Models screen body
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsScreen.kt
+VERIFICATION: git diff --check -> pass; wrapper delegates to ModelsBrowserScreen(runtime)
+NEXT STEP: Update MemoRoot to pass MemoRuntime into ModelsScreen.
+NOTES: Removed the superseded static catalog/import-only UI as required by the repo's no-dead-code rule; navigation call is the next isolated step.
+---
+---
+TIMESTAMP: 2026-10-27T06:12:28Z
+STEP: 25 — Wire the Models route to the shared runtime
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/MemoRoot.kt
+VERIFICATION: git diff --check -> pass; rg confirms the only ModelsScreen call now passes MemoRuntime
+NEXT STEP: Review and correct model-card edge cases from M1.B3, including default selection and gated/download states.
+NOTES: Models settings, model catalog resolution, and idle-unload now share the same runtime used by the chat screen.
+---
+---
+TIMESTAMP: 2026-10-27T06:13:10Z
+STEP: 26 — Honor the selected default model in new chats
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/chat/ChatScreen.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms a verified active ID sorts first, otherwise installed catalog order remains
+NEXT STEP: Correct the settings repository test to assert rejection of unsafe IDs while permitting valid live-discovered IDs.
+NOTES: ModelStore.activeId already validates that the persisted selection is currently installed before ChatController receives it.
+---
+---
+TIMESTAMP: 2026-10-27T06:13:31Z
+STEP: 27 — Align settings ID coverage with discovered models
+STATUS: partial
+FILES CHANGED: app/src/test/kotlin/app/memo/runtime/ChatSettingsRepositoryTest.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms a safe dynamic ID gets defaults and slash IDs are rejected; Gradle remains blocked
+NEXT STEP: Finish source review of the model card states and ensure gated/download actions match the pinned model policy.
+NOTES: Dynamic IDs are intentionally not restricted to the static catalog; vault-name validation still prevents unsafe record names.
+---
+---
+TIMESTAMP: 2026-10-27T06:14:15Z
+STEP: 28 — Show gated access clearly in model cards
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsBrowser.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms fit, license, and gated lock/access indicators share a horizontally scrollable row
+NEXT STEP: Review discovery sequencing and model card download eligibility for stale-search or unpinned candidates.
+NOTES: Gated downloads remain disabled; this change makes the reason visible without adding any inline colors.
+---
+---
+TIMESTAMP: 2026-10-27T06:14:43Z
+STEP: 29 — Ignore out-of-order model search results
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsBrowser.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms only the latest section/query generation can update result state
+NEXT STEP: Review the chat UI and storage against the M1.C1/M1.C2 acceptance list, then resolve any remaining plan gaps.
+NOTES: The generation also invalidates outstanding callbacks when leaving Browse. Candidate pin persistence remains in ModelStore.
+---
+---
+TIMESTAMP: 2026-10-27T06:15:57Z
+STEP: 30 — Keep alternate model families selectable
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsBrowser.kt
+VERIFICATION: git diff --check -> pass; family chips now derive from query/format candidates before family selection
+NEXT STEP: Inspect the full uncommitted diff for cross-file consistency and remaining unchecked M1 acceptance items.
+NOTES: Search and format filters still narrow the available family list; selecting one family no longer hides its alternatives.
+---
+---
+TIMESTAMP: 2026-10-27T06:17:30Z
+STEP: 31 — Serialize discovery pin persistence
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms the merge, codec commit, and concurrent-map update share a single lock
+NEXT STEP: Ensure discovery waits until stored pins have loaded before accepting live search results.
+NOTES: Network discovery remains concurrent; only the natural-ID merge/persistence transaction is serialized. This prevents one search from losing another search's pins.
+---
+---
+TIMESTAMP: 2026-10-27T06:18:00Z
+STEP: 32 — Gate live discovery on saved pin initialization
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms discovery awaits completion of hub load and persisted-entry validation
+NEXT STEP: Review M1 acceptance items and inspect all newly added source for static/API mismatches before requesting CI access.
+NOTES: Initialization failure completes the gate exceptionally, which returns a fixed search-unavailable message instead of persisting against an incomplete snapshot.
+---
+---
+TIMESTAMP: 2026-10-27T06:18:36Z
+STEP: 33 — Clear the stored default after model removal
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms uninstall compares the raw persisted active ID after file deletion
+NEXT STEP: Record the uninstall/default-selection gotcha in the engineering notebook, then continue the consistency review.
+NOTES: activeId intentionally returns null for an uninstalled file, so it cannot be used to detect which stored preference must be cleared after removal.
+---
+---
+TIMESTAMP: 2026-10-27T06:19:44Z
+STEP: 34 — Support settings for long live model IDs
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/ChatSettingsRepository.kt
+VERIFICATION: git diff --check -> pass; source review confirms short keys remain unchanged and 64-character IDs map under the 64-character vault limit
+NEXT STEP: Extend the settings repository test to round-trip a 64-character discovered ID.
+NOTES: Long IDs use a stable 192-bit digest suffix only when the readable prefixed key would exceed VaultName limits. No existing short-ID record names change.
+---
+---
+TIMESTAMP: 2026-10-27T06:20:07Z
+STEP: 35 — Cover 64-character settings ID round-trip
+STATUS: partial
+FILES CHANGED: app/src/test/kotlin/app/memo/runtime/ChatSettingsRepositoryTest.kt
+VERIFICATION: git diff --check -> pass; test source checks defaults, save/load round-trip, 64-character vault key, and unsafe slash rejection; Gradle remains blocked
+NEXT STEP: Record the settings-key boundary in the engineering notebook, then run a whole-diff source and task checklist review.
+NOTES: The test uses a 64-character valid slug, matching ModelEntry's maximum ID length.
+---
+---
+TIMESTAMP: 2026-10-27T06:21:09Z
+STEP: 36 — Surface model import outcomes
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms verified, unverified, and fixed-error outcomes are posted to Compose state
+NEXT STEP: Display the import outcome on ModelsBrowserScreen.
+NOTES: Exception messages remain hidden; only verified imports can become the active model.
+---
+---
+TIMESTAMP: 2026-10-27T06:21:28Z
+STEP: 37 — Show the model import result
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/ModelsBrowser.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms import status is a uniquely keyed list item and failures use theme attention color
+NEXT STEP: Record the import feedback behavior and perform the full M1 source checklist review.
+NOTES: Unverified files are explicitly described as non-loadable; verified files point users to Installed.
+---
+---
+TIMESTAMP: 2026-10-27T06:22:20Z
+STEP: 38 — Reject stale metadata for static model IDs
+STATUS: partial
+FILES CHANGED: app/src/main/kotlin/app/memo/models/ModelStore.kt
+VERIFICATION: git diff --check -> pass; source inspection confirms persisted static IDs must match the full seed entry before discovery writes are allowed
+NEXT STEP: Complete the M1 acceptance checklist and static source review; then request the required CI path if local verification remains unavailable.
+NOTES: This includes revision, digest, license, and other metadata, not just repository/file identity. Conflicting saved bytes remain unchanged.
+---
+---
+TIMESTAMP: 2026-10-27T06:23:18Z
+STEP: 39 — Complete M1 static acceptance review
+STATUS: partial
+FILES CHANGED: docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; inline-color scan -> no matches in chat/model UI; named M1 codec/order/search/fit/markdown/composer tests are present; Gradle CI and device checks remain unverified
+NEXT STEP: After the user approves the remote action, push wp/chat to origin and run the required milestone CI; then fix any failures before moving to VOICE.
+NOTES: Source review covered chat/store wiring, pinned dynamic model resolution, model uninstall safety, settings, import feedback, and plan checklists. The task remains partial until CI is green and M1 device checks are handled.
+---
+---
+TIMESTAMP: 2026-10-27T06:27:00Z
+STEP: 40 — Sync CHAT status across plan and checklists
+STATUS: partial
+FILES CHANGED: docs/BUILD_PLAN.md; docs/TASKS.md; docs/FEATURES.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pending; git fetch origin -> pass; origin/milestone/M1 at c293c25 is already an ancestor of wp/chat
+NEXT STEP: Stage the reviewed CHAT implementation and documentation as a local checkpoint commit, then push wp/chat and run CI.
+NOTES: M1.B3, M1.C1, M1.C2, F1, and F2 are marked in progress; acceptance boxes remain incomplete until CI/device evidence exists. Plan scope/order are unchanged.
+---

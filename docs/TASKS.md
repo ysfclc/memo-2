@@ -450,18 +450,22 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `RangeResumeLogicTest` (pure offsets, 200-vs-206 handling); `InstallSwapTest` (rollback on failure, temp dir); `HfClientRedirectPolicyTest`
 - Checks: verify happens before install; a token never appears in logs.
 
-### [ ] M1.B3 Models UI · deps M1.B2, M2.B0d
+### [~] M1.B3 Models UI · deps M1.B2, M2.B0d
 - Files: `app/.../ui/models/*`
 - Mini-tasks: [ ] Installed / Recommended / Browse (search, filters) / Voice / Import sections · [ ] cards with fit badge, licence, gated lock, one-tap progress ring · [ ] per-model settings sheet
 - Tests: `FitBadgeTest` (RAM/size → badge)
 - Checks: tokens only; real progress only.
 - Build: emulator screenshots.
+- Continuation checkpoint (2026-10-27): implementation is present in `ModelsBrowserScreen`, including persistent revision pins and import outcomes. CI and emulator acceptance remain pending.
+- Next: push `wp/chat`, get CI green, then complete the model screen device/emulator check.
 
-### [ ] M1.C1 Conversation store · deps M0.C1
+### [~] M1.C1 Conversation store · deps M0.C1
 - Files: `core/.../chat/Conversation.kt`, `app/.../runtime/ChatRepository.kt`
 - Tests: `ConversationCodecTest`, `ConversationOrderingTest`, `ChatSearchTest`
+- Continuation checkpoint (2026-10-27): encrypted repository, codec, ordering, search and titles are implemented; named tests are present but CI has not run on this continuation.
+- Next: run M1 CI after pushing `wp/chat`; retain the device/build status as unverified until evidenced.
 
-### [ ] M1.C2 Chat UI · deps M1.C1, M1.A3, M2.B0d
+### [~] M1.C2 Chat UI · deps M1.C1, M1.A3, M2.B0d
 - Files: `app/.../ui/chat/*`
 - Mini-tasks:
   - [ ] conversation list + thread
@@ -472,6 +476,8 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `MarkdownParserTest` (incremental chunks never break earlier spans); `ComposerStateTest`
 - Checks: no fake streaming; stop cancels the runtime.
 - Build: emulator demo with the smallest model.
+- Continuation checkpoint (2026-10-27): chat threads, real streaming, Markdown, composer, local model picker and message actions are implemented. Frontier execution and voice controls stay with their planned M4/M2 work; CI and emulator demo remain pending.
+- Next: push `wp/chat`, fix any CI failures, then run the smallest-model demo and M1 device checklist.
 
 ### [ ] M1 close (MCP)
 - Device checklist:

@@ -1,10 +1,5 @@
 package app.memo.ui
 
-import android.app.Activity
-import android.content.Intent
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,12 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +38,6 @@ import app.memo.core.domain.RunStatus
 import app.memo.core.domain.StepKind
 import app.memo.core.domain.StepStatus
 import app.memo.runtime.MemoRuntime
-import app.memo.runtime.Planner
 import app.memo.ui.components.EmptyState
 import app.memo.ui.components.MemoButton
 import app.memo.ui.components.MemoButtonStyle
@@ -55,6 +45,7 @@ import app.memo.ui.components.MemoCard
 import app.memo.ui.components.Pill
 import app.memo.ui.components.ScreenHeader
 import app.memo.ui.components.StatTile
+import app.memo.ui.chat.ChatScreen
 import app.memo.ui.nav.MemoNavShell
 import app.memo.ui.nav.NavState
 import app.memo.ui.nav.Route
@@ -92,7 +83,7 @@ fun MemoRoot(runtime: MemoRuntime) {
             Route.WORK -> WorkScreen(snap.people, snap.companies, snap.tasks)
             Route.STUDIO -> StudioScreen(snap.drafts)
             Route.BROWSER -> BrowserScreen()
-            Route.MODELS -> ModelsScreen(runtime.models)
+            Route.MODELS -> ModelsScreen(runtime)
             Route.SETTINGS -> SettingsScreen(
                 auditCount = snap.auditCount,
                 auditOk = snap.auditOk,
@@ -243,70 +234,7 @@ fun LiveScreen(
 
 @Composable
 fun TalkScreen(runtime: MemoRuntime) {
-    var text by rememberSaveable { mutableStateOf("") }
-    var reply by remember { mutableStateOf("") }
-
-    fun submit(raw: String) {
-        if (raw.isBlank()) return
-        reply = runtime.handleUtterance(raw)
-        text = ""
-    }
-
-    val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        } else {
-            null
-        }
-        if (!spoken.isNullOrBlank()) submit(spoken)
-    }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        ScreenHeader("Talk", "Describe the work. Memo plans it and waits at each gate.")
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("e.g. Add Ada Lovelace to my CRM") },
-            minLines = 2,
-            shape = RoundedCornerShape(16.dp),
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            MemoButton(onClick = { submit(text) }, enabled = text.isNotBlank(), style = MemoButtonStyle.PRIMARY) {
-                Icon(Icons.AutoMirrored.Outlined.Send, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.size(6.dp))
-                Text("Plan")
-            }
-            MemoButton(
-                onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a Memo command")
-                    }
-                    runCatching { voice.launch(intent) }
-                        .onFailure { reply = "Voice recognition is not available on this device." }
-                },
-                style = MemoButtonStyle.SECONDARY,
-            ) {
-                Icon(Icons.Outlined.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.size(6.dp))
-                Text("Speak")
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        if (reply.isNotBlank()) {
-            MemoCard(Modifier.sharedElement(SharedKind.MESSAGE_ARTIFACT, reply.hashCode().toString())) {
-                Text(reply, fontSize = 15.sp, color = MemoTheme.colors.ink)
-            }
-            Spacer(Modifier.height(12.dp))
-        }
-        MemoCard {
-            Text("Examples", style = MemoTheme.typography.subtitle, color = MemoTheme.colors.ink)
-            Spacer(Modifier.height(6.dp))
-            Text(Planner.helpText(), color = MemoTheme.colors.inkMuted, fontSize = 13.sp)
-        }
-    }
+    ChatScreen(runtime)
 }
 
 // ------------------------------------------------------------------- Work

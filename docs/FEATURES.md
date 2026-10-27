@@ -67,8 +67,9 @@ Legend:
 - [ ] E10 Route media/heavy tasks to frontier AIs via the in-Memo web runtime when chosen · M3.A4, M4.A2
 
 ## F. Chat & voice
-- [ ] F1 Proper chat interface: threads, streaming markdown, stop/regenerate/edit/copy/delete · M1.C1, M1.C2
-- [ ] F2 Model picker (local models + frontier via Memo's browser) · M1.C2
+- [~] F1 Proper chat interface: threads, streaming markdown, stop/regenerate/edit/copy/delete · M1.C1, M1.C2
+- [~] F2 Model picker (local models + frontier via Memo's browser) · M1.C2
+  - CHAT continuation is implemented in `wp/chat`; CI and emulator validation remain pending. Frontier provider execution remains planned for M4.
 - [ ] F3 Voice messages (hold to record, waveform, transcript, playback) · M2.B1
 - [ ] F4 Live voice conversation with interruption (barge-in) · M2.A3, M2.B1
 - [ ] F5 **Natural voice, no Android speech pop-up, no robotic TTS** (sherpa-onnx local ASR + Kokoro/Piper) · M2.A2

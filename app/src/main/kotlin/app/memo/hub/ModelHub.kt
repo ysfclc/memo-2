@@ -40,6 +40,7 @@ import java.io.InputStream
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /** Lifecycle of one model in the hub, as the UI sees it. */
 enum class HubStatus { NOT_INSTALLED, DOWNLOADING, VERIFYING, INSTALLED, FAILED }
@@ -98,6 +99,7 @@ class ModelHub private constructor(context: Context) {
     private val vault by lazy { KeystoreVault(app) }
     private val client = HfClient { readToken() }
     private val running = ConcurrentHashMap.newKeySet<String>()
+    private val downloadLocks = ConcurrentHashMap<String, Mutex>()
     private val states = MutableStateFlow<Map<String, HubState>>(emptyMap())
 
     /** Per-model state for every catalog entry and every entry that has been queued. */
@@ -201,15 +203,39 @@ class ModelHub private constructor(context: Context) {
         return done
     }
 
+    /** Cancels pending work, then removes only this model's verified file and hub sidecars. */
+    suspend fun uninstall(entry: ModelEntry): Boolean = withContext(Dispatchers.IO) {
+        val files = filesFor(entry)
+        val cancellation = WorkManager.getInstance(app).cancelUniqueWork(workName(entry.id))
+        val cancelled = runCatching { cancellation.result.get(10L, TimeUnit.SECONDS) }.isSuccess
+        if (!cancelled) return@withContext false
+
+        val lock = downloadLocks.computeIfAbsent(entry.id) { Mutex() }
+        lock.withLock {
+            if (running.contains(entry.id) || !isInstalled(entry)) return@withLock false
+            val owned = listOf(files.target, files.sidecar, files.part, files.previous, files.previousSidecar, files.cancelMarker)
+            val removed = owned.all { file -> !file.exists() || file.delete() }
+            if (removed) {
+                publish(entry.id, HubState(HubStatus.NOT_INSTALLED, 0f, "Removed from this device"))
+                true
+            } else {
+                refreshState(entry)
+                false
+            }
+        }
+    }
+
     /**
      * The download body. Called by [DownloadWorker] on an IO dispatcher. Verifies size and
      * SHA-256 before anything becomes installed. Cancellation (pause or cancel) propagates as
      * [CancellationException]; the `.part` file is kept on pause and removed on cancel.
      */
     internal suspend fun runDownload(spec: DownloadSpec) {
-        val files = filesFor(spec.id, spec.fileName)
-        running.add(spec.id)
-        try {
+        val lock = downloadLocks.computeIfAbsent(spec.id) { Mutex() }
+        lock.withLock {
+            val files = filesFor(spec.id, spec.fileName)
+            running.add(spec.id)
+            try {
             files.target.parentFile?.mkdirs()
             publish(spec.id, HubState(HubStatus.DOWNLOADING, 0f, "Checking storage"))
 
@@ -256,9 +282,10 @@ class ModelHub private constructor(context: Context) {
             throw stop
         } catch (error: Exception) {
             publish(spec.id, HubState(HubStatus.FAILED, 0f, error.message ?: "download failed"))
-        } finally {
-            running.remove(spec.id)
-            notifyDone(spec.id)
+            } finally {
+                running.remove(spec.id)
+                notifyDone(spec.id)
+            }
         }
     }
 

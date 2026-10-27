@@ -206,6 +206,7 @@ class ChatRepository(private val vault: Vault) : AutoCloseable {
     private fun saveDraftOnWriter(key: String, text: String) {
         if (draftsBlocked) throw VaultException("drafts entry is corrupt and was not overwritten")
         val drafts = LinkedHashMap(readDraftsOnWriter())
+        if (draftsBlocked) throw VaultException("drafts entry is corrupt and was not overwritten")
         if (text.isBlank()) drafts.remove(key) else drafts[key] = text.take(MAX_DRAFT_CHARS)
         if (drafts.size > MAX_DRAFTS) drafts.keys.take(drafts.size - MAX_DRAFTS).forEach { drafts.remove(it) }
         val json = org.json.JSONObject()

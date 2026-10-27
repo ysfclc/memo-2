@@ -1207,6 +1207,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Each card shows size, RAM fit badge, licence, gated lock, a one-tap Download with progress ring, and Use/Default/Delete actions.
   3. Per-model settings sheet: system prompt, temperature, context, thinking.
 - acceptance: CI green; screenshots are not possible, so the lead reviews the composables against the design tokens.
+- continuation status (2026-10-27): implementation in `wp/chat`; CI and device verification pending. See `docs/PROGRESS.md` for the exact resume point.
 
 **M1.C1 — Conversation store**
 - deps: M0.C1
@@ -1216,6 +1217,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Titles generated from the first message, with a local summarisation fallback.
   3. Search.
 - acceptance: tests for codec and ordering.
+- continuation status (2026-10-27): implementation and named tests are present in `wp/chat`; test execution remains pending CI.
 
 **M1.C2 — Chat UI**
 - deps: M1.C1, M1.A3, M2.B0
@@ -1228,6 +1230,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   5. Message actions: copy, regenerate, edit & resend, read aloud (M2), delete.
   6. Empty-state suggestions; scroll-to-bottom handling.
 - acceptance: CI green; the lead checks tokens-only styling and that no fake streaming exists.
+- continuation status (2026-10-27): implementation in `wp/chat`; CI and emulator demo pending. Frontier provider execution remains wired by the planned M4 work, and voice controls by M2.
 
 **M1 close:** PR. Device checklist:
 - download Gemma 4 E2B (LiteRT) and Llama 3.2 3B Q4_K_M (GGUF)
