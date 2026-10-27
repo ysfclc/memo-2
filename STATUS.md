@@ -4,7 +4,7 @@ Legend: ✅ verified (CI or device evidence) · 🟡 implemented, verification p
 
 | Area | State | Notes |
 |---|---|---|
-| CI producing debug APK | ✅ | [Run 40474306177](https://github.com/ysfclc/memo-2/actions/runs/40474306177) passed on `wp/chat`; core/app unit tests, lint, APK verification, native libraries and artifact upload passed. |
+| CI producing debug APK | ✅ | [Run 40518483948](https://github.com/ysfclc/memo-2/actions/runs/40518483948) passed on commit `97bc990`; core/app tests, lint, APK verification, native libraries and artifact upload passed. |
 | Repo / wrapper integrity | ✅ | Gradle 8.14.6 wrapper with official `distributionSha256Sum`; AGP 8.13.0; Kotlin 2.4.21 |
 | Pure-Kotlin core (schemas, engine, registry, audit, redaction) | ✅ | JVM tests in `core/src/test`, now run in CI (`:core:test`) |
 | Async engine steps + audit chain wiring | ✅ | CI tests (M0.A1, M0.A8) |

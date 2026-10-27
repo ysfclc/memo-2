@@ -1008,3 +1008,23 @@ VERIFICATION: git diff --check -> pass; STATUS now separates LiteRT-LM emulator 
 NEXT STEP: Complete final diff and branch-freshness checks before committing the documentation checkpoint.
 NOTES: No implementation or acceptance scope changed.
 ---
+
+---
+TIMESTAMP: 2026-10-27T14:16:34Z
+STEP: 94 — Record green CI for checkpoint commit
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: `gh run watch 40518483948` -> pass in 6m10s; build, tests, lint, APK verification, native listing and artifact upload all passed; git diff --check -> pass
+NEXT STEP: Update STATUS.md to cite the fresh CI run for commit 97bc990, then commit and push this verification note.
+NOTES: Workflow required manual dispatch because direct pushes to wp/chat do not trigger it. No source files changed.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:16:55Z
+STEP: 95 — Refresh STATUS.md CI evidence
+STATUS: done
+FILES CHANGED: STATUS.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; the CI row now links run 40518483948 on commit 97bc990
+NEXT STEP: Commit and push the CI verification note; confirm the worktree is clean and CI remains green.
+NOTES: The run completed all checks successfully before this status edit; code and verification scope are unchanged.
+---
