@@ -1037,4 +1037,17 @@ FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
 VERIFICATION: `gh run watch 40519945444` -> pass in 3m57s; tests, lint, APK verification, native listing and upload passed; git diff --check -> pass
 NEXT STEP: Trace how LiteRtLmRuntime cancellation reaches onDone/onError and how ChatService.finish clears streaming; make no further emulator attempt or source edit until that path is understood.
 NOTES: Both pushed documentation checkpoints have green CI. Current Stop failure is still unresolved; the planned M1 model/download/import device checklist remains open.
+
+---
+
+---
+TIMESTAMP: 2026-10-27T17:55:00+01:00
+STEP: 97 — cancellation trace complete (fulfils the STEP 96 directive)
+PLAN REF: STEP 96 next-step; TASKS.md M1.C2 `~`
+STATUS: done — trace only; no source edit, no emulator attempt
+FILES CHANGED: docs/ENGINEERING_LOG.md (Stop/cancellation trace: path, verified engine contract, root cause, proposed micro-fix), docs/PROGRESS.md (this entry)
+VERIFICATION: code trace of the whole Stop chain (ChatController → ChatService → InferenceManager → LiteRtLmRuntime → ChatService.finish) plus the upstream LiteRT-LM `Conversation.kt` contract: a cancelled generation ends in `onError(CancellationException)` (statusCode 1 = kCancelled), and `cancelProcess()` is a documented no-op when no inference is ongoing. Root cause of the emulator symptom identified at code level: a Stop during load/prefill never reaches `cancelProcess`, so the engine generates to natural completion.
+NEXT STEP: lead decision on the proposed two-point micro-fix in `LiteRtLmRuntime.runOnce`/`onMessage` (post-send and on-arrival `cancelProcess`), then a single emulator probe to verify Stop latency.
+NOTES: The trace answers the STEP 96 open question — ChatService does still own an active request in the failing case; the runtime never stops the engine. M1.C2 stays `~` until the fix is applied and probed.
+---
 ---
