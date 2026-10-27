@@ -165,3 +165,14 @@ VERIFICATION: 5 assets downloaded to the sanctioned temp dir; every byte size ma
 NEXT STEP: one commit (M2.A2 groundwork + pins + docs + D-038/D-039 + API list) with attribution trailers, push wp/voice, `gh workflow run build-memo-apk.yml -R ysfclc/memo-2 --ref wp/voice`, watch to green.
 NOTES: The installer/Hub divergence (RangeResume/InstallSwap reuse instead of the hub DownloadWorker) is recorded in D-039 for the lead's LVG rather than silently accepted. WP VOICE branch still unpushed at this point; CI is the remaining gate for M2.A1+A2-groundwork status.
 ---
+
+---
+TIMESTAMP: 2026-10-27T17:22:00+01:00
+STEP: 6 — CI green on wp/voice; M2.A1 ticked
+PLAN REF: AGENTS.md rule 7 (green CI is the definition of done); TASKS.md M2.A1
+STATUS: done
+FILES CHANGED: docs/TASKS.md (M2.A1 header + mini-tasks ticked), docs/PROGRESS.md (this entry)
+VERIFICATION: `gh run watch` on run 40532557529 (`wp/voice` @ aad007f): Build Android APK PASSED in 5m40s — core tests, app unit tests, lint, APK verify + artifact upload all green. Annotations are infra deprecation notices (actions Node 20→24, ubuntu-latest migration), not failures.
+NEXT STEP: docs commit + CI re-dispatch to keep the branch tip green, then Path B: read-only trace of LiteRtLmRuntime cancellation → onDone/onError → ChatService.finish in the wp/chat worktree (inherited checkpoint from the prior agent; no source edits until the path is understood).
+NOTES: M2.A1 ticked because its contract (named tests + code-level checks + CI) is met; runtime audio behavior on a device (AEC actually attached, no leaked AudioRecord in practice) stays UNVERIFIED until M2.B1's emulator run. M2.A2 header stays unticked: engine mini-tasks 506-509 and the emulator WAV build step remain.
+---
