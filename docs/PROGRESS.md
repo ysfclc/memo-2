@@ -530,3 +530,93 @@ VERIFICATION: git diff --check -> pending; git fetch origin -> pass; origin/mile
 NEXT STEP: Stage the reviewed CHAT implementation and documentation as a local checkpoint commit, then push wp/chat and run CI.
 NOTES: M1.B3, M1.C1, M1.C2, F1, and F2 are marked in progress; acceptance boxes remain incomplete until CI/device evidence exists. Plan scope/order are unchanged.
 ---
+---
+TIMESTAMP: 2026-10-27T06:45:00Z
+STEP: 41 — Attempt CI APK install on emulator
+STATUS: partial
+FILES CHANGED: none (device install rejected; existing package/data untouched)
+VERIFICATION: `adb install -r app-debug.apk` -> fail (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`); CI run `40461314345` -> success
+NEXT STEP: Inspect available emulator options; if supported, launch a read-only clone and install the CI APK there.
+NOTES: The installed `app.memo.debug` has a different signing certificate. Do not uninstall or clear its data without explicit approval.
+---
+---
+TIMESTAMP: 2026-10-27T06:49:43Z
+STEP: 42 — Confirm safe emulator clone option
+STATUS: done
+FILES CHANGED: none (read-only inspection)
+VERIFICATION: emulator -list-avds -> Memo_API34; emulator -help -> -read-only supported; active AVD identified as Memo_API34
+NEXT STEP: Start a read-only clone of Memo_API34 and install the CI APK there; leave the existing emulator instance untouched.
+NOTES: Read-only emulator instances cannot save snapshots and are supported by the installed emulator.
+---
+---
+TIMESTAMP: 2026-10-27T06:50:43Z
+STEP: 43 — Start a read-only emulator clone
+STATUS: partial
+FILES CHANGED: none
+VERIFICATION: Start-Process -> PID 35832; adb devices -l -> only existing emulator-5554; no second emulator process found
+NEXT STEP: Retry once with emulator diagnostics visible in the command output; do not change or remove the existing emulator.
+NOTES: The launch command returned, but the clone did not register. The original AVD and app remain active.
+---
+---
+TIMESTAMP: 2026-10-27T06:52:51Z
+STEP: 44 — Retry read-only emulator with diagnostics
+STATUS: blocked
+FILES CHANGED: docs/PROGRESS.md
+VERIFICATION: emulator -avd Memo_API34 -read-only -no-window -no-snapshot -no-boot-anim -verbose -> exit 1: Another emulator instance is running. Please close it or run all emulators with -read-only flag.
+NEXT STEP: Use a fresh test AVD, or get approval to remove the existing debug app and its data before installing the CI APK. Do not retry the current AVD clone.
+NOTES: The existing emulator was launched writable. No app uninstall, data clearing, or source changes were made. Two clone attempts failed; stop per recovery rule.
+---
+---
+TIMESTAMP: 2026-10-27T06:55:13Z
+STEP: 45 — Sync TASKS.md with CI and device status
+STATUS: done
+FILES CHANGED: docs/TASKS.md; docs/PROGRESS.md
+VERIFICATION: `git diff --check` -> pass; focused diff records CI run 40461314345 and leaves device acceptance pending
+NEXT STEP: Update BUILD_PLAN continuation status with the same CI and emulator evidence.
+NOTES: M1.B3 acceptance follows BUILD_PLAN (CI plus token review); M1.C1 named tests passed in the green CI run.
+---
+---
+TIMESTAMP: 2026-10-27T06:55:35Z
+STEP: 46 — Sync BUILD_PLAN continuation status
+STATUS: done
+FILES CHANGED: docs/BUILD_PLAN.md; docs/PROGRESS.md
+VERIFICATION: `git diff --check` -> pass; M1.B3/C1/C2 notes cite run 40461314345 and retain the C2 device blocker
+NEXT STEP: Update FEATURES.md with verified CHAT feature status and remaining device scope.
+NOTES: BUILD_PLAN remains authoritative: B3 acceptance uses CI and token review; the broader M1 device checklist remains open.
+---
+---
+TIMESTAMP: 2026-10-27T06:56:05Z
+STEP: 47 — Sync FEATURES.md CHAT status
+STATUS: done
+FILES CHANGED: docs/FEATURES.md; docs/PROGRESS.md
+VERIFICATION: `git diff --check` -> pass; E6 stays partial and F1/F2 cite CI run 40461314345 with emulator validation pending
+NEXT STEP: Update STATUS.md to separate CI evidence from unverified device inference.
+NOTES: No feature was marked fully verified without device evidence.
+---
+---
+TIMESTAMP: 2026-10-27T06:56:56Z
+STEP: 48 — Sync STATUS.md verification levels
+STATUS: done
+FILES CHANGED: STATUS.md; docs/PROGRESS.md
+VERIFICATION: `git diff --check` -> pass; CI is linked and actual model generation is explicitly UNVERIFIED on device
+NEXT STEP: Add the CI/device signing constraint to ENGINEERING_LOG.md.
+NOTES: ChatService is wired to LiteRT-LM and llama.cpp runtimes; no claim of successful on-device generation is made.
+---
+---
+TIMESTAMP: 2026-10-27T06:57:55Z
+STEP: 49 — Record CI and emulator findings in engineering log
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: `git diff --check` -> pass; C-009 and M1 checkpoint note record the observed blocker and mark real model execution UNVERIFIED
+NEXT STEP: Audit the documentation diff, confirm latest origin/milestone/M1, then commit and push the docs checkpoint.
+NOTES: Existing emulator app data was not removed; the CI APK install remains blocked by signature mismatch.
+---
+---
+TIMESTAMP: 2026-10-27T06:58:50Z
+STEP: 50 — Normalize appended documentation line endings
+STATUS: done
+FILES CHANGED: docs/PROGRESS.md; docs/ENGINEERING_LOG.md
+VERIFICATION: git ls-files --eol -> both files use workspace CRLF; git diff --check -> pass
+NEXT STEP: Review the complete documentation diff and repository status, then commit and push the checkpoint.
+NOTES: Repaired mixed line endings introduced by the appended checkpoint entries; no text content changed.
+---

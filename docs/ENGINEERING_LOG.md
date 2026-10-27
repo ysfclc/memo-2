@@ -144,6 +144,8 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 **C-007 · 2026-10-26 · Reliability repair pass.** Replaced invalid Compose theme/scaffold placeholders with Material 3 APIs, fixed the duplicate motion implementation, corrected Kotlin `Result` and JSON validation usage, fixed packet size accounting, and hardened browser bridge state to bind callbacks to the active outbound event. Local verification is UNVERIFIED because this sandbox has no JDK/Gradle/Android SDK; GitHub Actions remains the authoritative build path.
 
+**C-009 · 2026-10-27 · Emulator coexistence requires all instances to be read-only.** Android Emulator 37.2.12 rejected a second `Memo_API34` instance because the existing instance was started writable, even when the new instance used `-read-only`. A fresh test AVD is the safe install target; do not remove the existing app/data without approval.
+
 ---
 
 ## NOTES BY MILESTONE
@@ -335,3 +337,8 @@ Second independent review of M0 (M0.F5). One commit per group, in the order B, A
 
 ### M1 · CHAT continuation — import outcome visibility
 - SAF imports return verified or unverified outcomes from `ModelHub`; previously `ModelStore` silently discarded unverified/failure results. The model screen now shows a fixed message, with no exception text. Unverified files remain non-runnable. Source verification passes `git diff --check`; CI/device checks remain required.
+
+### M1 · CHAT continuation — CI and emulator checkpoint
+- CI run [40461314345](https://github.com/ysfclc/memo-2/actions/runs/40461314345) passed on `a1a7ec4`: core/app unit tests, lint, APK verification, native-library listing, and artifact upload. The artifact `memo-apk` was available.
+- `adb install -r` rejected the CI APK with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because the pre-existing `app.memo.debug` uses a different signing certificate. The existing app and its data were preserved. A second read-only AVD was rejected because the active AVD is writable (C-009).
+- Actual model loading/generation remains **UNVERIFIED** on device. Verification path: use a fresh test AVD (or obtain approval before removing the existing app/data), install the CI APK, download a small model, then chat and stop generation. The current emulator has no files in `files/models/imported`.

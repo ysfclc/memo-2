@@ -58,7 +58,7 @@ Legend:
 - [ ] E3 **Any open local model**: Llama, Gemma, Qwen, Phi, Mistral, DeepSeek, SmolLM, Granite, Falcon… via LiteRT-LM **and** llama.cpp/GGUF · M1.A1, M1.A2, M1.B1
 - [ ] E4 On-device inference running (streaming, stop, GPU→CPU fallback, RAM preflight) · M1.A1, M1.A2, M1.A3
 - [ ] E5 Downloads survive app close (foreground worker), resume, notification progress, optional HF token · M1.B2
-- [ ] E6 Per-model settings (system prompt, temperature, context, thinking) · M1.B3
+- [~] E6 Per-model settings (system prompt, temperature, context, thinking) · M1.B3
 
 ## E+. Local agent & media engine
 - [ ] E7 Tool-using local agent engine (search/create/update records, draft, summarise, generate image, render carousel, compose video, consult frontier, browse, run/schedule workflows, ask user) · M3.A4
@@ -69,7 +69,7 @@ Legend:
 ## F. Chat & voice
 - [~] F1 Proper chat interface: threads, streaming markdown, stop/regenerate/edit/copy/delete · M1.C1, M1.C2
 - [~] F2 Model picker (local models + frontier via Memo's browser) · M1.C2
-  - CHAT continuation is implemented in `wp/chat`; CI and emulator validation remain pending. Frontier provider execution remains planned for M4.
+  - CHAT UI and model browser build/tests passed in CI run `40461314345` on `a1a7ec4`; the smallest-model emulator demo remains unverified because the installed debug app has a different signing certificate. Frontier execution remains planned for M4, and voice controls for M2.
 - [ ] F3 Voice messages (hold to record, waveform, transcript, playback) · M2.B1
 - [ ] F4 Live voice conversation with interruption (barge-in) · M2.A3, M2.B1
 - [ ] F5 **Natural voice, no Android speech pop-up, no robotic TTS** (sherpa-onnx local ASR + Kokoro/Piper) · M2.A2
