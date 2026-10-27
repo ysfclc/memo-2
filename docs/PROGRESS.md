@@ -630,3 +630,381 @@ VERIFICATION: git diff --check -> pass; gh run watch 40473402964 -> pass in 5m9s
 NEXT STEP: Use a fresh test AVD to install the CI APK and complete the smallest-model demo and M1 device checklist; ask before removing the existing app/data.
 NOTES: CI ran on f665323; platform notices are documented in ENGINEERING_LOG.md C-010.
 ---
+
+---
+TIMESTAMP: 2026-10-27T08:34:43Z
+STEP: 52 — Create clean test AVD
+STATUS: done
+FILES CHANGED: local AVD Memo_API34_CHAT; docs/PROGRESS.md
+VERIFICATION: avdmanager create avd -> exit 0; emulator -list-avds -> Memo_API34 and Memo_API34_CHAT
+NEXT STEP: Boot Memo_API34_CHAT, wait for sys.boot_completed=1, then install the CI APK.
+NOTES: The existing Memo_API34 and its app data were left untouched.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:37:25Z
+STEP: 54 — Install CI APK on clean AVD
+STATUS: done
+FILES CHANGED: app.memo.debug on emulator-5556; docs/PROGRESS.md
+VERIFICATION: adb -s emulator-5556 install -r app-debug.apk -> Success; pm path returned /data/app/.../base.apk
+NEXT STEP: Launch Memo on emulator-5556, inspect the chat/model screens, and check crash logs.
+NOTES: Used the artifact from green CI run 40461314345; it contains the same source as the docs-only follow-up commits. Existing emulator-5554 was not changed.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:38:17Z
+STEP: 55 — Launch CHAT app on clean AVD
+STATUS: done
+FILES CHANGED: app.memo.debug on emulator-5556; docs/PROGRESS.md
+VERIFICATION: monkey -> Events injected: 1; dumpsys -> app.memo.debug/app.memo.MainActivity resumed; logcat -b crash -> empty
+NEXT STEP: Capture the screen and inspect the Talk/chat and Models navigation.
+NOTES: App launch produced no crash on Android 14.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:38:52Z
+STEP: 56 — Capture initial screen
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/launch.png (ignored); docs/PROGRESS.md
+VERIFICATION: adb pull -> 94,803 bytes; visual inspection -> Live screen renders with Talk and Models navigation
+NEXT STEP: Open Talk and Models on emulator-5556 and inspect their visible screens.
+NOTES: Screenshot came from the clean Android 14 test AVD; no account data was present.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:39:33Z
+STEP: 57 — Inspect Talk on clean AVD
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/talk.png (ignored); docs/PROGRESS.md
+VERIFICATION: Talk selected; MainActivity resumed; screenshot shows empty state, model chooser, composer, attach and mic controls
+NEXT STEP: Open Models and inspect installed/recommended cards, search/filter controls and import entry point.
+NOTES: No local model is installed; actual generation remains pending the smallest-model download.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:40:14Z
+STEP: 58 — Inspect Recommended models screen
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/models.png (ignored); docs/PROGRESS.md
+VERIFICATION: Models selected; screenshot shows Recommended cards, Qwen3 0.6B at 344.7 MB, fit/license badges, Download and settings controls
+NEXT STEP: Inspect Installed, Browse, Import and per-model settings; then try the smallest-model download.
+NOTES: The screen renders on the clean Android 14 AVD; no model is installed yet.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:40:57Z
+STEP: 59 — Inspect Browse and filters
+STATUS: partial
+FILES CHANGED: app/build/chat-smoke-f665323/browse.png (ignored); docs/PROGRESS.md
+VERIFICATION: screenshot shows Browse selected, search, format/family filters, fit/license badges and download actions; source lookup still displays Checking pinned model sources
+NEXT STEP: Inspect per-model settings and the remaining model tabs; retry live source state after a short wait.
+NOTES: UI is present; the live pinned-source refresh remains UNVERIFIED on this emulator.
+---
+
+---
+TIMESTAMP: 2026-10-27T08:41:36Z
+STEP: 60 — Inspect per-model settings
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/settings.png (ignored); docs/PROGRESS.md
+VERIFICATION: screenshot shows system prompt, temperature 0.3, context size 4096 and thinking toggle
+NEXT STEP: Inspect Installed and Import sections without saving any settings.
+NOTES: No settings were changed or saved.
+---
+
+---
+TIMESTAMP: 2026-10-27T13:17:26Z
+STEP: 61 — Inspect Installed empty state
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/installed.png (ignored); docs/PROGRESS.md
+VERIFICATION: Installed selected; screenshot shows No installed models and 9106.4 MB free for model files
+NEXT STEP: Reveal the rightmost model tabs and inspect Voice/Import entry points.
+NOTES: Empty state is expected on the fresh AVD.
+---
+
+---
+TIMESTAMP: 2026-10-27T13:18:10Z
+STEP: 62 — Reveal Voice and Import tabs
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/tabs-right.png (ignored); docs/PROGRESS.md
+VERIFICATION: horizontal swipe moves the category row and shows Recommended, Browse, Voice and Import
+NEXT STEP: Open Import and inspect the system file picker without selecting a file.
+NOTES: The category row is scrollable; no model data changed.
+---
+
+---
+TIMESTAMP: 2026-10-27T13:19:20Z
+STEP: 63 — Inspect Import section
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/import.png (ignored); docs/PROGRESS.md
+VERIFICATION: Import selected; screen shows pinned SHA-256 rule, Pick file, Scan device and free-space indicator
+NEXT STEP: Open the Android picker and cancel without selecting or importing a file.
+NOTES: Import screen warns that unpinned hashes remain unverified; no file was selected.
+---
+---
+TIMESTAMP: 2026-10-27T13:21:08Z
+STEP: 64 — Open system file picker
+STATUS: partial
+FILES CHANGED: app/build/chat-smoke-f665323/picker.png (ignored); docs/PROGRESS.md
+VERIFICATION: picker screenshot visually shows Android DocumentsUI Recent screen; adb start-server -> failed to connect to daemon, return to Memo not verified
+NEXT STEP: Restart the clean Memo_API34_CHAT AVD, verify it boots, then confirm Memo resumes after dismissing the picker.
+NOTES: No file was selected. ADB and emulator processes were absent after capture; existing Memo_API34 was not touched.
+---
+---
+TIMESTAMP: 2026-10-27T13:25:43Z
+STEP: 65 — Recover clean AVD and confirm Memo foreground
+STATUS: done
+FILES CHANGED: local AVD Memo_API34_CHAT; docs/PROGRESS.md
+VERIFICATION: adb -s emulator-5556 shell getprop sys.boot_completed -> 1; dumpsys -> app.memo.debug/app.memo.MainActivity resumed
+NEXT STEP: Inspect Scan device from the Import screen and record its empty-device result.
+NOTES: Step 64 picker screenshot showed DocumentsUI Recent with no selection; after emulator recovery MainActivity is foreground. Sandbox ADB needed OS-level permission because fdevent socketpair creation failed in the restricted process.
+---
+---
+TIMESTAMP: 2026-10-27T13:26:40Z
+STEP: 66 — Record Windows device-check constraint
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: C-011 inspected in place; git diff --check -> pass
+NEXT STEP: Inspect Scan device from Import and record its empty-device result.
+NOTES: The clean AVD resumed with Memo in the foreground after the Android file picker was opened without selecting a file.
+---
+---
+TIMESTAMP: 2026-10-27T13:27:45Z
+STEP: 67 — Verify Scan device empty state
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/scan-device.png and scan-device-result.png (ignored); docs/PROGRESS.md
+VERIFICATION: screenshot after Scan device shows No model files found; MainActivity resumed; crash-buffer search returned no fatal entries
+NEXT STEP: Open Recommended and start the pinned Qwen3 0.6B download for the smallest-model demo.
+NOTES: The emulator has no imported model files; free space shown as 9103.9 MB. No file was selected, imported, or deleted.
+---
+---
+TIMESTAMP: 2026-10-27T13:29:26Z
+STEP: 68 — Confirm smallest recommended model
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/recommended-current.png (ignored); docs/PROGRESS.md
+VERIFICATION: screenshot shows Qwen3 0.6B dynamic wi4b32, 344.7 MB, Fits this phone, apache-2.0, Not installed, and Download
+NEXT STEP: Start the pinned Qwen3 0.6B download and observe its initial progress state.
+NOTES: This is the smallest visible recommended model; the app labels it as the default orchestrator.
+---
+---
+TIMESTAMP: 2026-10-27T13:30:12Z
+STEP: 69 — Start smallest-model download
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/download-start.png (ignored); docs/PROGRESS.md
+VERIFICATION: Qwen3 0.6B card changed from Not installed/Download to Connecting with a Pause control; MainActivity remained resumed
+NEXT STEP: Check whether the pinned model download moves beyond Connecting and reports progress.
+NOTES: The download was initiated through the app; expected size is 344.7 MB and install remains subject to the pinned size/SHA-256 verification.
+---
+---
+TIMESTAMP: 2026-10-27T13:31:09Z
+STEP: 70 — Verify active model-download progress
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/download-progress-70.png (ignored); docs/PROGRESS.md
+VERIFICATION: after 20 seconds the UI reported 304.4 MB of 344.7 MB with Pause available; MainActivity remained resumed
+NEXT STEP: Wait briefly for completion, then verify the model is installed after size and SHA-256 checks.
+NOTES: The app displayed real byte progress over the pinned model download.
+---
+---
+TIMESTAMP: 2026-10-27T13:32:07Z
+STEP: 71 — Verify Qwen3 download and integrity install
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/download-complete-71.png (ignored); docs/PROGRESS.md
+VERIFICATION: card changed to Installed and verified after progress reached 304.4/344.7 MB; Use as default appeared; MainActivity resumed and crash search was empty
+NEXT STEP: Set Qwen3 0.6B as default, open Talk, and verify a real local response.
+NOTES: The app reports its pinned model as verified; no manual file was imported.
+---
+---
+TIMESTAMP: 2026-10-27T13:33:03Z
+STEP: 72 — Set Qwen3 as the test default
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/default-model.png (ignored); docs/PROGRESS.md
+VERIFICATION: Qwen3 card now shows Default and Installed and verified; MainActivity stayed resumed
+NEXT STEP: Open Talk and confirm the local model is selected before sending a prompt.
+NOTES: Preference changed only on the isolated Memo_API34_CHAT AVD.
+---
+---
+TIMESTAMP: 2026-10-27T13:33:40Z
+STEP: 73 — Open Talk with Qwen3 selected
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/talk-qwen-default.png (ignored); docs/PROGRESS.md
+VERIFICATION: Talk header shows Qwen3 0.6B; runtime badge shows LiteRT-LM; composer and send control are visible
+NEXT STEP: Send a short local prompt and verify a non-empty model response.
+NOTES: Conversation screen confirms the default model is wired to the LiteRT-LM path on device.
+---
+---
+TIMESTAMP: 2026-10-27T13:34:56Z
+STEP: 74 — Verify local prompt draft
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/prompt-draft.png and prompt-draft-verified.png (ignored); docs/PROGRESS.md
+VERIFICATION: after dismissing the keyboard, screenshot shows the unsent draft “Say hello in a short sentence.” and enabled send control
+NEXT STEP: Send the visible prompt and capture the first actual model response.
+NOTES: Keyboard initially obscured the composer; hiding it exposed the unchanged draft.
+---
+---
+TIMESTAMP: 2026-10-27T13:38:34Z
+STEP: 75 — Run smallest-model inference
+STATUS: partial
+FILES CHANGED: test AVD Memo_API34_CHAT; docs/PROGRESS.md (no source files)
+VERIFICATION: FAIL — response screenshot absent; adb devices -l has no device; Windows Application Error at 14:35:44 records qemu-system-x86_64-headless.exe exception 0xc0000005, fault offset 0
+NEXT STEP: Restart Memo_API34_CHAT without wiping data, verify the installed model and conversation state, then decide whether one controlled inference retry is safe.
+NOTES: The request was sent from Talk with Qwen3 0.6B selected. The host QEMU process crashed, so guest app logs could not be collected. AVD config reports 2G RAM; causal link is unverified. Repository source is unchanged.
+---
+---
+TIMESTAMP: 2026-10-27T13:40:12Z
+STEP: 76 — Record inference-attempt host crash
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: C-011 and C-012 inspected under CONSTRAINTS; git diff --check -> pass
+NEXT STEP: Restart Memo_API34_CHAT without wiping data and verify whether the pinned model remains installed.
+NOTES: QEMU fault is verified; its underlying cause and any link to model loading are UNVERIFIED. Guest log could not be collected.
+---
+---
+TIMESTAMP: 2026-10-27T13:41:30Z
+STEP: 77 — Cold-boot AVD after QEMU crash
+STATUS: partial
+FILES CHANGED: local AVD Memo_API34_CHAT; docs/PROGRESS.md
+VERIFICATION: `adb -s emulator-5554 emu avd name` -> Memo_API34_CHAT; `getprop sys.boot_completed` -> 1; top resumed activity -> FallbackHome
+NEXT STEP: Launch app.memo.debug on emulator-5554 and verify Qwen3 0.6B still appears Installed and verified.
+NOTES: Existing test AVD data was preserved. Its serial changed from emulator-5556 to emulator-5554; no generation retry yet.
+---
+---
+TIMESTAMP: 2026-10-27T13:43:53Z
+STEP: 78 — Verify AVD data survived QEMU crash
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/recovery-installed.png, recovery-loaded.png, recovery-models.png (ignored); docs/PROGRESS.md
+VERIFICATION: package path exists; Memo relaunched and MainActivity resumed; Models screenshot still shows Qwen3 0.6B Installed and verified and Default; crash-buffer search returned no fatal entries
+NEXT STEP: Inspect Talk after recovery to determine whether the sent prompt was persisted before the emulator crash.
+NOTES: The same AVD and app data survived cold boot; ADB serial is emulator-5554.
+---
+---
+TIMESTAMP: 2026-10-27T13:45:28Z
+STEP: 79 — Inspect Talk after emulator recovery
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/recovery-talk.png (ignored); docs/PROGRESS.md
+VERIFICATION: Talk reopened with Qwen3 0.6B and LiteRT-LM selected; screenshot shows empty-state suggestions and an empty composer; MainActivity resumed
+NEXT STEP: Make one instrumented inference retry with app log capture; if QEMU crashes again, stop this device step.
+NOTES: No user message or assistant response is visible after recovery, so the prior send/persistence outcome is indeterminate.
+---
+---
+TIMESTAMP: 2026-10-27T13:46:48Z
+STEP: 80 — Prepare controlled inference retry
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/retry-prompt.png (ignored); docs/PROGRESS.md
+VERIFICATION: screenshot shows the exact unsent draft “Say hello in a short sentence.”; Talk header shows Qwen3 0.6B and LiteRT-LM
+NEXT STEP: Start app-scoped log capture and send the prompt once; stop device inference work if QEMU crashes again.
+NOTES: Draft remains on the clean AVD only; no second inference attempt has started yet.
+---
+---
+TIMESTAMP: 2026-10-27T13:47:23Z
+STEP: 81 — Start app-scoped inference log capture
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/inference-retry-app.log and inference-retry-adb.err.log (ignored); docs/PROGRESS.md
+VERIFICATION: app.memo.debug PID 3987 identified; adb logcat reader PID 37916 remained running
+NEXT STEP: Send the prepared prompt once; if the AVD exits again, stop inference retries and preserve the logs.
+NOTES: Log capture is limited to the foreground Memo process and remains in ignored build output.
+---
+---
+TIMESTAMP: 2026-10-27T13:50:07Z
+STEP: 82 — Controlled Qwen3 inference retry
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/retry-response.png, retry-followup.png, inference-retry-app.log, inference-retry-adb.err.log (ignored); docs/PROGRESS.md
+VERIFICATION: local prompt “Say hello in a short sentence.” produced assistant response “Hello”; screenshot at 25 seconds shows completed response; emulator-5554 stayed online; no new QEMU WER event and no Android crash-buffer entry
+NEXT STEP: Test Stop during a deliberately long local generation on the verified Qwen3 model.
+NOTES: App log shows LiteRT model initialization and WebGPU selecting AMD Radeon integrated graphics. A `nativeCheckLoaded()` JNI lookup error was logged before initialization, but generation succeeded. The earlier QEMU failure was not reproduced; its cause remains UNVERIFIED.
+---
+---
+TIMESTAMP: 2026-10-27T13:51:39Z
+STEP: 83 — Prepare long prompt for stop test
+STATUS: partial
+FILES CHANGED: app/build/chat-smoke-f665323/stop-prompt-review.png (ignored); docs/PROGRESS.md
+VERIFICATION: FAIL — after the keyboard-dismiss keyevent the screenshot shows Live, not Talk; no prompt is visible and nothing was sent
+NEXT STEP: Reopen Talk, recheck the composer position, and enter the long draft once.
+NOTES: The previous tap did not produce a verifiable draft. No message or model state changed.
+---
+---
+TIMESTAMP: 2026-10-27T13:52:58Z
+STEP: 84 — Reopen Talk after failed draft attempt
+STATUS: done
+FILES CHANGED: app/build/chat-smoke-f665323/stop-talk-reopened.png (ignored); docs/PROGRESS.md
+VERIFICATION: Talk shows Qwen3 0.6B and LiteRT-LM with composer visible
+NEXT STEP: Inspect the visible Stop state and cancel or verify completion before starting another prompt.
+NOTES: Conversation area is empty but the send control still shows Stop after the prior short response; active/stale generation state is unresolved.
+---
+---
+TIMESTAMP: 2026-10-27T13:54:09Z
+STEP: 85 — Check visible Stop control after recovery
+STATUS: partial
+FILES CHANGED: app/build/chat-smoke-f665323/stop-state-after-tap.png (ignored); docs/PROGRESS.md
+VERIFICATION: FAIL — after one tap, the screen still shows an empty conversation and square Stop control; MainActivity remains resumed; crash-buffer search is empty
+NEXT STEP: Inspect the Talk control binding and generation lifecycle to determine whether the UI state is stale before one targeted retry.
+NOTES: No additional prompt was sent. The short response had already appeared before navigation; the current screen does not expose an active assistant bubble.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:00:17Z
+STEP: 86 — Retry Talk Stop with verified bounds
+STATUS: partial
+FILES CHANGED: app/build/chat-smoke-f665323/stop-state-targeted-retry.png (ignored); docs/PROGRESS.md
+VERIFICATION: FAIL — accessibility tree confirmed enabled clickable parent bounds [864,1921][1017,2047]; one tap at (940,1984), followed by a 4-second wait, still showed Stop response at [917,1961][964,2008]; app PID 3987 remained alive
+NEXT STEP: Before another device attempt or code edit, trace why LiteRT cancellation/completion is not clearing ChatService.streaming; two Stop attempts have failed, so pause emulator retries.
+NOTES: Screenshot shows the empty Talk state with Stop still visible. No prompt was sent and no source changed. This is the second failed Stop verification; stop this device step per recovery rules. The controlled Qwen3 “Hello” response remains verified independently.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:01:02Z
+STEP: 87 — Record M1 inference and Stop evidence
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; M1 engineering note distinguishes the verified emulator inference from the unresolved Stop callback behavior
+NEXT STEP: Update M1 plan/status notes to record the successful Qwen3 emulator response and leave stop cancellation plus the remaining M1 device checklist pending.
+NOTES: C-012 is preserved as historical evidence; this dated note supersedes its pending-inference status without changing the earlier event record. No source changed.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:01:44Z
+STEP: 88 — Refresh BUILD_PLAN M1.C2 status
+STATUS: done
+FILES CHANGED: docs/BUILD_PLAN.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; M1.C2 status now records emulator inference, unresolved Stop cancellation, and the unchanged remaining acceptance checks
+NEXT STEP: Update the executable M1 task runbook with the same evidence and a cold-start resume action.
+NOTES: The planned scope and ordering are unchanged; M1.C2 and M1 close remain open.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:02:42Z
+STEP: 89 — Refresh M1 task runbook checkpoint
+STATUS: done
+FILES CHANGED: docs/TASKS.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; M1.C2 and M1 close both retain open status and now list the callback trace plus remaining device checks
+NEXT STEP: Update FEATURES.md to reflect Qwen3 emulator inference while keeping the incomplete chat-stop acceptance visible.
+NOTES: No task order, test scope, or acceptance criteria changed.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:03:22Z
+STEP: 90 — Refresh F1/F2 evidence in FEATURES
+STATUS: done
+FILES CHANGED: docs/FEATURES.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; F1/F2 remain partial and state both the verified emulator response and unresolved Stop behavior
+NEXT STEP: Update STATUS.md to separate verified emulator inference from incomplete cancellation and phone coverage.
+NOTES: Feature scope and milestone ordering are unchanged.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:04:09Z
+STEP: 91 — Refresh STATUS.md device evidence
+STATUS: done
+FILES CHANGED: STATUS.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; STATUS distinguishes Qwen3 emulator inference from unresolved Stop cancellation, import, llama.cpp and phone checks
+NEXT STEP: Review the full documentation diff, confirm only intended checkpoint files changed, then prepare the approved docs checkpoint commit and CI verification.
+NOTES: No source files changed; CI status reflects the previously verified passing run 40474306177.
+---
+
+---
+TIMESTAMP: 2026-10-27T14:05:58Z
+STEP: 92 — Clarify native runtime device coverage
+STATUS: done
+FILES CHANGED: STATUS.md; docs/PROGRESS.md
+VERIFICATION: git diff --check -> pass; STATUS now separates LiteRT-LM emulator use from untested llama.cpp/sherpa paths
+NEXT STEP: Complete final diff and branch-freshness checks before committing the documentation checkpoint.
+NOTES: No implementation or acceptance scope changed.
+---

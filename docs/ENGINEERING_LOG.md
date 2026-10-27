@@ -148,6 +148,10 @@ Living notebook per `AGENTS.md` standing rule 1. Append as you go; never rewrite
 
 **C-010 · 2026-10-27 · CI runner notices.** Run `40473402964` passed but emitted GitHub annotations that actions/cache@v4, actions/checkout@v4, and actions/upload-artifact@v4 target Node.js 20 and are being forced to Node.js 24, and that `ubuntu-latest` will migrate to Ubuntu 26. These were platform notices, not failed checks.
 
+**C-011 · 2026-10-27 · Windows device-check permissions.** In the restricted process environment, `adb nodaemon server` failed to create its fdevent interrupt socket pair (`Invalid argument`), and the emulator could not create `%USERPROFILE%\.android\emu-last-feature-flags.protobuf.lock` (error 5). Running the local ADB command with the required OS-level permission listed `emulator-5556`; boot and foreground checks then passed. Use that permission for subsequent ADB device verification in this session.
+
+**C-012 · 2026-10-27 · Emulator failure during local inference check.** Windows Application Error event 1000 at 14:35:44 reported `qemu-system-x86_64-headless.exe` faulting with exception `0xc0000005` at offset 0; WER event 1001 followed at 14:35:51. The AVD then vanished from `adb devices -l`. This localizes the failed check to the host QEMU process, but does not establish why it faulted or whether model loading triggered it; the guest log was unavailable. Keep on-device inference UNVERIFIED pending recovery and a controlled repeat.
+
 ---
 
 ## NOTES BY MILESTONE
@@ -347,3 +351,7 @@ Second independent review of M0 (M0.F5). One commit per group, in the order B, A
 
 ### M1 · CHAT continuation — documentation checkpoint CI
 - Follow-up docs commit `f665323` passed CI run [40473402964](https://github.com/ysfclc/memo-2/actions/runs/40473402964) in 5m9s: tests, lint, APK verification, native-library listing, and artifact upload all succeeded. See C-010 for the platform notices.
+
+### M1 · CHAT continuation — Qwen3 inference and Stop state (2026-10-27)
+- On the isolated `Memo_API34_CHAT` AVD, the pinned Qwen3 0.6B model was installed and verified, selected as default, and returned `Hello` to the short local prompt. The AVD stayed online and no second QEMU crash was observed; this verifies one emulator inference path, not a physical-phone check. The earlier host crash cause remains UNVERIFIED.
+- The Talk screen later showed an empty conversation with an enabled Stop control. Two taps did not clear it; the targeted second tap used the accessibility node's verified clickable bounds and Stop remained after four seconds. This does not establish whether `ChatService` still owns an active request or whether LiteRT omitted a completion/cancel callback. Cancellation behavior remains UNVERIFIED; trace the runtime callback path before another device attempt or source edit.

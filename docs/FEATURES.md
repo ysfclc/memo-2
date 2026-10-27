@@ -69,7 +69,7 @@ Legend:
 ## F. Chat & voice
 - [~] F1 Proper chat interface: threads, streaming markdown, stop/regenerate/edit/copy/delete · M1.C1, M1.C2
 - [~] F2 Model picker (local models + frontier via Memo's browser) · M1.C2
-  - CHAT UI and model browser build/tests passed in CI run `40461314345` on `a1a7ec4`; the smallest-model emulator demo remains unverified because the installed debug app has a different signing certificate. Frontier execution remains planned for M4, and voice controls for M2.
+  - CHAT UI and model browser passed CI run `40461314345` on `a1a7ec4`. On isolated `Memo_API34_CHAT`, pinned Qwen3 0.6B installed and verified and returned `Hello` to a short local prompt. The Stop control remained visible after two taps, so cancellation and full M1 device acceptance remain incomplete; this is emulator evidence, not a physical-phone check. Frontier execution remains planned for M4, and voice controls for M2.
 - [ ] F3 Voice messages (hold to record, waveform, transcript, playback) · M2.B1
 - [ ] F4 Live voice conversation with interruption (barge-in) · M2.A3, M2.B1
 - [ ] F5 **Natural voice, no Android speech pop-up, no robotic TTS** (sherpa-onnx local ASR + Kokoro/Piper) · M2.A2

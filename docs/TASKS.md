@@ -476,12 +476,12 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `MarkdownParserTest` (incremental chunks never break earlier spans); `ComposerStateTest`
 - Checks: no fake streaming; stop cancels the runtime.
 - Build: emulator demo with the smallest model.
-- Continuation checkpoint (2026-10-27): chat threads, real streaming, Markdown, composer, local model picker and message actions are implemented. CI run `40461314345` passed on `a1a7ec4`. The emulator demo is blocked: the installed app has a different signing certificate, and a read-only clone cannot start beside the existing writable AVD. Frontier execution and voice controls stay with their planned M4/M2 work.
-- Next: use a fresh test AVD, or get approval before removing the installed app (which clears its data); then run the smallest-model demo and M1 device checklist.
+- Continuation checkpoint (2026-10-27): chat threads, streaming, Markdown, composer, local model picker and message actions are implemented; CI run `40461314345` passed on `a1a7ec4`. On isolated `Memo_API34_CHAT`, pinned Qwen3 0.6B installed and verified, and the short local prompt returned `Hello`. Stop remained visible after two taps, including one at the accessibility-confirmed clickable bounds; cancellation is unresolved. This is emulator evidence, not a phone check. Frontier execution and voice controls stay with their planned M4/M2 work.
+- Next: trace the LiteRT completion/cancel callback path before another Stop attempt or source edit; then continue the smallest-model and remaining M1 device checks below. Do not mark M1.C2 complete while stop cancellation is unresolved.
 
 ### [~] M1 close (MCP)
-- Continuation checkpoint (2026-10-27): device checklist remains pending; emulator currently has no model files. Installing the CI APK over the pre-existing debug app was rejected due to a signing mismatch. Existing app and data were preserved.
-- Next: continue only after a fresh test AVD is available or the user approves removing the installed app and its data.
+- Continuation checkpoint (2026-10-27): clean `Memo_API34_CHAT` AVD now has Qwen3 0.6B installed and verified; one short local inference returned `Hello`. Stop cancellation remains unresolved after two attempts, and the broader device checklist is still pending. The pre-existing app/data were preserved; this evidence is emulator-only.
+- Next: trace cancellation/completion before another Stop attempt; then continue the planned checklist: Gemma 4 E2B and Llama 3.2 3B Q4_K_M downloads and chats, stop mid-answer, switch models, pause/resume a download, and import a file.
 - Device checklist:
   - download Gemma 4 E2B (LiteRT) and Llama 3.2 3B Q4_K_M (GGUF)
   - chat with each

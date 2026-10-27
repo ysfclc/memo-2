@@ -1230,7 +1230,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   5. Message actions: copy, regenerate, edit & resend, read aloud (M2), delete.
   6. Empty-state suggestions; scroll-to-bottom handling.
 - acceptance: CI green; the lead checks tokens-only styling and that no fake streaming exists.
-- continuation status (2026-10-27): implementation is in `wp/chat`; CI run `40461314345` passed on `a1a7ec4`. The smallest-model emulator demo remains unverified: the CI APK was rejected over the existing app's signing certificate, and a read-only clone could not start beside the writable AVD. Frontier provider execution remains wired by the planned M4 work, and voice controls by M2.
+- continuation status (2026-10-27): implementation is in `wp/chat`; CI run `40461314345` passed on `a1a7ec4`. On the isolated `Memo_API34_CHAT` AVD, pinned Qwen3 0.6B installed and verified, then returned `Hello` to a short local prompt. This verifies one emulator inference path, not a physical phone. The Talk screen later retained its Stop control after two taps, including one inside the accessibility-confirmed clickable bounds; cancellation remains unresolved. Keep M1.C2 and M1 close open. Next trace LiteRT completion/cancel callbacks before another device attempt, then continue the planned model-switch, download, pause/resume and import checks. Frontier provider execution remains with M4, and voice controls with M2.
 
 **M1 close:** PR. Device checklist:
 - download Gemma 4 E2B (LiteRT) and Llama 3.2 3B Q4_K_M (GGUF)
