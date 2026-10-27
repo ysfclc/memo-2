@@ -181,6 +181,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.glance:glance-appwidget:1.2.0")
+    // bzip2 + tar for the sherpa-onnx voice archives (.tar.bz2). Android ships no bzip2 codec.
+    // 1.28.0 was released 2025-07-26 and is the newest on Maven Central (see ENGINEERING_LOG D-038).
+    implementation("org.apache.commons:commons-compress:1.28.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.21")

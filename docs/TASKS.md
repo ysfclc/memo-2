@@ -502,12 +502,12 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 ### [ ] M2.A2 Speech engine (sherpa-onnx) · deps M2.A1, M1.B2
 - Files: `app/.../platform/android/voice/{SherpaAsr,SherpaOfflineAsr,SherpaTts,SherpaVad,SherpaKws,VoiceModels}.kt`, `core/.../voice/SentenceChunker.kt`
 - Mini-tasks:
-  - [ ] **first:** list the AAR classes (`unzip -l app/libs/sherpa-onnx-*.aar` + `javap` on `classes.jar`) and save the API list in ENGINEERING_LOG; every call uses those names
+  - [x] **first:** list the AAR classes (`unzip -l app/libs/sherpa-onnx-*.aar` + `javap` on `classes.jar`) and save the API list in ENGINEERING_LOG; every call uses those names
   - [ ] streaming Zipformer ASR with partials and endpoints
   - [ ] offline ASR (Whisper base / SenseVoice) for voice messages
   - [ ] Kokoro TTS (speaker id, speed), Piper fallback; sentence-by-sentence streaming into AudioPlayback
   - [ ] Silero VAD; keyword spotter with "hey memo" keywords file
-  - [ ] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded via the Hub; archives unpacked with path-traversal guard
+  - [x] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded via the Hub; archives unpacked with path-traversal guard
 - Tests: `SentenceChunkerTest` (abbreviations, decimals, emoji, pl/tr punctuation, flush on end); `VoiceModelsPinTest` (64-hex sha, https, size > 0); `ArchiveGuardTest` (`../` entries rejected)
 - Checks: lead diffs every sherpa call against the saved class list; models load only from the app's private dir.
 - Build: emulator: synthesize a sentence to a WAV in app files, pull it with adb, listen.

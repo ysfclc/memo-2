@@ -119,3 +119,49 @@ Chronological notes kept by the lead while building. They cover what the user as
 - M0.F5 verified by the lead (run 40405257386 green on 9167f22; engine veto/persist diff read) and merged.
 - Open decision "non-ASCII re-key", resolved by the lead: `Registry.load` derives every natural key from row content (`scheme.id(decoded)`); keys are not stored. Rows re-key on load and no migration is needed. Rows that previously had a blank key were quarantined, and can now be released with `releaseQuarantined`.
 - UI follow-ups from F5 (reset confirmation, review/resume buttons, displayed-hash `decide`) are lead inline on milestone/M1 after M0 merges in.
+
+---
+TIMESTAMP: 2026-10-27T16:05:32+01:00
+CHAIN: Claude (plan) -> Codex from the GPT app (cloud-sandboxed execution) -> Continuity resumption in the wp/voice worktree
+RESUMED FROM: wp/voice worktree `agent-af96ee867896a60ae` with uncommitted M2.A2 groundwork (installer, policy, guard, extractor, core chunker, commons-compress dep) left uncommitted and unverified by the prior agent
+STEP: 1 — repair the broken M2.A2 groundwork (missing VoiceModel/VoicePackaging definitions)
+PLAN REF: TASKS.md M2.A2 (owned files include `app/.../platform/android/voice/VoiceModels.kt`)
+STATUS: done
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/voice/VoiceModels.kt (NEW — enum `VoicePackaging`, data class `VoiceModel` with exactly the members the call-sites reference)
+VERIFICATION: before the fix `:app:compileDebugKotlin` FAILED (VoiceModelInstaller.kt ~40 unresolved refs: VoiceModel, VoicePackaging, id, sha256, sizeBytes, url, archiveRoot, requiredFiles); after the fix `.\gradlew.bat --no-daemon :app:compileDebugKotlin` -> BUILD SUCCESSFUL in 52s. milestone/M1 baseline (main checkout) is green: `:core:test testDebugUnitTest` -> BUILD SUCCESSFUL in 1m 22s.
+NEXT STEP: add the named M2.A2 tests (ArchiveGuardTest done next; VoiceModelsPinTest after pins land), then commit the M2.A2 groundwork with ENGINEERING_LOG D-038 and push wp/voice for CI.
+NOTES: The broken state was Codex's half-applied patch — it wrote call-sites whose types were never created. Repair restored its intent with zero redesign. The prior agent's local Gradle 'wrapper lock / loopback' failures do NOT reproduce in an unsandboxed shell (they were its cloud-sandbox constraints; JDK 17 + wrapper 8.14.6 verified healthy here).
+---
+
+---
+TIMESTAMP: 2026-10-27T16:08:20+01:00
+STEP: 2 — ArchiveGuardTest (named M2.A2 test: `../` entries rejected)
+PLAN REF: TASKS.md M2.A2 Tests: `ArchiveGuardTest`
+STATUS: done
+FILES CHANGED: app/src/test/kotlin/app/memo/platform/android/voice/ArchiveGuardTest.kt (NEW)
+VERIFICATION: `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests app.memo.platform.android.voice.ArchiveGuardTest` -> BUILD SUCCESSFUL in 43s (filter matches, failures would fail the build)
+NEXT STEP: voice-model pins: 5 seeded assets (streaming zipformer en 20M mobile, whisper base, kokoro en v0_19, silero_vad_v5.onnx, kws gigaspeech 3.3M mobile) are downloading to %TEMP%\opencode\sherpa-pins for SHA-256 + size verification against the release API; then extend VoiceModels.kt with the pinned `VoiceModels` catalog and add `VoiceModelsPinTest`.
+NOTES: Seed selection follows M2.A2/M2.A3 engine needs; pl/tr voices deliberately deferred to M3.6.C1. ENGINEERING_LOG D-038 (commons-compress) written; build.gradle comment re-pointed to D-038 (was a stale D-036 reference left by the prior agent).
+---
+
+---
+TIMESTAMP: 2026-10-27T16:24:00+01:00
+STEP: 3 — M2.A2 first mini-task: sherpa-onnx AAR API list saved in ENGINEERING_LOG
+PLAN REF: TASKS.md M2.A2 mini-task "first: list the AAR classes ... and save the API list in ENGINEERING_LOG"
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md (new NOTES "M2 · WP VOICE" section), docs/TASKS.md (first mini-task ticked)
+VERIFICATION: AAR expanded with Expand-Archive; `jar tf classes.jar` inventory (engine-relevant classes present: OnlineRecognizer/Config/Result, OnlineStream, OfflineRecognizer/Config/Result, OfflineStream, OfflineWhisperModelConfig, OfflineSenseVoiceModelConfig, OfflineTts/Config/ModelConfig/Kokoro/Vits, GeneratedAudio, Vad/Config/SileroVadModelConfig/SpeechSegment, KeywordSpotter/Config/Result, FeatureConfig, EndpointConfig/Rule); `javap -p` signatures captured for every engine-relevant config and entry point. Key gotchas recorded: no `OnlineRecognizerStream` type (`OnlineStream` only); `OnlineStream.acceptWaveform(FloatArray, sampleRate)` vs `Vad.acceptWaveform(FloatArray)`; `KeywordSpotterConfig` reuses `OnlineModelConfig`; TTS `generateWithCallback` is the per-chunk streaming path.
+NEXT STEP: STEP 4 pins (5 assets downloading in the background, SHA-256 + size verify against the release API, `tar -tf` for archiveRoot/requiredFiles), then VoiceModels catalog + VoiceModelsPinTest; then full worktree baseline and the single M2.A2-groundwork commit.
+NOTES: AssetManager-null file-mode construction is flagged UNVERIFIED in the log until the first engine compiles and runs. TASKS.md large mini-tasks 506-510 stay unticked until their engines/pins exist.
+---
+
+---
+TIMESTAMP: 2026-10-27T16:58:00+01:00
+STEP: 4+5 — voice-model pins verified from downloaded bytes; pinned VoiceModels catalog + VoiceModelsPinTest
+PLAN REF: TASKS.md M2.A2 mini-task "VoiceModels entries pinned (URL, sha256, size)"; named test `VoiceModelsPinTest`
+STATUS: done
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/voice/VoiceModels.kt (catalog appended), app/src/test/kotlin/app/memo/platform/android/voice/VoiceModelsPinTest.kt (NEW), docs/ENGINEERING_LOG.md (D-039), docs/TASKS.md (pins mini-task ticked)
+VERIFICATION: 5 assets downloaded to the sanctioned temp dir; every byte size matched the release-API asset size exactly (zipformer 107,569,151 / whisper 207,557,382 / kokoro 319,625,534 / silero 2,313,101 / kws 15,667,804); SHA-256 computed per asset (certutil); archive listings via tar -tf gave archiveRoot + requiredFiles (int8 encoder/joiner + fp32 decoder layout for both transducer models; kokoro dataDir=espeak-ng-data confirmed in-archive). First `:core:test testDebugUnitTest` run FAILED on `idsAreUniqueAndFolderSafe` — the kokoro id carried an underscore; id renamed to `tts-kokoro-en-v0-19`; re-run: BUILD SUCCESSFUL in 40s, 193 tests green.
+NEXT STEP: one commit (M2.A2 groundwork + pins + docs + D-038/D-039 + API list) with attribution trailers, push wp/voice, `gh workflow run build-memo-apk.yml -R ysfclc/memo-2 --ref wp/voice`, watch to green.
+NOTES: The installer/Hub divergence (RangeResume/InstallSwap reuse instead of the hub DownloadWorker) is recorded in D-039 for the lead's LVG rather than silently accepted. WP VOICE branch still unpushed at this point; CI is the remaining gate for M2.A1+A2-groundwork status.
+---
