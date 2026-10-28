@@ -515,7 +515,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 ### [ ] M2.A3 Conversation loop · deps M2.A2, M1.A3
 - Files: `core/.../voice/TurnTaking.kt`, `app/.../runtime/VoiceLoop.kt`
 - Mini-tasks:
-  - [ ] pure state machine: IDLE → LISTENING → THINKING → SPEAKING → LISTENING; ENDED
+  - [x] pure state machine: IDLE → LISTENING → THINKING → SPEAKING → LISTENING; ENDED
   - [ ] barge-in: VAD speech while SPEAKING → stop TTS, cancel queued sentences, LISTENING
   - [ ] the LLM stream → SentenceChunker → TTS queue (first audio < 1.2 s after first sentence)
   - [ ] silence timeout; "stop"/"cancel"/"stop it" in en/pl/tr ends or cancels

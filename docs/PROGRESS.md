@@ -198,3 +198,14 @@ VERIFICATION: `connectedDebugAndroidTest` PASS 1/1 on Memo_API34_CHAT (API 34 x8
 NEXT STEP: commit + CI; then M2.A3 Conversation loop — pure TurnTaking state machine first (TASKS order).
 NOTES: Only the kokoro pack is device-exercised; the other four pins stay engine-compile-verified with the same wrapper pattern (device probes come with their own milestones). The androidTest never runs on CI (no emulator) — CI green ≠ device-verified; this entry is the device record. 320 MB re-downloads on every clean install; the installer's resume+marker keeps reruns incremental within one install.
 ---
+
+---
+TIMESTAMP: 2026-10-28T09:30:00+01:00
+STEP: 9 — M2.A3 mini-task 1: pure TurnTaking state machine
+PLAN REF: TASKS.md M2.A3 "pure state machine: IDLE → LISTENING → THINKING → SPEAKING → LISTENING; ENDED"
+STATUS: done (core tests green)
+FILES CHANGED: core/src/main/kotlin/app/memo/core/voice/TurnTaking.kt (NEW), core/src/test/kotlin/app/memo/core/voice/TurnTakingTest.kt (NEW), docs/TASKS.md (mini-task ticked), docs/PROGRESS.md (this entry)
+VERIFICATION: `:core:test` BUILD SUCCESSFUL in 41s, EXIT=0 — 10 tests pin the accepted transitions (happy path, second exchange, barge-in effects, barge-in ignored elsewhere, empty-answer path, EndRequest/Error from every active state, no-ops from IDLE, ENDED terminal, mistimed events).
+NEXT STEP: M2.A3 mini-task 2+3 in the loop: VoiceLoop wires SherpaAsr partials/endpoints, the LLM stream → SentenceChunker → SherpaTts queue, and executes the InterruptSpeech/ReleaseAudio directives; then commit + CI.
+NOTES: Barge-in's transition + directive live in the machine (SPEAKING + VadSpeechDetected → LISTENING, InterruptSpeech = stop TTS + cancel queued sentences, mic keeps running); the TTS/cancel execution itself is VoiceLoop work, so mini-task 2 stays open until the loop exists. SpeechFinished from THINKING models the empty-answer path (answer ended with no speech). Mistimed events are no-ops by design so a late engine callback can never crash the loop.
+---
