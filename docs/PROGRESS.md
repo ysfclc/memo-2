@@ -231,3 +231,13 @@ VERIFICATION: `:app:testDebugUnitTest` BUILD SUCCESSFUL EXIT=0 — 200 tests, 7 
 NEXT STEP: device probe of the full loop on emulator-5554 (real mic; decide host-audio routing), measure the <1.2 s first-audio gate, tick mini-tasks 2+3 on device evidence; then M2.B1 voice UI per plan order.
 NOTES: Ports live in app/runtime (they reference AudioCapture.Listener / AudioPlayback.Open — app-module types, so core was not an option); fakes implement the ports pure-JVM, so the loop's threading discipline is regression-guarded on CI and the device probe only has to validate the real DSP. The apology string is a constant for now — i18n comes with the M2.B1 UI wiring.
 ---
+---
+
+TIMESTAMP: 2026-10-28T01:49:00+01:00
+STEP: 12 - M2.B1 mini-task 1 (UI half): Waveform + VoiceRecorderBar
+PLAN REF: TASKS.md M2.B1 mini-task 1 "hold to record with a live waveform; slide to cancel; release sends (audio + transcript)"; branch survey on user request (wp/chat carries the only unmerged work - M1.C1+C2 chat UI; its composer mic is the placeholder these pieces will replace)
+STATUS: UI primitives compile-verified; mini-task stays unticked until the B1-2 recorder engine delivers audio+transcript on release. Per the user's order, WaveformBucketsTest/RecorderGestureStateTest are deferred to the end-of-M2 test pass.
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/voice/Waveform.kt (NEW), app/src/main/kotlin/app/memo/ui/voice/VoiceRecorderBar.kt (NEW), docs/PROGRESS.md (this entry), docs/ENGINEERING_LOG.md (gesture pattern note)
+VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL in 2m 1s, EXIT=0, no new warnings. Pure logic split out (WaveformMath.buckets, RecorderGestureState, formatRecorderElapsed) so the deferred tests can pin it directly. CI on the previous head e6a528f green (run 40609941701, 6m52s).
+NEXT STEP: B1-2 recorder engine: AudioCapture -> WAV file + live meter levels, SherpaOfflineAsr (whisper-base pin) transcript on release; VoiceRecorderBar then gets real levels, and composer/sent-bubble wiring follows once wp/chat merges.
+NOTES: Gesture semantics: press starts recording immediately, quick release (<350 ms) = TAP (composer will open the live conversation), slide up about one bar height arms cancel with a reject haptic, release after that cancels, otherwise sends. If the tracked pointer vanishes from the stream the bar falls back to cancel, never send. Waveform max-pools meter frames so peaks survive downsampling.
