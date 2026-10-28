@@ -209,3 +209,14 @@ VERIFICATION: `:core:test` BUILD SUCCESSFUL in 41s, EXIT=0 — 10 tests pin the 
 NEXT STEP: M2.A3 mini-task 2+3 in the loop: VoiceLoop wires SherpaAsr partials/endpoints, the LLM stream → SentenceChunker → SherpaTts queue, and executes the InterruptSpeech/ReleaseAudio directives; then commit + CI.
 NOTES: Barge-in's transition + directive live in the machine (SPEAKING + VadSpeechDetected → LISTENING, InterruptSpeech = stop TTS + cancel queued sentences, mic keeps running); the TTS/cancel execution itself is VoiceLoop work, so mini-task 2 stays open until the loop exists. SpeechFinished from THINKING models the empty-answer path (answer ended with no speech). Mistimed events are no-ops by design so a late engine callback can never crash the loop.
 ---
+
+---
+TIMESTAMP: 2026-10-28T11:05:00+01:00
+STEP: 10 — M2.A3 mini-tasks 2+3 wiring: VoiceLoop
+PLAN REF: TASKS.md M2.A3 "barge-in: VAD speech while SPEAKING → stop TTS, cancel queued sentences, LISTENING" and "the LLM stream → SentenceChunker → TTS queue (first audio < 1.2 s after first sentence)"
+STATUS: wired + compile-verified; NOT device-verified — mini-tasks stay unticked (the <1.2 s first-audio gate is device-measured)
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/VoiceLoop.kt (NEW), core/src/main/kotlin/app/memo/core/voice/TurnTaking.kt (@Volatile state + doc), docs/ENGINEERING_LOG.md (thread model + API lessons), docs/PROGRESS.md (this entry)
+VERIFICATION: `:core:test` + `:app:compileDebugKotlin` BUILD SUCCESSFUL, EXIT=0 — 10 machine tests still green after the @Volatile change. No unit test for the loop itself (impure: Context, engines, threads); the pure parts it composes carry the tests. Two compile errors found and fixed on the first pass: a stale `signalLoop` reference after the data-race restructure, and `OnlineStream.close()` (does not exist — recognizer owns streams).
+NEXT STEP: device probe of the full loop on emulator-5554 (mic audio needs host routing — decide the probe method first), measure the <1.2 s first-audio gate, tick mini-tasks 2+3 on evidence; then M2.B1 voice UI per plan order.
+NOTES: Thread model and barge-in path recorded in the engineering log. Remaining M2.A3 mini-tasks: silence timeout, cancel words in en/pl/tr (needs ASR decoding during SPEAKING — design at that step), echo guard (AEC from VOICE_COMMUNICATION source plus `AudioPlayback.level` exist; explicit guard not wired). VoiceLoop keeps its own conversation history; sharing it with the chat store is M2.B1 integration.
+---

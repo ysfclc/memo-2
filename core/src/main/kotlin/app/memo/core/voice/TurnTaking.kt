@@ -22,10 +22,13 @@ package app.memo.core.voice
  *
  * Events that make no sense in the current state are ignored (return no effects, keep the
  * state), so a mistimed callback can never crash the loop; the accepted transitions are pinned
- * by `TurnTakingTest`. Not thread-safe: the conversation loop drives it from one thread.
+ * by `TurnTakingTest`. Transitions must come from one thread (the conversation loop's); reading
+ * [state] from other threads (e.g. the audio delivery thread choosing which engine to feed) is
+ * safe — the field is volatile.
  */
 class TurnTaking(initial: TurnState = TurnState.Idle) {
 
+    @Volatile
     var state: TurnState = initial
         private set
 
