@@ -137,6 +137,14 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            // VoiceLoopTest drives the loop on the JVM; the loop logs through android.util.Log,
+            // which must become a no-op there instead of throwing.
+            isReturnDefaultValues = true
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

@@ -17,9 +17,13 @@ import app.memo.core.voice.TurnTaking
 import app.memo.platform.android.voice.AudioCapture
 import app.memo.platform.android.voice.AudioPlayback
 import app.memo.platform.android.voice.SherpaAsr
+import app.memo.platform.android.voice.SherpaBargeInEngine
+import app.memo.platform.android.voice.SherpaListenEngine
+import app.memo.platform.android.voice.SherpaLoopCapture
+import app.memo.platform.android.voice.SherpaLoopPlayback
+import app.memo.platform.android.voice.SherpaSpeakEngine
 import app.memo.platform.android.voice.SherpaTts
 import app.memo.platform.android.voice.SherpaVad
-import com.k2fsa.sherpa.onnx.OnlineStream
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -32,10 +36,10 @@ import java.util.concurrent.TimeUnit
  * Threads, by contract:
  * - The **loop thread** owns the [TurnTaking] machine, the [SentenceChunker], the LLM request and
  *   the TTS synthesis + playback sequence. Every state transition happens here.
- * - The **mic delivery thread** (from [AudioCapture]) feeds the engines — the ASR decode and the
- *   VAD checks are the real-time DSP this callback exists for — and never touches the machine. It
- *   signals the loop thread and, on a barge-in, stops playback directly so a blocking
- *   `AudioTrack.write` breaks at once.
+ * - The **mic delivery thread** (from [LoopCapture]) feeds the engines — the ASR decode and the
+ *   speech detection are the real-time DSP this callback exists for — and never touches the
+ *   machine. It signals the loop thread and, on a barge-in, stops playback directly so a blocking
+ *   speaker write breaks at once.
  * - **LLM callbacks** arrive on a runtime-owned thread; they enqueue work for the loop thread and
  *   return at once, per the [ChatSink] contract.
  *
@@ -49,11 +53,12 @@ import java.util.concurrent.TimeUnit
  * it with the chat store is M2.B1 integration.
  */
 class VoiceLoop(
-    context: Context,
     private val llm: LlmRuntime,
-    private val asr: SherpaAsr,
-    private val tts: SherpaTts,
-    private val vad: SherpaVad,
+    private val listen: ListenEngine,
+    private val talk: SpeakEngine,
+    private val barge: BargeInEngine,
+    private val capture: LoopCapture,
+    private val playback: LoopPlayback,
     private val systemPrompt: () -> String?,
 ) {
 
@@ -75,10 +80,6 @@ class VoiceLoop(
     /** Why [Listener.onEnded] fired. */
     enum class EndReason { Requested, Error }
 
-    private val appContext = context.applicationContext
-    private val capture = AudioCapture(appContext)
-    private val playback = AudioPlayback(appContext, onFocusLost = { onFocusLost() })
-
     private val machine = TurnTaking()
     private val chunker = SentenceChunker()
     private val history = ArrayList<ChatTurn>()
@@ -88,7 +89,6 @@ class VoiceLoop(
     private val loop = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, work)
 
     @Volatile private var listenerRef: Listener? = null
-    private var asrStream: OnlineStream? = null
     private var request: RequestHandle? = null
     private var answerDone = false
 
@@ -123,8 +123,9 @@ class VoiceLoop(
         stopPlayback = true
         playback.stop() // break a blocking write on the loop thread immediately
         loop.execute {
+            val before = machine.state
             machine.on(TurnEvent.EndRequest)
-            if (machine.state == TurnState.Ended) releaseAudio(EndReason.Requested)
+            if (machine.state != before) releaseAudio(EndReason.Requested) // once, on the transition
         }
     }
 
@@ -135,8 +136,6 @@ class VoiceLoop(
         runCatching { loop.awaitTermination(2, TimeUnit.SECONDS) }
         capture.stop()
         playback.stop()
-        // The ASR stream is owned by the recognizer; SherpaAsr.close() releases it with the engine.
-        asrStream = null
         listenerRef = null
     }
 
@@ -153,7 +152,8 @@ class VoiceLoop(
         listenerRef?.onEnded(reason)
     }
 
-    private fun onFocusLost() {
+    /** Called by the platform playback when audio focus is lost. */
+    fun onFocusLost() {
         // The answer cannot be heard any more. Treat focus loss as a barge-in, not an end.
         if (machine.state == TurnState.Speaking) {
             bargeIn = true
@@ -166,22 +166,18 @@ class VoiceLoop(
 
     private fun onMicFrame(frame: ShortArray, @Suppress("UNUSED_PARAMETER") rms: Float) {
         val samples = FloatArray(frame.size) { frame[it] / 32768f }
-        vad.acceptWaveform(samples)
+        barge.onFrame(samples)
         when (machine.state) {
             TurnState.Listening -> {
-                val stream = asrStream ?: asr.newStream().also { asrStream = it }
-                stream.acceptWaveform(samples, SAMPLE_RATE)
-                while (asr.isReady(stream)) asr.decode(stream)
-                listenerRef?.onPartialTranscript(asr.partial(stream))
-                if (asr.isEndpoint(stream)) {
-                    // This thread owns the stream: capture the final transcript and start the next
+                listenerRef?.onPartialTranscript(listen.onFrame(samples))
+                if (listen.endpoint()) {
+                    // The engine owns the stream: capture the final transcript and start the next
                     // utterance clean right here; the loop never touches the stream.
-                    val transcript = asr.partial(stream).trim()
-                    asr.reset(stream)
+                    val transcript = listen.finalTranscript().trim()
                     if (transcript.isNotEmpty()) loop.execute { handleUtterance(transcript) }
                 }
             }
-            TurnState.Speaking -> if (vad.isSpeechDetected && !bargeIn) {
+            TurnState.Speaking -> if (barge.speechDetected && !bargeIn) {
                 bargeIn = true
                 stopPlayback = true
                 playback.stop() // break a blocking write on the loop thread immediately
@@ -250,11 +246,31 @@ class VoiceLoop(
         override fun onError(e: LlmError) {
             if (e == LlmError.Cancelled) return // barge-in or end: the machine already moved on
             Log.w(TAG, "voice answer failed: $e")
-            loop.execute {
-                machine.on(TurnEvent.Error)
-                releaseAudio(EndReason.Error)
-            }
+            loop.execute { answerFailed() }
         }
+    }
+
+    /**
+     * A failed answer ends with a spoken apology and back to LISTENING (TASKS M2.A3: "error from
+     * LLM → LISTENING with message") — the conversation survives. A hard engine failure still
+     * ends the conversation through [TurnEvent.Error].
+     */
+    private fun answerFailed() {
+        if (machine.state != TurnState.Thinking && machine.state != TurnState.Speaking) return
+        request = null
+        chunker.reset()
+        tokenQueue.clear()
+        history += ChatTurn(ChatTurn.Role.ASSISTANT, answerText.toString() + ANSWER_FAILED)
+        answerText.clear()
+        answerDone = false
+        bargeIn = false
+        stopPlayback = false
+        val before = machine.state
+        machine.on(TurnEvent.SpeechStarted) // THINKING → SPEAKING; no-op when already SPEAKING
+        if (machine.state != before) listenerRef?.onTurnState(machine.state)
+        speak(ANSWER_FAILED)
+        machine.on(TurnEvent.SpeechFinished)
+        listenerRef?.onTurnState(machine.state)
     }
 
     /** Queues a drain of the token queue onto the loop thread. */
@@ -292,26 +308,48 @@ class VoiceLoop(
      * Runs on the loop thread, so the machine transitions inside the callback cannot race.
      */
     private fun speak(sentence: String) {
-        tts.generate(
-            text = sentence,
-            onChunk = { samples ->
-                val before = machine.state
-                machine.on(TurnEvent.SpeechStarted) // first chunk: THINKING → SPEAKING; later: no-op
-                if (machine.state != before) {
-                    vad.reset() // fresh barge-in window: only speech AFTER the answer counts
-                    listenerRef?.onTurnState(machine.state)
-                }
-                if (bargeIn || stopPlayback) return@generate true
-                if (!playback.isOpen && playback.open(tts.sampleRate) != AudioPlayback.Open.Opened) {
-                    return@generate true // focus refused: give up on this answer's audio
-                }
-                playback.write(samples) >= 0
-            },
-        )
+        talk.generate(sentence) { samples ->
+            val before = machine.state
+            machine.on(TurnEvent.SpeechStarted) // first chunk: THINKING → SPEAKING; later: no-op
+            if (machine.state != before) {
+                barge.reset() // fresh barge-in window: only speech AFTER the answer counts
+                listenerRef?.onTurnState(machine.state)
+            }
+            if (bargeIn || stopPlayback) return@generate true
+            if (!playback.isOpen && playback.open(talk.sampleRate) != AudioPlayback.Open.Opened) {
+                return@generate true // focus refused: give up on this answer's audio
+            }
+            playback.write(samples) >= 0
+        }
     }
 
     private companion object {
         const val TAG = "MemoVoice"
-        const val SAMPLE_RATE = 16_000
+        const val ANSWER_FAILED = "Sorry, I could not finish that answer."
+
+        /** Device wiring: the real sherpa engines and platform audio. */
+        fun forDevice(
+            context: Context,
+            llm: LlmRuntime,
+            asr: SherpaAsr,
+            tts: SherpaTts,
+            vad: SherpaVad,
+            systemPrompt: () -> String?,
+        ): VoiceLoop {
+            val app = context.applicationContext
+            lateinit var loop: VoiceLoop
+            val capture = SherpaLoopCapture(app)
+            val playback = SherpaLoopPlayback(app, onFocusLost = { loop.onFocusLost() })
+            loop = VoiceLoop(
+                llm,
+                SherpaListenEngine(asr),
+                SherpaSpeakEngine(tts),
+                SherpaBargeInEngine(vad),
+                capture,
+                playback,
+                systemPrompt,
+            )
+            return loop
+        }
     }
 }

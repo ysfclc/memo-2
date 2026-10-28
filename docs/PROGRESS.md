@@ -220,3 +220,14 @@ VERIFICATION: `:core:test` + `:app:compileDebugKotlin` BUILD SUCCESSFUL, EXIT=0 
 NEXT STEP: device probe of the full loop on emulator-5554 (mic audio needs host routing — decide the probe method first), measure the <1.2 s first-audio gate, tick mini-tasks 2+3 on evidence; then M2.B1 voice UI per plan order.
 NOTES: Thread model and barge-in path recorded in the engineering log. Remaining M2.A3 mini-tasks: silence timeout, cancel words in en/pl/tr (needs ASR decoding during SPEAKING — design at that step), echo guard (AEC from VOICE_COMMUNICATION source plus `AudioPlayback.level` exist; explicit guard not wired). VoiceLoop keeps its own conversation history; sharing it with the chat store is M2.B1 integration.
 ---
+
+---
+TIMESTAMP: 2026-10-28T12:10:00+01:00
+STEP: 11 — M2.A3 loop testability: ports + JVM fakes; LLM-error discipline fixed to plan
+PLAN REF: TASKS.md M2.A3 Tests line "error from LLM → LISTENING with message", "double end is idempotent"; M2.A3 mini-tasks 2+3 (wiring, still device-gated)
+STATUS: done (tests green on CI-to-follow run; loop itself still NOT device-verified)
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/LoopPorts.kt (NEW — LoopCapture/LoopPlayback/ListenEngine/BargeInEngine/SpeakEngine), app/src/main/kotlin/app/memo/platform/android/voice/SherpaLoopAdapters.kt (NEW — device wiring), app/src/main/kotlin/app/memo/runtime/VoiceLoop.kt (consumes ports; answerFailed; requestEnd transition-guard), app/src/test/kotlin/app/memo/runtime/VoiceLoopTest.kt (NEW — 7 tests), app/build.gradle.kts (testOptions isReturnDefaultValues for android.util.Log on JVM), docs/PROGRESS.md, docs/ENGINEERING_LOG.md
+VERIFICATION: `:app:testDebugUnitTest` BUILD SUCCESSFUL EXIT=0 — 200 tests, 7 new VoiceLoopTest (happy exchange + history accumulation, barge-in mid-speech with a blocked write, LLM error → apology → LISTENING + survival, requestEnd releases + fires once, double end idempotent, start twice refused, mic failure ends, empty transcript ignored). Two real defects the tests caught: a stale `releaseAudio` on every queued requestEnd (double onEnded) and — by plan re-read — the LLM error path ended the conversation where TASKS says LISTENING with a message.
+NEXT STEP: device probe of the full loop on emulator-5554 (real mic; decide host-audio routing), measure the <1.2 s first-audio gate, tick mini-tasks 2+3 on device evidence; then M2.B1 voice UI per plan order.
+NOTES: Ports live in app/runtime (they reference AudioCapture.Listener / AudioPlayback.Open — app-module types, so core was not an option); fakes implement the ports pure-JVM, so the loop's threading discipline is regression-guarded on CI and the device probe only has to validate the real DSP. The apology string is a constant for now — i18n comes with the M2.B1 UI wiring.
+---
