@@ -18,6 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -172,11 +173,12 @@ class VoiceLoopTest {
         barge: FakeBarge = FakeBarge(),
         capture: FakeCapture = FakeCapture(),
         playback: FakePlayback = FakePlayback(),
-    ): VoiceLoop = VoiceLoop(llm, listen, talk, barge, capture, playback, systemPrompt = { "You are Memo." })
+        now: () -> Long = System::currentTimeMillis,
+    ): VoiceLoop = VoiceLoop(llm, listen, talk, barge, capture, playback, systemPrompt = { "You are Memo." }, now = now)
 
-    /** One 20 ms mic frame, delivered as the capture delivery thread would. */
-    private fun deliver(capture: FakeCapture) {
-        capture.listener!!.onFrame(ShortArray(320), 0f)
+    /** One 20 ms mic frame, delivered as the capture delivery thread would. Voice-level rms. */
+    private fun deliver(capture: FakeCapture, rms: Float = 0.5f) {
+        capture.listener!!.onFrame(ShortArray(320), rms)
     }
 
     private fun awaitTrue(seconds: Long = 5, condition: () -> Boolean): Boolean {
@@ -353,6 +355,113 @@ class VoiceLoopTest {
         Thread.sleep(300)
         assertEquals(0, llm.chats.size)
         assertEquals(listOf(TurnState.Listening), recorder.states.toList())
+        loop.close()
+    }
+
+    // --- silence timeout, cancel words, echo guard (TASKS M2.A3 mini-task 4) --------------------
+
+    @Test
+    fun silenceTimeout_endsTheConversation_afterQuietListening() {
+        val clock = AtomicLong(1_000_000L)
+        val barge = FakeBarge()
+        val capture = FakeCapture()
+        val recorder = Recorder()
+        val loop = newLoop(barge = barge, capture = capture, now = { clock.get() }).also { it.setListener(recorder) }
+
+        assertTrue(loop.startConversation())
+        clock.addAndGet(9_000L) // quiet in LISTENING far past the window
+        deliver(capture, rms = 0f)
+        assertTrue(recorder.awaitState(TurnState.Ended), "silence should end the conversation")
+        assertEquals(listOf(VoiceLoop.EndReason.Requested), recorder.ended.toList())
+        assertTrue(capture.stops >= 1)
+        loop.close()
+    }
+
+    @Test
+    fun silenceTimeout_doesNotFire_whileTheUserTalks() {
+        val clock = AtomicLong(1_000_000L)
+        val barge = FakeBarge().also { it.speech = true }
+        val capture = FakeCapture()
+        val recorder = Recorder()
+        val loop = newLoop(barge = barge, capture = capture, now = { clock.get() }).also { it.setListener(recorder) }
+
+        assertTrue(loop.startConversation())
+        clock.addAndGet(9_000L)
+        deliver(capture) // voice activity resets the window: no timeout may queue
+        clock.addAndGet(1_000L)
+        deliver(capture)
+        Thread.sleep(200)
+        assertEquals(listOf(TurnState.Listening), recorder.states.toList())
+        loop.close()
+    }
+
+    @Test
+    fun cancelPhraseUtterance_endsTheConversation_withoutCallingTheLlm() {
+        val llm = FakeLlm()
+        val listen = FakeListen().also { it.transcript = "Stop." }
+        val capture = FakeCapture()
+        val recorder = Recorder()
+        val loop = newLoop(llm, listen, capture = capture).also { it.setListener(recorder) }
+
+        assertTrue(loop.startConversation())
+        listen.endpointAt = true
+        deliver(capture)
+        assertTrue(recorder.awaitState(TurnState.Ended), "a bare cancel phrase should end the talk")
+        assertEquals(listOf(VoiceLoop.EndReason.Requested), recorder.ended.toList())
+        assertEquals(0, llm.chats.size)
+        assertTrue(capture.stops >= 1)
+        loop.close()
+    }
+
+    @Test
+    fun contentUtterance_containingACancelWord_goesToTheLlm() {
+        val llm = FakeLlm()
+        val listen = FakeListen().also { it.transcript = "how do I stop a service" }
+        val capture = FakeCapture()
+        val recorder = Recorder()
+        val loop = newLoop(llm, listen, capture = capture).also { it.setListener(recorder) }
+
+        assertTrue(loop.startConversation())
+        listen.endpointAt = true
+        deliver(capture)
+        assertTrue(recorder.awaitState(TurnState.Listening, 2), "the exchange completes normally")
+        assertEquals(1, llm.chats.size)
+        loop.close()
+    }
+
+    @Test
+    fun cancelPhrases_matchAcrossLanguages_bareUtterancesOnly() {
+        for (phrase in listOf("stop", "Stop.", "STOP IT", "cancel", "przerwij", "PRZERWIJ!", "anuluj", "İptal et", "dur", "kes")) {
+            assertTrue(VoiceLoop.isCancelPhrase(phrase), "should match: $phrase")
+        }
+        for (content in listOf("stop the music", "how do I cancel a plan", "zatrzymaj się za rok", "durstig", "")) {
+            assertTrue(!VoiceLoop.isCancelPhrase(content), "should NOT match: $content")
+        }
+    }
+
+    @Test
+    fun echoGuard_belowEnergyFloor_doesNotBargeIn() {
+        val llm = FakeLlm()
+        val listen = FakeListen().also { it.transcript = "hello memo" }
+        val talk = FakeTalk().also { it.blockOnCall = 1 }
+        val barge = FakeBarge()
+        val capture = FakeCapture()
+        val playback = FakePlayback()
+        val recorder = Recorder()
+        val loop = newLoop(llm, listen, talk, barge, capture, playback).also { it.setListener(recorder) }
+
+        assertTrue(loop.startConversation())
+        listen.endpointAt = true
+        deliver(capture) // sentence 1 speaks; sentence 2 holds the loop mid-SPEAKING
+        assertTrue(recorder.awaitState(TurnState.Speaking))
+        assertTrue(talk.awaitBlocked())
+
+        barge.speech = true
+        deliver(capture, rms = VoiceLoop.ECHO_RMS_FLOOR / 2f) // VAD fires but the energy is echo-level
+        talk.unblock()
+        assertTrue(recorder.awaitState(TurnState.Listening, 2), "the answer finishes normally")
+        assertEquals(0, llm.cancellations.get(), "no barge-in may cancel the answer")
+        assertEquals(2, playback.writes, "both sentences play out")
         loop.close()
     }
 }

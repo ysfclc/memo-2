@@ -28,6 +28,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.text.Normalizer
+import java.util.Locale
 
 /**
  * The hands-free conversation loop (TASKS M2.A3): one microphone, one streaming ASR, one LLM
@@ -44,9 +46,13 @@ import java.util.concurrent.TimeUnit
  *   return at once, per the [ChatSink] contract.
  *
  * The barge-in path is [TurnEvent.VadSpeechDetected] while SPEAKING: playback stops, the in-flight
- * answer is cancelled, the queued sentences are dropped, and the machine returns to LISTENING.
- * Endings ([TurnEvent.EndRequest], [TurnEvent.Error]) release the audio; the engines stay open —
- * models are expensive to load and the next conversation reuses them.
+ * answer is cancelled, the queued sentences are dropped, and the machine returns to LISTENING. The
+ * VAD must also clear an energy floor ([ECHO_RMS_FLOOR]) — post-AEC residual echo of our own TTS
+ * must not interrupt the answer. Endings ([TurnEvent.EndRequest], [TurnEvent.Error]) release the
+ * audio; the engines stay open — models are expensive to load and the next conversation reuses
+ * them. Two quieter disciplines end the conversation too: LISTENING gone quiet past
+ * [SILENCE_TIMEOUT_MS], and a bare cancel phrase ("stop" / "przerwij" / "dur" …, TASKS M2.A3)
+ * as the finished utterance — spoken over the answer it first barges in, then ends.
  *
  * The wake word (M2.C2) and the UI (M2.B1) call [startConversation] / [requestEnd]; the loop
  * never starts the microphone on its own. The voice conversation keeps its own history — sharing
@@ -60,6 +66,7 @@ class VoiceLoop(
     private val capture: LoopCapture,
     private val playback: LoopPlayback,
     private val systemPrompt: () -> String?,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
 
     /** What the UI sees from the loop. */
@@ -101,6 +108,10 @@ class VoiceLoop(
     @Volatile private var bargeIn = false
     @Volatile private var stopPlayback = false
 
+    /** Last voice activity in LISTENING, for the silence timeout. Delivery + loop threads. */
+    @Volatile private var lastVoiceAtMs = 0L
+    @Volatile private var silenceTimeoutQueued = false
+
     /** Attaches the UI listener. Call before [startConversation]. */
     fun setListener(value: Listener?) {
         listenerRef = value
@@ -121,6 +132,7 @@ class VoiceLoop(
             return false
         }
         listenerRef?.onTurnState(machine.state)
+        silenceBaseline()
         return true
     }
 
@@ -184,6 +196,7 @@ class VoiceLoop(
         barge.onFrame(samples)
         when (machine.state) {
             TurnState.Listening -> {
+                if (barge.speechDetected) lastVoiceAtMs = now()
                 listenerRef?.onPartialTranscript(listen.onFrame(samples))
                 if (listen.endpoint()) {
                     // The engine owns the stream: capture the final transcript and start the next
@@ -191,8 +204,13 @@ class VoiceLoop(
                     val transcript = listen.finalTranscript().trim()
                     if (transcript.isNotEmpty()) loop.execute { handleUtterance(transcript) }
                 }
+                if (now() - lastVoiceAtMs > SILENCE_TIMEOUT_MS && !silenceTimeoutQueued) {
+                    silenceTimeoutQueued = true
+                    loop.execute(::handleSilenceTimeout)
+                }
             }
-            TurnState.Speaking -> if (barge.speechDetected && !bargeIn) {
+            TurnState.Speaking -> if (barge.speechDetected && rms >= ECHO_RMS_FLOOR && !bargeIn) {
+                // Energy floor: post-AEC residual echo of our own answer must not barge in.
                 bargeIn = true
                 stopPlayback = true
                 playback.stop() // break a blocking write on the loop thread immediately
@@ -207,6 +225,12 @@ class VoiceLoop(
     /** THINKING begins: the user's utterance is final. Late signals are no-ops via the machine. */
     private fun handleUtterance(transcript: String) {
         if (machine.state != TurnState.Listening) return
+        if (isCancelPhrase(transcript)) {
+            // A bare "stop"/"cancel" (en/pl/tr) is a command, not content: end the conversation
+            // (TASKS M2.A3 "ends or cancels"). Spoken over an answer it first barged in, then ends.
+            requestEnd()
+            return
+        }
         machine.on(TurnEvent.UtteranceEnd)
         listenerRef?.onTurnState(machine.state)
         history += ChatTurn(ChatTurn.Role.USER, transcript)
@@ -226,9 +250,23 @@ class VoiceLoop(
             chunker.reset()
             tokenQueue.clear()
             answerText.clear()
+            silenceBaseline() // the quiet window restarts when the user takes the floor
         }
         bargeIn = false
         stopPlayback = false
+    }
+
+    /** LISTENING went quiet past [SILENCE_TIMEOUT_MS]: end the conversation. */
+    private fun handleSilenceTimeout() {
+        silenceTimeoutQueued = false
+        if (machine.state != TurnState.Listening) return
+        Log.i(TAG, "silence timeout: ending the conversation")
+        requestEnd()
+    }
+
+    /** Re-arms the silence window; called when LISTENING begins or voice activity is heard. */
+    private fun silenceBaseline() {
+        lastVoiceAtMs = now()
     }
 
     private fun turnsForLlm(): List<ChatTurn> {
@@ -286,6 +324,7 @@ class VoiceLoop(
         speak(ANSWER_FAILED)
         machine.on(TurnEvent.SpeechFinished)
         listenerRef?.onTurnState(machine.state)
+        silenceBaseline()
     }
 
     /** Queues a drain of the token queue onto the loop thread. */
@@ -315,6 +354,7 @@ class VoiceLoop(
         ) {
             machine.on(TurnEvent.SpeechFinished)
             listenerRef?.onTurnState(machine.state)
+            silenceBaseline() // the user has the floor again; the quiet window restarts
         }
     }
 
@@ -342,6 +382,47 @@ class VoiceLoop(
     internal companion object {
         const val TAG = "MemoVoice"
         const val ANSWER_FAILED = "Sorry, I could not finish that answer."
+
+        /**
+         * LISTENING gone quiet this long ends the conversation. Long enough to think mid-air,
+         * short enough not to feel like the app is spying in silence; tuned in the M2 probe.
+         */
+        internal const val SILENCE_TIMEOUT_MS = 8_000L
+
+        /**
+         * Barge-in during SPEAKING must also clear this mic-energy floor: post-AEC residual echo
+         * of our own spoken answer must not interrupt it. UNVERIFIED value — tuned on device in
+         * the M2 probe (real speech at arm's length lands far above it).
+         */
+        internal const val ECHO_RMS_FLOOR = 0.04f
+
+        /**
+         * Bare cancel phrases (en/pl/tr, TASKS M2.A3): the whole finished utterance must equal
+         * one, so "stop the music" is content while "stop" is a command that ends the talk.
+         */
+        internal val CANCEL_PHRASES = setOf(
+            "stop", "stop it", "cancel", // en
+            "stop", "przerwij", "anuluj", "zatrzymaj", // pl
+            "dur", "kes", "iptal", "iptal et", // tr
+        )
+
+        private val NON_WORD = Regex("[^\\p{L}\\s]+")
+        private val WHITESPACE = Regex("\\s+")
+        private val COMBINING_MARKS = Regex("\\p{M}+")
+
+        /**
+         * True when [transcript] is exactly a cancel phrase, ignoring case, diacritics, marks and
+         * spacing ("Stop!" = "stop"; "İPTAL ET" = "iptal et" — NFD + mark strip, not raw lowercase).
+         */
+        internal fun isCancelPhrase(transcript: String): Boolean {
+            val normalized = Normalizer.normalize(transcript, Normalizer.Form.NFD)
+                .replace(COMBINING_MARKS, "")
+                .lowercase(Locale.ROOT)
+                .replace(NON_WORD, " ")
+                .trim()
+                .replace(WHITESPACE, " ")
+            return normalized in CANCEL_PHRASES
+        }
 
         /** Device wiring: the real sherpa engines and platform audio. */
         internal fun forDevice(

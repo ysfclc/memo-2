@@ -261,3 +261,13 @@ FILES CHANGED: runtime/VoiceSession.kt (NEW), runtime/InferenceChatRuntime.kt (N
 VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL EXIT=0; :app:testDebugUnitTest 200 tests 0 failures (VoiceLoopTest 7/7); RecognizerIntent grep empty; TextToSpeech grep empty.
 NEXT STEP: dispatch CI on this head and watch; then B1-4 leftovers (read-aloud + voice-message bubble + composer hooks wait for the wp/chat merge - lead-owned). Deferred-to-end list unchanged (device probes, WaveformBucketsTest/RecorderGestureStateTest, cancel words, silence timeout, echo guard).
 NOTES: InferenceChatRuntime bridges the loop's raw LlmRuntime contract onto the InferenceManager FIFO, so chat UI and voice share the one resident model; load/unload/close are honest no-ops because residency belongs to the manager's owner. VoiceSession builds engines once on its own executor (installer pins: zipformer streaming + Kokoro + Silero VAD), gates Unavailable on missing chat model or missing voice models with the reason in UiState. VoiceLoop.Listener grew onMicLevel (orb) and onSpeakingSentence (caption); interrupt() = the focus-loss barge-in path via tap.
+---
+
+TIMESTAMP: 2026-10-28T03:20:00+01:00
+STEP: 15 - M2.A3 mini-task 4 logic: silence timeout + cancel words (en/pl/tr) + echo guard
+PLAN REF: TASKS.md M2.A3 mini-tasks 4-5
+STATUS: implemented and fake-verified on the JVM; mini-tasks stay unticked until the device probe (the echo-floor VALUE and endpoint behaviour on hardware are the deferred part - floor 0.04f is UNVERIFIED). Branch fresh: milestone/M1 unchanged since the merge base (rev-list count 0).
+FILES CHANGED: runtime/VoiceLoop.kt (silence window + echo-gated barge-in + cancel phrases + injectable now()), app/src/test/.../VoiceLoopTest.kt (+6 cases, rms-aware deliver), docs/PROGRESS.md, docs/ENGINEERING_LOG.md
+VERIFICATION: :app:testDebugUnitTest 206 tests 0 failures (VoiceLoopTest 13/13: silence ends / silence not while talking / cancel utterance ends without LLM / content utterance still reaches the LLM / 3-language bare matching / echo floor blocks barge-in; existing 7 untouched except deliver rms default).
+NEXT STEP: dispatch CI and watch; remaining M2.B1 surfaces (bubble, composer hooks, read-aloud) wait for the lead's wp/chat merge; end-of-M2 batch then probes these three on device and ticks A3 mini-tasks 4-5.
+NOTES: ASR is never fed during SPEAKING, so there is no echo feedback loop into the transcript path - a cancel word spoken over the answer first barges in via VAD (energy-gated), then ends at the endpoint. 'ends or cancels' resolved as END: after a barge-in the user wants silence, and the 8 s window would end the talk anyway. Echo guard = AEC (platform, already on) + per-frame rms floor on the SPEAKING barge-in.
