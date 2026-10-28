@@ -73,6 +73,12 @@ class VoiceLoop(
          */
         fun onPartialTranscript(text: String)
 
+        /** Mic level 0..1, for the presence orb. Arrives on the audio delivery thread at frame rate. */
+        fun onMicLevel(rms: Float)
+
+        /** A sentence is about to be spoken; this is the caption. Arrives on the loop thread. */
+        fun onSpeakingSentence(text: String)
+
         /** The conversation ended (user request or error). Arrives on the loop thread. */
         fun onEnded(reason: EndReason)
     }
@@ -152,19 +158,28 @@ class VoiceLoop(
         listenerRef?.onEnded(reason)
     }
 
-    /** Called by the platform playback when audio focus is lost. */
-    fun onFocusLost() {
-        // The answer cannot be heard any more. Treat focus loss as a barge-in, not an end.
+    /**
+     * The user tapped a speaking answer to interrupt it (M2.B1 live screen). The same barge-in
+     * path as focus loss: a no-op through the machine when nothing was speaking.
+     */
+    fun interrupt() {
         if (machine.state == TurnState.Speaking) {
             bargeIn = true
             stopPlayback = true
         }
-        loop.execute(::handleBargeIn) // no-op through the machine when nothing was speaking
+        loop.execute(::handleBargeIn)
+    }
+
+    /** Called by the platform playback when audio focus is lost. */
+    fun onFocusLost() {
+        // The answer cannot be heard any more. Treat focus loss as a barge-in, not an end.
+        interrupt()
     }
 
     // --- mic delivery thread ----------------------------------------------------------------
 
-    private fun onMicFrame(frame: ShortArray, @Suppress("UNUSED_PARAMETER") rms: Float) {
+    private fun onMicFrame(frame: ShortArray, rms: Float) {
+        listenerRef?.onMicLevel(rms)
         val samples = FloatArray(frame.size) { frame[it] / 32768f }
         barge.onFrame(samples)
         when (machine.state) {
@@ -308,6 +323,7 @@ class VoiceLoop(
      * Runs on the loop thread, so the machine transitions inside the callback cannot race.
      */
     private fun speak(sentence: String) {
+        listenerRef?.onSpeakingSentence(sentence) // the caption, before the first chunk plays
         talk.generate(sentence) { samples ->
             val before = machine.state
             machine.on(TurnEvent.SpeechStarted) // first chunk: THINKING → SPEAKING; later: no-op
@@ -323,12 +339,12 @@ class VoiceLoop(
         }
     }
 
-    private companion object {
+    internal companion object {
         const val TAG = "MemoVoice"
         const val ANSWER_FAILED = "Sorry, I could not finish that answer."
 
         /** Device wiring: the real sherpa engines and platform audio. */
-        fun forDevice(
+        internal fun forDevice(
             context: Context,
             llm: LlmRuntime,
             asr: SherpaAsr,

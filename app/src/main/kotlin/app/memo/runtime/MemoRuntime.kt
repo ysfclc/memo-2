@@ -1,5 +1,6 @@
 package app.memo.runtime
 
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -8,6 +9,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import app.memo.core.audit.AuditSink
 import app.memo.core.audit.HashChainAudit
+import app.memo.core.catalog.ModelCatalog
 import app.memo.core.codec.SynCodec
 import app.memo.core.domain.AgentRun
 import app.memo.core.domain.AuditEntry
@@ -30,9 +32,15 @@ import app.memo.core.engine.WorkflowEngine
 import app.memo.core.plan.CommandGrammar
 import app.memo.core.registry.Registry
 import app.memo.core.registry.Workspace
+import app.memo.core.platform.LlmRuntime
+import app.memo.core.platform.ModelFormat
+import app.memo.core.platform.ModelRef
 import app.memo.models.ModelStore
+import app.memo.platform.android.llm.litert.LiteRtLmRuntime
+import app.memo.platform.android.llm.llama.LlamaCppRuntime
 import app.memo.platform.android.vault.KeystoreVault
 import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -66,6 +74,8 @@ import java.util.concurrent.TimeUnit
  * work to that thread. UI state is published on the main thread as an immutable [Snapshot].
  */
 class MemoRuntime(context: Context) {
+
+    private val appContext = context.applicationContext
 
     data class Snapshot(
         val runs: List<AgentRun> = emptyList(),
@@ -137,6 +147,47 @@ class MemoRuntime(context: Context) {
 
     /** Local model downloads, verification, import and discovery. */
     val models = ModelStore(context)
+
+    /**
+     * The one resident chat model. Every consumer — the chat UI and the voice loop — queues
+     * through this, so a second model can never load behind the manager's back.
+     */
+    val inference = InferenceManager(factory = { format -> runtimeFor(format) })
+
+    /** The Talk tab's hands-free session; engines are built lazily on first [VoiceSession.prepare]. */
+    val voice: VoiceSession by lazy {
+        VoiceSession(
+            appContext = appContext,
+            inference = inference,
+            chatModel = {
+                val activeId = models.activeId ?: return@VoiceSession null
+                val entry = ModelCatalog.byId(activeId) ?: return@VoiceSession null
+                val file = models.hub.installedFile(entry) ?: return@VoiceSession null
+                ModelRef(
+                    id = entry.id,
+                    format = entry.format,
+                    path = file.absolutePath,
+                    sha256 = entry.sha256,
+                    sizeBytes = entry.sizeBytes,
+                )
+            },
+        )
+    }
+
+    private fun runtimeFor(format: ModelFormat): LlmRuntime = when (format) {
+        ModelFormat.LITERTLM -> LiteRtLmRuntime(
+            cacheDir = File(appContext.cacheDir, "litert-lm"),
+            availableRam = { availableRamBytes() },
+        )
+        ModelFormat.GGUF -> LlamaCppRuntime(availableRam = { availableRamBytes() })
+    }
+
+    private fun availableRamBytes(): Long {
+        val activityManager = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(memoryInfo)
+        return memoryInfo.availMem
+    }
 
     val snapshot: MutableState<Snapshot> = mutableStateOf(Snapshot())
 

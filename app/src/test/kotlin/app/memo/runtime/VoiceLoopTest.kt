@@ -146,11 +146,17 @@ class VoiceLoopTest {
         val states = CopyOnWriteArrayList<TurnState>()
         val ended = CopyOnWriteArrayList<VoiceLoop.EndReason>()
         val partials = CopyOnWriteArrayList<String>()
+        val captions = CopyOnWriteArrayList<String>()
         override fun onTurnState(state: TurnState) {
             states += state
         }
         override fun onPartialTranscript(text: String) {
             partials += text
+        }
+        override fun onMicLevel(rms: Float) {
+        }
+        override fun onSpeakingSentence(text: String) {
+            captions += text
         }
         override fun onEnded(reason: VoiceLoop.EndReason) {
             ended += reason
