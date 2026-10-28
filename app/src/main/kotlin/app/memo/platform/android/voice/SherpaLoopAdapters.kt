@@ -5,8 +5,15 @@ import app.memo.runtime.BargeInEngine
 import app.memo.runtime.ListenEngine
 import app.memo.runtime.LoopCapture
 import app.memo.runtime.LoopPlayback
+import app.memo.runtime.RecorderCapture
+import app.memo.runtime.RecorderStore
+import app.memo.runtime.RecorderTranscriber
 import app.memo.runtime.SpeakEngine
 import com.k2fsa.sherpa.onnx.OnlineStream
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** Device wiring of the [app.memo.runtime.LoopPorts] onto the sherpa engines and platform audio. */
 
@@ -94,4 +101,38 @@ class SherpaLoopPlayback(context: Context, onFocusLost: () -> Unit) : LoopPlayba
     override fun write(samples: FloatArray): Int = playback.write(samples)
 
     override fun stop() = playback.stop()
+}
+
+/** [RecorderCapture] over [AudioCapture]. */
+class SherpaRecorderCapture(context: Context) : RecorderCapture {
+
+    private val capture = AudioCapture(context)
+
+    override fun start(listener: AudioCapture.Listener): AudioCapture.Start = capture.start(listener)
+
+    override fun stop() = capture.stop()
+}
+
+/** [RecorderTranscriber] over the pinned offline Whisper engine; executor thread only. */
+class SherpaRecorderTranscriber(private val asr: SherpaOfflineAsr) : RecorderTranscriber {
+
+    override fun transcribe(samples: FloatArray, sampleRate: Int): String =
+        asr.transcribe(samples, sampleRate)
+}
+
+/** [RecorderStore]: one WAV file per message under `filesDir/voice-messages/`. */
+class VoiceMessageStore(context: Context) : RecorderStore {
+
+    private val dir = File(context.applicationContext.filesDir, "voice-messages")
+
+    override fun save(wav: ByteArray): File {
+        dir.mkdirs()
+        val file = File(dir, TIMESTAMP_FORMAT.format(Date()))
+        file.writeBytes(wav)
+        return file
+    }
+
+    private companion object {
+        val TIMESTAMP_FORMAT = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US)
+    }
 }

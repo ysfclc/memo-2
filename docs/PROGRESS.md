@@ -241,3 +241,13 @@ FILES CHANGED: app/src/main/kotlin/app/memo/ui/voice/Waveform.kt (NEW), app/src/
 VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL in 2m 1s, EXIT=0, no new warnings. Pure logic split out (WaveformMath.buckets, RecorderGestureState, formatRecorderElapsed) so the deferred tests can pin it directly. CI on the previous head e6a528f green (run 40609941701, 6m52s).
 NEXT STEP: B1-2 recorder engine: AudioCapture -> WAV file + live meter levels, SherpaOfflineAsr (whisper-base pin) transcript on release; VoiceRecorderBar then gets real levels, and composer/sent-bubble wiring follows once wp/chat merges.
 NOTES: Gesture semantics: press starts recording immediately, quick release (<350 ms) = TAP (composer will open the live conversation), slide up about one bar height arms cancel with a reject haptic, release after that cancels, otherwise sends. If the tracked pointer vanishes from the stream the bar falls back to cancel, never send. Waveform max-pools meter frames so peaks survive downsampling.
+---
+
+TIMESTAMP: 2026-10-28T02:05:00+01:00
+STEP: 13 - M2.B1 mini-task 1 (engine half): voice-message recorder
+PLAN REF: TASKS.md M2.B1 mini-task 1 "release sends (audio + transcript)"
+STATUS: engine compiles; mini-task still unticked until a surface sends a real message end to end (composer hook needs the wp/chat merge; LiveConversationScreen is B1-3). Recorder tests deferred per user.
+FILES CHANGED: runtime/RecorderPorts.kt (NEW), runtime/VoiceMessageRecorder.kt (NEW), platform/android/voice/Pcm16.kt (NEW), platform/android/voice/SherpaLoopAdapters.kt (+3 adapters), docs/PROGRESS.md, docs/ENGINEERING_LOG.md
+VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL EXIT=0. Two compile errors fixed: Int->Long on the two elapsed/duration computations.
+NEXT STEP: B1-3 runtime/VoiceSession.kt (installer pins -> VoiceLoop.forDevice) + ui/voice/LiveConversationScreen.kt on the existing TALK route (PresenceOrb, partial transcript, captions, tap-to-interrupt, end, permission + model gating).
+NOTES: Recorded.Untranscribed carries a nullable file: ASR failure keeps the playable WAV, store failure means neither exists - the bubble can say so honestly. Progress callbacks arrive on background threads; Compose callers write mutableStateOf directly (snapshot writes are thread-safe). First commit attempt also hit the PowerShell UTF8-BOM-in-commit-subject gotcha; Set-Content -Encoding Ascii for message files.
