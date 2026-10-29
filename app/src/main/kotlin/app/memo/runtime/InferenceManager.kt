@@ -134,6 +134,19 @@ class InferenceManager(
         current?.let { cancelRunning(it) }
     }
 
+    /** Releases resident runtimes only when no request is active or queued. */
+    fun unloadIfIdle(): Boolean = lock.withLock {
+        if (closed || running != null || queue.isNotEmpty()) return false
+        try {
+            runtimes.values.forEach { it.unload() }
+        } catch (_: RuntimeException) {
+            return false
+        }
+        loaded = null
+        state = State.Idle
+        true
+    }
+
     /**
      * Cancels all work, stops the worker and closes every runtime. Blocks until the
      * worker has finished, for up to ten seconds. Do not call from a sink callback.

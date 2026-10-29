@@ -28,9 +28,11 @@ import app.memo.core.engine.OutboundAudit
 import app.memo.core.engine.ReasonExecutor
 import app.memo.core.engine.WorkflowEngine
 import app.memo.core.plan.CommandGrammar
+import app.memo.core.platform.ModelRef
 import app.memo.core.registry.Registry
 import app.memo.core.registry.Workspace
 import app.memo.models.ModelStore
+import app.memo.platform.android.llm.androidRuntimeFactory
 import app.memo.platform.android.vault.KeystoreVault
 import org.json.JSONObject
 import java.util.concurrent.Executors
@@ -138,6 +140,10 @@ class MemoRuntime(context: Context) {
     /** Local model downloads, verification, import and discovery. */
     val models = ModelStore(context)
 
+    internal val chats = ChatRepository(vault)
+    internal val chatSettings = ChatSettingsRepository(vault)
+    internal val chatService = ChatService(chats, androidRuntimeFactory(context), ::resolveInstalledChatModel)
+
     val snapshot: MutableState<Snapshot> = mutableStateOf(Snapshot())
 
     init {
@@ -145,6 +151,12 @@ class MemoRuntime(context: Context) {
     }
 
     // ------------------------------------------------------------ commands
+
+    private fun resolveInstalledChatModel(modelId: String): ModelRef? {
+        val entry = models.entryFor(modelId) ?: return null
+        val file = models.hub.installedFile(entry) ?: return null
+        return ModelRef(entry.id, entry.format, file.absolutePath, entry.sha256, entry.sizeBytes)
+    }
 
     /** Entry point for typed or spoken input. Returns an immediate reply. */
     fun handleUtterance(raw: String): String {

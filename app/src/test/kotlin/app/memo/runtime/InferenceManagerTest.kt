@@ -143,6 +143,41 @@ class InferenceManagerTest {
     }
 
     @Test
+    fun unloadIfIdleReleasesTheResidentModel() {
+        val log = mutableListOf<String>()
+        val runtime = FakeRuntime(log)
+        val manager = InferenceManager({ runtime })
+        try {
+            val sink = RecordingSink()
+            manager.submit(model("a"), turns("x"), GenParams.ROUTINE, sink)
+            complete(pendingOf(runtime))
+            assertEquals("complete", sink.next())
+            awaitIdle(manager)
+
+            assertTrue(manager.unloadIfIdle())
+            assertEquals(listOf("load:a", "chat:x", "unload:a"), log)
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
+    fun unloadIfIdleRefusesWhileGenerationIsActive() {
+        val log = mutableListOf<String>()
+        val runtime = FakeRuntime(log)
+        val manager = InferenceManager({ runtime })
+        try {
+            manager.submit(model("a"), turns("x"), GenParams.ROUTINE, RecordingSink())
+            pendingOf(runtime)
+
+            assertEquals(false, manager.unloadIfIdle())
+            assertEquals(listOf("load:a", "chat:x"), log)
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
     fun requestsRunInFifoOrderOneAtATime() {
         val log = mutableListOf<String>()
         val runtime = FakeRuntime(log)

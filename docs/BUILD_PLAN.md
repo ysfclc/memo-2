@@ -1207,6 +1207,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Each card shows size, RAM fit badge, licence, gated lock, a one-tap Download with progress ring, and Use/Default/Delete actions.
   3. Per-model settings sheet: system prompt, temperature, context, thinking.
 - acceptance: CI green; screenshots are not possible, so the lead reviews the composables against the design tokens.
+- continuation status (2026-10-27): implementation is in `wp/chat`; CI run `40461314345` passed on `a1a7ec4`, and the lead's token review is complete. This meets the planned acceptance; see `docs/PROGRESS.md` for the device status of the broader M1 close checklist.
 
 **M1.C1 — Conversation store**
 - deps: M0.C1
@@ -1216,6 +1217,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   2. Titles generated from the first message, with a local summarisation fallback.
   3. Search.
 - acceptance: tests for codec and ordering.
+- continuation status (2026-10-27): implementation and named tests are present in `wp/chat`; CI run `40461314345` passed on `a1a7ec4`.
 
 **M1.C2 — Chat UI**
 - deps: M1.C1, M1.A3, M2.B0
@@ -1228,6 +1230,7 @@ Format: **ID — title** · deps · files owned · steps · acceptance
   5. Message actions: copy, regenerate, edit & resend, read aloud (M2), delete.
   6. Empty-state suggestions; scroll-to-bottom handling.
 - acceptance: CI green; the lead checks tokens-only styling and that no fake streaming exists.
+- continuation status (2026-10-27): implementation is in `wp/chat`; CI run `40461314345` passed on `a1a7ec4`. On the isolated `Memo_API34_CHAT` AVD, pinned Qwen3 0.6B installed and verified, then returned `Hello` to a short local prompt. This verifies one emulator inference path, not a physical phone. The Talk screen later retained its Stop control after two taps, including one inside the accessibility-confirmed clickable bounds; cancellation remains unresolved. Keep M1.C2 and M1 close open. Next trace LiteRT completion/cancel callbacks before another device attempt, then continue the planned model-switch, download, pause/resume and import checks. Frontier provider execution remains with M4, and voice controls with M2.
 
 **M1 close:** PR. Device checklist:
 - download Gemma 4 E2B (LiteRT) and Llama 3.2 3B Q4_K_M (GGUF)
