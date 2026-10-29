@@ -360,4 +360,57 @@ class InferenceManagerTest {
         val refused = runCatching { manager.submit(model("a"), turns("x"), GenParams.ROUTINE, RecordingSink()) }
         assertTrue(refused.isFailure)
     }
+
+    @Test
+    fun listenersSeeEveryPublishedState() {
+        val runtime = FakeRuntime(mutableListOf())
+        val manager = InferenceManager({ runtime })
+        try {
+            val seen = LinkedBlockingQueue<String>()
+            manager.addListener { state ->
+                seen.add(
+                    when (state) {
+                        InferenceManager.State.Idle -> "idle"
+                        is InferenceManager.State.Loading -> "loading:${state.modelId}"
+                        is InferenceManager.State.Generating -> "generating:${state.modelId}"
+                    },
+                )
+            }
+
+            val sink = RecordingSink()
+            manager.submit(model("a"), turns("x"), GenParams.ROUTINE, sink)
+            complete(pendingOf(runtime))
+            assertEquals("complete", sink.next())
+            awaitIdle(manager)
+
+            // One request: load, generate, then back to idle — each published exactly once.
+            assertEquals("loading:a", seen.poll(5, TimeUnit.SECONDS))
+            assertEquals("generating:a", seen.poll(5, TimeUnit.SECONDS))
+            assertEquals("idle", seen.poll(5, TimeUnit.SECONDS))
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
+    fun removeListenerStopsDelivery() {
+        val runtime = FakeRuntime(mutableListOf())
+        val manager = InferenceManager({ runtime })
+        try {
+            val seen = LinkedBlockingQueue<String>()
+            val listener: (InferenceManager.State) -> Unit = { seen.add("x") }
+            manager.addListener(listener)
+            manager.removeListener(listener)
+
+            val sink = RecordingSink()
+            manager.submit(model("a"), turns("x"), GenParams.ROUTINE, sink)
+            complete(pendingOf(runtime))
+            assertEquals("complete", sink.next())
+            awaitIdle(manager)
+
+            assertNull(seen.poll(150, TimeUnit.MILLISECONDS), "a removed listener must not receive states")
+        } finally {
+            manager.close()
+        }
+    }
 }

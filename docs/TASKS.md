@@ -495,27 +495,27 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 
 # PART 3 — M2 Voice (`milestone/M2`) and M2.5 Speed
 
-### [ ] M2.A1 Audio I/O [§2f] · deps M0.B1
+### [x] M2.A1 Audio I/O [§2f] · deps M0.B1
 - Files: `app/.../platform/android/voice/{AudioCapture,AudioPlayback,AudioLevel,MicPermission}.kt`
 - Mini-tasks:
-  - [ ] `AudioRecord` 16 kHz mono PCM16, source VOICE_COMMUNICATION; AEC/NS/AGC attached when `isAvailable()`
-  - [ ] capture on a dedicated thread with a ring buffer; frames of 20 ms; a callback API that never blocks the reader
-  - [ ] RMS/peak level metering → 0..1 (`AudioLevel`, pure)
-  - [ ] `AudioTrack` streaming playback (float or PCM16), audio focus `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`, ducking, stop on focus loss
-  - [ ] mic permission flow with rationale; refuse to capture without permission (no silent start)
-  - [ ] release everything on stop; no leaked AudioRecord
+  - [x] `AudioRecord` 16 kHz mono PCM16, source VOICE_COMMUNICATION; AEC/NS/AGC attached when `isAvailable()`
+  - [x] capture on a dedicated thread with a ring buffer; frames of 20 ms; a callback API that never blocks the reader
+  - [x] RMS/peak level metering → 0..1 (`AudioLevel`, pure)
+  - [x] `AudioTrack` streaming playback (float or PCM16), audio focus `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`, ducking, stop on focus loss
+  - [x] mic permission flow with rationale; refuse to capture without permission (no silent start)
+  - [x] release everything on stop; no leaked AudioRecord
 - Tests: `AudioLevelTest` (silence → 0, full scale → 1, clipping, empty frame); `RingBufferTest` (wrap, overrun drops oldest, reader sees order)
 - Checks: no capture starts outside an explicit user action or an armed wake service; no main-thread reads.
 
 ### [ ] M2.A2 Speech engine (sherpa-onnx) · deps M2.A1, M1.B2
 - Files: `app/.../platform/android/voice/{SherpaAsr,SherpaOfflineAsr,SherpaTts,SherpaVad,SherpaKws,VoiceModels}.kt`, `core/.../voice/SentenceChunker.kt`
 - Mini-tasks:
-  - [ ] **first:** list the AAR classes (`unzip -l app/libs/sherpa-onnx-*.aar` + `javap` on `classes.jar`) and save the API list in ENGINEERING_LOG; every call uses those names
-  - [ ] streaming Zipformer ASR with partials and endpoints
-  - [ ] offline ASR (Whisper base / SenseVoice) for voice messages
+  - [x] **first:** list the AAR classes (`unzip -l app/libs/sherpa-onnx-*.aar` + `javap` on `classes.jar`) and save the API list in ENGINEERING_LOG; every call uses those names
+  - [x] streaming Zipformer ASR with partials and endpoints
+  - [x] offline ASR (Whisper base / SenseVoice) for voice messages
   - [ ] Kokoro TTS (speaker id, speed), Piper fallback; sentence-by-sentence streaming into AudioPlayback
-  - [ ] Silero VAD; keyword spotter with "hey memo" keywords file
-  - [ ] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded via the Hub; archives unpacked with path-traversal guard
+  - [x] Silero VAD; keyword spotter with "hey memo" keywords file
+  - [x] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded via the Hub; archives unpacked with path-traversal guard
 - Tests: `SentenceChunkerTest` (abbreviations, decimals, emoji, pl/tr punctuation, flush on end); `VoiceModelsPinTest` (64-hex sha, https, size > 0); `ArchiveGuardTest` (`../` entries rejected)
 - Checks: lead diffs every sherpa call against the saved class list; models load only from the app's private dir.
 - Build: emulator: synthesize a sentence to a WAV in app files, pull it with adb, listen.
@@ -523,7 +523,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 ### [ ] M2.A3 Conversation loop · deps M2.A2, M1.A3
 - Files: `core/.../voice/TurnTaking.kt`, `app/.../runtime/VoiceLoop.kt`
 - Mini-tasks:
-  - [ ] pure state machine: IDLE → LISTENING → THINKING → SPEAKING → LISTENING; ENDED
+  - [x] pure state machine: IDLE → LISTENING → THINKING → SPEAKING → LISTENING; ENDED
   - [ ] barge-in: VAD speech while SPEAKING → stop TTS, cancel queued sentences, LISTENING
   - [ ] the LLM stream → SentenceChunker → TTS queue (first audio < 1.2 s after first sentence)
   - [ ] silence timeout; "stop"/"cancel"/"stop it" in en/pl/tr ends or cancels

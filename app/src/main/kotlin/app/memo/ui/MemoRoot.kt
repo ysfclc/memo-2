@@ -2,6 +2,7 @@ package app.memo.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,6 +53,7 @@ import app.memo.ui.nav.Route
 import app.memo.ui.nav.SharedKind
 import app.memo.ui.nav.sharedElement
 import app.memo.ui.theme.MemoTheme
+import app.memo.ui.voice.LiveConversationScreen
 import org.json.JSONObject
 
 /** The root of the app. Navigation state lives here; the shell owns animation and back handling. */
@@ -79,7 +81,7 @@ fun MemoRoot(runtime: MemoRuntime) {
                 onStopAll = { runtime.stopEverything() },
                 message = snap.lastReply,
             )
-            Route.TALK -> TalkScreen(runtime = runtime)
+            Route.TALK -> TalkScreen(runtime)
             Route.WORK -> WorkScreen(snap.people, snap.companies, snap.tasks)
             Route.STUDIO -> StudioScreen(snap.drafts)
             Route.BROWSER -> BrowserScreen()
@@ -232,9 +234,36 @@ fun LiveScreen(
 
 // ------------------------------------------------------------------- Talk
 
+// ------------------------------------------------------------------- Talk
+
+// The Talk tab is voice-first (plan: voice and text with Memo). It opens on the live
+// conversation; the typed chat surface is one switch away on the same tab.
+
 @Composable
 fun TalkScreen(runtime: MemoRuntime) {
-    ChatScreen(runtime)
+    var textMode by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            MemoButton(
+                onClick = { textMode = false },
+                modifier = Modifier.weight(1f),
+                style = if (textMode) MemoButtonStyle.QUIET else MemoButtonStyle.PRIMARY,
+            ) { Text("Voice") }
+            MemoButton(
+                onClick = { textMode = true },
+                modifier = Modifier.weight(1f),
+                style = if (textMode) MemoButtonStyle.PRIMARY else MemoButtonStyle.QUIET,
+            ) { Text("Text") }
+        }
+        Box(Modifier.weight(1f)) {
+            if (textMode) ChatScreen(runtime) else LiveConversationScreen(session = runtime.voice)
+        }
+    }
 }
 
 // ------------------------------------------------------------------- Work

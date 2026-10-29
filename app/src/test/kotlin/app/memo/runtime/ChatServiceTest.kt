@@ -74,7 +74,7 @@ class ChatServiceTest {
 
     private fun service(repo: ChatRepository, runtime: ScriptedRuntime) = ChatService(
         repository = repo,
-        runtimeFactory = { runtime },
+        inference = InferenceManager({ runtime }),
         resolveModel = { id -> if (id == model.id) model else null },
         now = { 100L },
     )
@@ -169,7 +169,7 @@ class ChatServiceTest {
     @Test
     fun interruptedStreamingMessagesBecomeStoppedOnLoad() {
         val (repo, _, _) = setup()
-        val svc = ChatService(repo, { ScriptedRuntime() }, { null })
+        val svc = ChatService(repo, InferenceManager({ ScriptedRuntime() }), { null })
         val doc = ConversationDoc(
             userDoc().conversation,
             listOf(ChatMessage("a0000001", ChatRole.ASSISTANT, "half", createdAt = 2, status = MessageStatus.STREAMING)),

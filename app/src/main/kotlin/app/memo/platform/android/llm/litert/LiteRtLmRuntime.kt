@@ -27,6 +27,7 @@ import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.ThinkingConfig
 import java.io.File
 import java.util.concurrent.Callable
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
@@ -260,7 +261,16 @@ class LiteRtLmRuntime(
                 object : MessageCallback {
                     override fun onMessage(message: Message) {
                         try {
-                            if (request.cancelled.get()) return
+                            if (request.cancelled.get()) {
+                                // An arriving chunk proves an ongoing process, so this is not the
+                                // upstream no-op: cancel the process, not just the flag.
+                                try {
+                                    conversation.cancelProcess()
+                                } catch (e: IllegalStateException) {
+                                    // The conversation closed between the read and the call.
+                                }
+                                return
+                            }
                             val text = message.contents.contents
                                 .filterIsInstance<Content.Text>()
                                 .joinToString("") { it.text }
@@ -291,6 +301,15 @@ class LiteRtLmRuntime(
                     }
                 },
             )
+            // Stop pressed while the conversation was being created only set the flag; the call in
+            // Active.cancel skipped a then-still-no-op cancelProcess. Now the process is running.
+            if (request.cancelled.get()) {
+                try {
+                    conversation.cancelProcess()
+                } catch (e: IllegalStateException) {
+                    // The conversation closed between the read and the call. Nothing left to cancel.
+                }
+            }
             if (!done.await(MAX_GENERATION_SECONDS, TimeUnit.SECONDS)) {
                 return Run.Failed(IllegalStateException("generation timed out"), emitted.get())
             }
@@ -302,7 +321,11 @@ class LiteRtLmRuntime(
             closeQuietly(conversation)
         }
 
-        failure.get()?.let { return Run.Failed(it, emitted.get()) }
+        // A cancelled process always arrives as onError(CancellationException) per the LiteRT-LM
+        // contract, whether that came from Stop or from the max-token cap above. Both are cancels.
+        val err = failure.get()
+        if (err is CancellationException) return Run.Cancelled
+        err?.let { return Run.Failed(err, emitted.get()) }
         if (request.cancelled.get()) return Run.Cancelled
         return Run.Ok(outputTokens)
     }

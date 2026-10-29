@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Model downloads run as a WorkManager foreground service of type dataSync only. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Microphone for voice conversations. Capture never starts without a granted runtime permission (MicPermission). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Foreground-service notifications on API 33+. The runtime request is UI work, done later. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

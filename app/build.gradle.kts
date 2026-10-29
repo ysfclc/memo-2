@@ -88,6 +88,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -136,6 +137,14 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            // VoiceLoopTest drives the loop on the JVM; the loop logs through android.util.Log,
+            // which must become a no-op there instead of throwing.
+            isReturnDefaultValues = true
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -181,8 +190,16 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.glance:glance-appwidget:1.2.0")
+    // bzip2 + tar for the sherpa-onnx voice archives (.tar.bz2). Android ships no bzip2 codec.
+    // 1.28.0 was released 2025-07-26 and is the newest on Maven Central (see ENGINEERING_LOG D-038).
+    implementation("org.apache.commons:commons-compress:1.28.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.21")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.4.21")
+
+    // Device-verification tests (androidTest): the M2.A2 emulator Build step runs through these.
+    // 1.3.0 / 1.7.0 are the newest stable androidx.test releases (verified on Google Maven).
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }

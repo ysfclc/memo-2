@@ -1107,3 +1107,199 @@ VERIFICATION: code trace of the whole Stop chain (ChatController → ChatService
 NEXT STEP: lead decision on the proposed two-point micro-fix in `LiteRtLmRuntime.runOnce`/`onMessage` (post-send and on-arrival `cancelProcess`), then a single emulator probe to verify Stop latency.
 NOTES: The trace answers the STEP 96 open question — ChatService does still own an active request in the failing case; the runtime never stops the engine. M1.C2 stays `~` until the fix is applied and probed.
 ---
+
+---
+
+
+---
+TIMESTAMP: 2026-10-27T16:05:32+01:00
+CHAIN: Claude (plan) -> Codex from the GPT app (cloud-sandboxed execution) -> Continuity resumption in the wp/voice worktree
+RESUMED FROM: wp/voice worktree `agent-af96ee867896a60ae` with uncommitted M2.A2 groundwork (installer, policy, guard, extractor, core chunker, commons-compress dep) left uncommitted and unverified by the prior agent
+STEP: 1 — repair the broken M2.A2 groundwork (missing VoiceModel/VoicePackaging definitions)
+PLAN REF: TASKS.md M2.A2 (owned files include `app/.../platform/android/voice/VoiceModels.kt`)
+STATUS: done
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/voice/VoiceModels.kt (NEW — enum `VoicePackaging`, data class `VoiceModel` with exactly the members the call-sites reference)
+VERIFICATION: before the fix `:app:compileDebugKotlin` FAILED (VoiceModelInstaller.kt ~40 unresolved refs: VoiceModel, VoicePackaging, id, sha256, sizeBytes, url, archiveRoot, requiredFiles); after the fix `.\gradlew.bat --no-daemon :app:compileDebugKotlin` -> BUILD SUCCESSFUL in 52s. milestone/M1 baseline (main checkout) is green: `:core:test testDebugUnitTest` -> BUILD SUCCESSFUL in 1m 22s.
+NEXT STEP: add the named M2.A2 tests (ArchiveGuardTest done next; VoiceModelsPinTest after pins land), then commit the M2.A2 groundwork with ENGINEERING_LOG D-038 and push wp/voice for CI.
+NOTES: The broken state was Codex's half-applied patch — it wrote call-sites whose types were never created. Repair restored its intent with zero redesign. The prior agent's local Gradle 'wrapper lock / loopback' failures do NOT reproduce in an unsandboxed shell (they were its cloud-sandbox constraints; JDK 17 + wrapper 8.14.6 verified healthy here).
+---
+
+---
+TIMESTAMP: 2026-10-27T16:08:20+01:00
+STEP: 2 — ArchiveGuardTest (named M2.A2 test: `../` entries rejected)
+PLAN REF: TASKS.md M2.A2 Tests: `ArchiveGuardTest`
+STATUS: done
+FILES CHANGED: app/src/test/kotlin/app/memo/platform/android/voice/ArchiveGuardTest.kt (NEW)
+VERIFICATION: `.\gradlew.bat --no-daemon :app:testDebugUnitTest --tests app.memo.platform.android.voice.ArchiveGuardTest` -> BUILD SUCCESSFUL in 43s (filter matches, failures would fail the build)
+NEXT STEP: voice-model pins: 5 seeded assets (streaming zipformer en 20M mobile, whisper base, kokoro en v0_19, silero_vad_v5.onnx, kws gigaspeech 3.3M mobile) are downloading to %TEMP%\opencode\sherpa-pins for SHA-256 + size verification against the release API; then extend VoiceModels.kt with the pinned `VoiceModels` catalog and add `VoiceModelsPinTest`.
+NOTES: Seed selection follows M2.A2/M2.A3 engine needs; pl/tr voices deliberately deferred to M3.6.C1. ENGINEERING_LOG D-038 (commons-compress) written; build.gradle comment re-pointed to D-038 (was a stale D-036 reference left by the prior agent).
+---
+
+---
+TIMESTAMP: 2026-10-27T16:24:00+01:00
+STEP: 3 — M2.A2 first mini-task: sherpa-onnx AAR API list saved in ENGINEERING_LOG
+PLAN REF: TASKS.md M2.A2 mini-task "first: list the AAR classes ... and save the API list in ENGINEERING_LOG"
+STATUS: done
+FILES CHANGED: docs/ENGINEERING_LOG.md (new NOTES "M2 · WP VOICE" section), docs/TASKS.md (first mini-task ticked)
+VERIFICATION: AAR expanded with Expand-Archive; `jar tf classes.jar` inventory (engine-relevant classes present: OnlineRecognizer/Config/Result, OnlineStream, OfflineRecognizer/Config/Result, OfflineStream, OfflineWhisperModelConfig, OfflineSenseVoiceModelConfig, OfflineTts/Config/ModelConfig/Kokoro/Vits, GeneratedAudio, Vad/Config/SileroVadModelConfig/SpeechSegment, KeywordSpotter/Config/Result, FeatureConfig, EndpointConfig/Rule); `javap -p` signatures captured for every engine-relevant config and entry point. Key gotchas recorded: no `OnlineRecognizerStream` type (`OnlineStream` only); `OnlineStream.acceptWaveform(FloatArray, sampleRate)` vs `Vad.acceptWaveform(FloatArray)`; `KeywordSpotterConfig` reuses `OnlineModelConfig`; TTS `generateWithCallback` is the per-chunk streaming path.
+NEXT STEP: STEP 4 pins (5 assets downloading in the background, SHA-256 + size verify against the release API, `tar -tf` for archiveRoot/requiredFiles), then VoiceModels catalog + VoiceModelsPinTest; then full worktree baseline and the single M2.A2-groundwork commit.
+NOTES: AssetManager-null file-mode construction is flagged UNVERIFIED in the log until the first engine compiles and runs. TASKS.md large mini-tasks 506-510 stay unticked until their engines/pins exist.
+---
+
+---
+TIMESTAMP: 2026-10-27T16:58:00+01:00
+STEP: 4+5 — voice-model pins verified from downloaded bytes; pinned VoiceModels catalog + VoiceModelsPinTest
+PLAN REF: TASKS.md M2.A2 mini-task "VoiceModels entries pinned (URL, sha256, size)"; named test `VoiceModelsPinTest`
+STATUS: done
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/voice/VoiceModels.kt (catalog appended), app/src/test/kotlin/app/memo/platform/android/voice/VoiceModelsPinTest.kt (NEW), docs/ENGINEERING_LOG.md (D-039), docs/TASKS.md (pins mini-task ticked)
+VERIFICATION: 5 assets downloaded to the sanctioned temp dir; every byte size matched the release-API asset size exactly (zipformer 107,569,151 / whisper 207,557,382 / kokoro 319,625,534 / silero 2,313,101 / kws 15,667,804); SHA-256 computed per asset (certutil); archive listings via tar -tf gave archiveRoot + requiredFiles (int8 encoder/joiner + fp32 decoder layout for both transducer models; kokoro dataDir=espeak-ng-data confirmed in-archive). First `:core:test testDebugUnitTest` run FAILED on `idsAreUniqueAndFolderSafe` — the kokoro id carried an underscore; id renamed to `tts-kokoro-en-v0-19`; re-run: BUILD SUCCESSFUL in 40s, 193 tests green.
+NEXT STEP: one commit (M2.A2 groundwork + pins + docs + D-038/D-039 + API list) with attribution trailers, push wp/voice, `gh workflow run build-memo-apk.yml -R ysfclc/memo-2 --ref wp/voice`, watch to green.
+NOTES: The installer/Hub divergence (RangeResume/InstallSwap reuse instead of the hub DownloadWorker) is recorded in D-039 for the lead's LVG rather than silently accepted. WP VOICE branch still unpushed at this point; CI is the remaining gate for M2.A1+A2-groundwork status.
+---
+
+---
+TIMESTAMP: 2026-10-27T17:22:00+01:00
+STEP: 6 — CI green on wp/voice; M2.A1 ticked
+PLAN REF: AGENTS.md rule 7 (green CI is the definition of done); TASKS.md M2.A1
+STATUS: done
+FILES CHANGED: docs/TASKS.md (M2.A1 header + mini-tasks ticked), docs/PROGRESS.md (this entry)
+VERIFICATION: `gh run watch` on run 40532557529 (`wp/voice` @ aad007f): Build Android APK PASSED in 5m40s — core tests, app unit tests, lint, APK verify + artifact upload all green. Annotations are infra deprecation notices (actions Node 20→24, ubuntu-latest migration), not failures.
+NEXT STEP: docs commit + CI re-dispatch to keep the branch tip green, then Path B: read-only trace of LiteRtLmRuntime cancellation → onDone/onError → ChatService.finish in the wp/chat worktree (inherited checkpoint from the prior agent; no source edits until the path is understood).
+NOTES: M2.A1 ticked because its contract (named tests + code-level checks + CI) is met; runtime audio behavior on a device (AEC actually attached, no leaked AudioRecord in practice) stays UNVERIFIED until M2.B1's emulator run. M2.A2 header stays unticked: engine mini-tasks 506-509 and the emulator WAV build step remain.
+---
+
+---
+TIMESTAMP: 2026-10-27T18:20:00+01:00
+STEP: 7 — sherpa engine wrappers: SherpaAsr, SherpaOfflineAsr, SherpaTts, SherpaVad, SherpaKws
+PLAN REF: TASKS.md M2.A2 mini-tasks (streaming/offline ASR, TTS, VAD+KWS)
+STATUS: done (engines written; device Build step still open)
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/voice/{SherpaAsr,SherpaOfflineAsr,SherpaTts,SherpaVad,SherpaKws}.kt (all NEW), docs/ENGINEERING_LOG.md (construction note retired to bytecode-verified), docs/TASKS.md (506/507/509 ticked; 508 stays open on the AudioPlayback hookup), docs/PROGRESS.md (this entry)
+VERIFICATION: each wrapper compiled immediately after writing (`:app:compileDebugKotlin` EXIT=0 per step); null-AssetManager file-mode dispatch bytecode-verified (javap -c, ifnull -> newFromFile) for Vad, OfflineRecognizer and OfflineTts; full worktree baseline `:core:test testDebugUnitTest` -> BUILD SUCCESSFUL in 47s, EXIT=0.
+NEXT STEP: one commit + push + CI dispatch; then the M2.A2 emulator Build step (synthesize a sentence to a WAV) is the next plan item, needing the emulator session.
+NOTES: Config discipline: paths + sample rate + thread counts only; everything else stays at AAR defaults until device tuning. SherpaTts's chunk callback (true = stop) is the M2.A3 barge-in hook. KWS uses the archive keywords until M2.C2 authors "hey memo".
+---
+
+---
+TIMESTAMP: 2026-10-27T18:10:00+01:00
+STEP: 8 — M2.A2 emulator Build step: Kokoro TTS verified on-device
+PLAN REF: TASKS.md M2.A2 "Build: emulator: synthesize a sentence to a WAV in app files, pull it with adb, listen"; D-040
+STATUS: done (test PASS; WAV pulled; human listen pending the lead's ears)
+FILES CHANGED: app/build.gradle.kts (testInstrumentationRunner + androidx.test.ext:junit 1.3.0, androidx.test:runner 1.7.0), app/src/androidTest/java/app/memo/platform/android/voice/SherpaTtsDeviceTest.kt (NEW — repo's first androidTest), docs/ENGINEERING_LOG.md (D-040 vehicle, C-009 Windows ninja PATH, installer↔engine layout contract), docs/PROGRESS.md (this entry)
+VERIFICATION: `connectedDebugAndroidTest` PASS 1/1 on Memo_API34_CHAT (API 34 x86_64), 14m43s, EXIT=0 — the full product path: VoiceModelInstaller downloaded the pinned 319,625,534 B kokoro archive through the app's HTTPS/Range-resume/pin-verify chain, unpacked behind the path guard, SherpaTts.kokoro loaded from filesDir and synthesized. Logcat evidence: wav seconds=3.9739583 sampleRate=24000 bytes=190794. First run FAILED with the layout lesson (test passed archiveRoot subpath; installer renames it away — see log). Manual `am instrument` rerun OK (1 test) 688.8s so the WAV survived for pulling; `run-as` pull byte-identical 190,790 B; header verified locally: RIFF/WAVE PCM mono 24000 Hz 16-bit. WAV kept at %TEMP%\opencode\kokoro-hello.wav for the lead to listen (quality judgment is human, pending).
+NEXT STEP: commit + CI; then M2.A3 Conversation loop — pure TurnTaking state machine first (TASKS order).
+NOTES: Only the kokoro pack is device-exercised; the other four pins stay engine-compile-verified with the same wrapper pattern (device probes come with their own milestones). The androidTest never runs on CI (no emulator) — CI green ≠ device-verified; this entry is the device record. 320 MB re-downloads on every clean install; the installer's resume+marker keeps reruns incremental within one install.
+---
+
+---
+TIMESTAMP: 2026-10-28T09:30:00+01:00
+STEP: 9 — M2.A3 mini-task 1: pure TurnTaking state machine
+PLAN REF: TASKS.md M2.A3 "pure state machine: IDLE → LISTENING → THINKING → SPEAKING → LISTENING; ENDED"
+STATUS: done (core tests green)
+FILES CHANGED: core/src/main/kotlin/app/memo/core/voice/TurnTaking.kt (NEW), core/src/test/kotlin/app/memo/core/voice/TurnTakingTest.kt (NEW), docs/TASKS.md (mini-task ticked), docs/PROGRESS.md (this entry)
+VERIFICATION: `:core:test` BUILD SUCCESSFUL in 41s, EXIT=0 — 10 tests pin the accepted transitions (happy path, second exchange, barge-in effects, barge-in ignored elsewhere, empty-answer path, EndRequest/Error from every active state, no-ops from IDLE, ENDED terminal, mistimed events).
+NEXT STEP: M2.A3 mini-task 2+3 in the loop: VoiceLoop wires SherpaAsr partials/endpoints, the LLM stream → SentenceChunker → SherpaTts queue, and executes the InterruptSpeech/ReleaseAudio directives; then commit + CI.
+NOTES: Barge-in's transition + directive live in the machine (SPEAKING + VadSpeechDetected → LISTENING, InterruptSpeech = stop TTS + cancel queued sentences, mic keeps running); the TTS/cancel execution itself is VoiceLoop work, so mini-task 2 stays open until the loop exists. SpeechFinished from THINKING models the empty-answer path (answer ended with no speech). Mistimed events are no-ops by design so a late engine callback can never crash the loop.
+---
+
+---
+TIMESTAMP: 2026-10-28T11:05:00+01:00
+STEP: 10 — M2.A3 mini-tasks 2+3 wiring: VoiceLoop
+PLAN REF: TASKS.md M2.A3 "barge-in: VAD speech while SPEAKING → stop TTS, cancel queued sentences, LISTENING" and "the LLM stream → SentenceChunker → TTS queue (first audio < 1.2 s after first sentence)"
+STATUS: wired + compile-verified; NOT device-verified — mini-tasks stay unticked (the <1.2 s first-audio gate is device-measured)
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/VoiceLoop.kt (NEW), core/src/main/kotlin/app/memo/core/voice/TurnTaking.kt (@Volatile state + doc), docs/ENGINEERING_LOG.md (thread model + API lessons), docs/PROGRESS.md (this entry)
+VERIFICATION: `:core:test` + `:app:compileDebugKotlin` BUILD SUCCESSFUL, EXIT=0 — 10 machine tests still green after the @Volatile change. No unit test for the loop itself (impure: Context, engines, threads); the pure parts it composes carry the tests. Two compile errors found and fixed on the first pass: a stale `signalLoop` reference after the data-race restructure, and `OnlineStream.close()` (does not exist — recognizer owns streams).
+NEXT STEP: device probe of the full loop on emulator-5554 (mic audio needs host routing — decide the probe method first), measure the <1.2 s first-audio gate, tick mini-tasks 2+3 on evidence; then M2.B1 voice UI per plan order.
+NOTES: Thread model and barge-in path recorded in the engineering log. Remaining M2.A3 mini-tasks: silence timeout, cancel words in en/pl/tr (needs ASR decoding during SPEAKING — design at that step), echo guard (AEC from VOICE_COMMUNICATION source plus `AudioPlayback.level` exist; explicit guard not wired). VoiceLoop keeps its own conversation history; sharing it with the chat store is M2.B1 integration.
+---
+
+---
+TIMESTAMP: 2026-10-28T12:10:00+01:00
+STEP: 11 — M2.A3 loop testability: ports + JVM fakes; LLM-error discipline fixed to plan
+PLAN REF: TASKS.md M2.A3 Tests line "error from LLM → LISTENING with message", "double end is idempotent"; M2.A3 mini-tasks 2+3 (wiring, still device-gated)
+STATUS: done (tests green on CI-to-follow run; loop itself still NOT device-verified)
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/LoopPorts.kt (NEW — LoopCapture/LoopPlayback/ListenEngine/BargeInEngine/SpeakEngine), app/src/main/kotlin/app/memo/platform/android/voice/SherpaLoopAdapters.kt (NEW — device wiring), app/src/main/kotlin/app/memo/runtime/VoiceLoop.kt (consumes ports; answerFailed; requestEnd transition-guard), app/src/test/kotlin/app/memo/runtime/VoiceLoopTest.kt (NEW — 7 tests), app/build.gradle.kts (testOptions isReturnDefaultValues for android.util.Log on JVM), docs/PROGRESS.md, docs/ENGINEERING_LOG.md
+VERIFICATION: `:app:testDebugUnitTest` BUILD SUCCESSFUL EXIT=0 — 200 tests, 7 new VoiceLoopTest (happy exchange + history accumulation, barge-in mid-speech with a blocked write, LLM error → apology → LISTENING + survival, requestEnd releases + fires once, double end idempotent, start twice refused, mic failure ends, empty transcript ignored). Two real defects the tests caught: a stale `releaseAudio` on every queued requestEnd (double onEnded) and — by plan re-read — the LLM error path ended the conversation where TASKS says LISTENING with a message.
+NEXT STEP: device probe of the full loop on emulator-5554 (real mic; decide host-audio routing), measure the <1.2 s first-audio gate, tick mini-tasks 2+3 on device evidence; then M2.B1 voice UI per plan order.
+NOTES: Ports live in app/runtime (they reference AudioCapture.Listener / AudioPlayback.Open — app-module types, so core was not an option); fakes implement the ports pure-JVM, so the loop's threading discipline is regression-guarded on CI and the device probe only has to validate the real DSP. The apology string is a constant for now — i18n comes with the M2.B1 UI wiring.
+---
+---
+
+TIMESTAMP: 2026-10-28T01:49:00+01:00
+STEP: 12 - M2.B1 mini-task 1 (UI half): Waveform + VoiceRecorderBar
+PLAN REF: TASKS.md M2.B1 mini-task 1 "hold to record with a live waveform; slide to cancel; release sends (audio + transcript)"; branch survey on user request (wp/chat carries the only unmerged work - M1.C1+C2 chat UI; its composer mic is the placeholder these pieces will replace)
+STATUS: UI primitives compile-verified; mini-task stays unticked until the B1-2 recorder engine delivers audio+transcript on release. Per the user's order, WaveformBucketsTest/RecorderGestureStateTest are deferred to the end-of-M2 test pass.
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/voice/Waveform.kt (NEW), app/src/main/kotlin/app/memo/ui/voice/VoiceRecorderBar.kt (NEW), docs/PROGRESS.md (this entry), docs/ENGINEERING_LOG.md (gesture pattern note)
+VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL in 2m 1s, EXIT=0, no new warnings. Pure logic split out (WaveformMath.buckets, RecorderGestureState, formatRecorderElapsed) so the deferred tests can pin it directly. CI on the previous head e6a528f green (run 40609941701, 6m52s).
+NEXT STEP: B1-2 recorder engine: AudioCapture -> WAV file + live meter levels, SherpaOfflineAsr (whisper-base pin) transcript on release; VoiceRecorderBar then gets real levels, and composer/sent-bubble wiring follows once wp/chat merges.
+NOTES: Gesture semantics: press starts recording immediately, quick release (<350 ms) = TAP (composer will open the live conversation), slide up about one bar height arms cancel with a reject haptic, release after that cancels, otherwise sends. If the tracked pointer vanishes from the stream the bar falls back to cancel, never send. Waveform max-pools meter frames so peaks survive downsampling.
+---
+
+TIMESTAMP: 2026-10-28T02:05:00+01:00
+STEP: 13 - M2.B1 mini-task 1 (engine half): voice-message recorder
+PLAN REF: TASKS.md M2.B1 mini-task 1 "release sends (audio + transcript)"
+STATUS: engine compiles; mini-task still unticked until a surface sends a real message end to end (composer hook needs the wp/chat merge; LiveConversationScreen is B1-3). Recorder tests deferred per user.
+FILES CHANGED: runtime/RecorderPorts.kt (NEW), runtime/VoiceMessageRecorder.kt (NEW), platform/android/voice/Pcm16.kt (NEW), platform/android/voice/SherpaLoopAdapters.kt (+3 adapters), docs/PROGRESS.md, docs/ENGINEERING_LOG.md
+VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL EXIT=0. Two compile errors fixed: Int->Long on the two elapsed/duration computations.
+NEXT STEP: B1-3 runtime/VoiceSession.kt (installer pins -> VoiceLoop.forDevice) + ui/voice/LiveConversationScreen.kt on the existing TALK route (PresenceOrb, partial transcript, captions, tap-to-interrupt, end, permission + model gating).
+NOTES: Recorded.Untranscribed carries a nullable file: ASR failure keeps the playable WAV, store failure means neither exists - the bubble can say so honestly. Progress callbacks arrive on background threads; Compose callers write mutableStateOf directly (snapshot writes are thread-safe). First commit attempt also hit the PowerShell UTF8-BOM-in-commit-subject gotcha; Set-Content -Encoding Ascii for message files.
+---
+
+TIMESTAMP: 2026-10-28T02:40:00+01:00
+STEP: 14 - M2.B1 mini-task 3: live conversation surface on the Talk tab
+PLAN REF: TASKS.md M2.B1 mini-task 3 "live mode full screen: PresenceOrb driven by level, partial transcript, speaking captions, tap to interrupt, end"
+STATUS: compiles + 200 unit tests green; mini-task stays unticked until a device conversation runs (deferred probes per user). The old M0 Talk placeholder (system speech recognizer) is DELETED - the TASKS check grep -rn RecognizerIntent app/src is now empty.
+FILES CHANGED: runtime/VoiceSession.kt (NEW), runtime/InferenceChatRuntime.kt (NEW), ui/voice/LiveConversationScreen.kt (NEW), runtime/VoiceLoop.kt (Listener + onMicLevel/onSpeakingSentence; public interrupt(); forDevice internal), runtime/MemoRuntime.kt (appContext, one InferenceManager, lazy VoiceSession), ui/MemoRoot.kt (Talk route swap, placeholder deleted), app/src/test/.../VoiceLoopTest.kt (fake gains no-op methods), docs
+VERIFICATION: :app:compileDebugKotlin BUILD SUCCESSFUL EXIT=0; :app:testDebugUnitTest 200 tests 0 failures (VoiceLoopTest 7/7); RecognizerIntent grep empty; TextToSpeech grep empty.
+NEXT STEP: dispatch CI on this head and watch; then B1-4 leftovers (read-aloud + voice-message bubble + composer hooks wait for the wp/chat merge - lead-owned). Deferred-to-end list unchanged (device probes, WaveformBucketsTest/RecorderGestureStateTest, cancel words, silence timeout, echo guard).
+NOTES: InferenceChatRuntime bridges the loop's raw LlmRuntime contract onto the InferenceManager FIFO, so chat UI and voice share the one resident model; load/unload/close are honest no-ops because residency belongs to the manager's owner. VoiceSession builds engines once on its own executor (installer pins: zipformer streaming + Kokoro + Silero VAD), gates Unavailable on missing chat model or missing voice models with the reason in UiState. VoiceLoop.Listener grew onMicLevel (orb) and onSpeakingSentence (caption); interrupt() = the focus-loss barge-in path via tap.
+---
+
+TIMESTAMP: 2026-10-28T03:20:00+01:00
+STEP: 15 - M2.A3 mini-task 4 logic: silence timeout + cancel words (en/pl/tr) + echo guard
+PLAN REF: TASKS.md M2.A3 mini-tasks 4-5
+STATUS: implemented and fake-verified on the JVM; mini-tasks stay unticked until the device probe (the echo-floor VALUE and endpoint behaviour on hardware are the deferred part - floor 0.04f is UNVERIFIED). Branch fresh: milestone/M1 unchanged since the merge base (rev-list count 0).
+FILES CHANGED: runtime/VoiceLoop.kt (silence window + echo-gated barge-in + cancel phrases + injectable now()), app/src/test/.../VoiceLoopTest.kt (+6 cases, rms-aware deliver), docs/PROGRESS.md, docs/ENGINEERING_LOG.md
+VERIFICATION: :app:testDebugUnitTest 206 tests 0 failures (VoiceLoopTest 13/13: silence ends / silence not while talking / cancel utterance ends without LLM / content utterance still reaches the LLM / 3-language bare matching / echo floor blocks barge-in; existing 7 untouched except deliver rms default).
+NEXT STEP: dispatch CI and watch; remaining M2.B1 surfaces (bubble, composer hooks, read-aloud) wait for the lead's wp/chat merge; end-of-M2 batch then probes these three on device and ticks A3 mini-tasks 4-5.
+NOTES: ASR is never fed during SPEAKING, so there is no echo feedback loop into the transcript path - a cancel word spoken over the answer first barges in via VAD (energy-gated), then ends at the endpoint. 'ends or cancels' resolved as END: after a barge-in the user wants silence, and the 8 s window would end the talk anyway. Echo guard = AEC (platform, already on) + per-frame rms floor on the SPEAKING barge-in.
+
+---
+
+
+---
+TIMESTAMP: 2026-10-29T14:44:02Z
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: D - STEP D (leg-3) - merge milestone/M1 (4be0b43) into wp/voice: ONE resident model for chat + voice; Talk = voice-first combined surface
+PLAN REF: TASKS.md M1.A3 (single resident model, unload on switch); BUILD_PLAN L223 (Talk: voice and text with Memo); AGENTS.md standing rule 9 (fresh head, no dead code)
+STATUS: code + local tests done; branch CI pending after this commit (push + gh run watch next)
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/InferenceManager.kt (+ addListener/removeListener, fan-out in publish()), app/src/main/kotlin/app/memo/runtime/ChatService.kt (shared-manager injection; close() detaches, never closes the shared manager), app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt (one manager feeds chatService + VoiceSession; duplicate ModelRef import dropped), app/src/main/kotlin/app/memo/ui/MemoRoot.kt (Route.TALK -> TalkScreen: voice-first switch Voice/Text -> LiveConversationScreen | ChatScreen), app/src/main/kotlin/app/memo/platform/android/llm/RuntimeFactory.kt (DELETED - no caller), app/src/test/kotlin/app/memo/runtime/{ChatServiceTest,InferenceManagerTest}.kt, docs/PROGRESS.md + docs/ENGINEERING_LOG.md (additive resolution + renumber: voice D-038/039/040 -> D-040/041/042, voice C-009 -> C-013)
+VERIFICATION: first compile found 2 merge-authored errors (duplicate ModelRef import from both legs; named-arg 'chats' where the ctor param is 'repository') - both fixed in-step; then :app:compileDebugKotlin + :app:compileDebugUnitTestKotlin BUILD SUCCESSFUL in 1m 40s with ZERO new warnings (only pre-existing ModelHub.kt:307 cast); testDebugUnitTest for InferenceManagerTest + ChatServiceTest + VoiceLoopTest + NavGraphTest BUILD SUCCESSFUL in 42s (incl. 2 new listener tests and the pinned tabOrderMatchesTheBrief)
+NEXT STEP: merge commit here; push wp/voice; CI watch; then the same branch merges milestone/M1 -> CI green; APK goes to the user from the milestone run
+NOTES: Additive docs resolution: chat chain (wave-1 + STEPs 41..97) kept from theirs, voice chain (STEPS 1..15) kept from ours, e188ecf's PROGRESS held only the voice chain so it adds nothing unique here (recorded to prevent re-dropping chat entries on the next merge). InferenceManager's direct state set in unloadIfIdle does NOT publish - ChatService.unloadIfIdle resets its own modelStatus, documented in the KDoc. The e188ecf-era Stop-under-load bug stays open deliberately (chat NOTES STEP 97); its two-point micro-fix is a separate micro-task. Docs repair in this merge: the voice-side ENGINEERING_LOG copy had lost the `## CONSTRAINTS` heading (C-001..C-008 sat headerless under DECISIONS); it is restored in the union to match the base/chat structure.
+---
+
+---
+
+TIMESTAMP: 2026-10-29T15:16:34Z
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: 98 - Stop micro-fix implemented on wp/voice (the chat STEP 97 proposed fix; M1.C2 code half)
+PLAN REF: chat PROGRESS STEP 97 (trace, proposed two-point fix, verified upstream contract); TASKS.md M1.C2 `~` (stays until the device probe)
+STATUS: code + local verification done; branch CI pending after this commit (push + gh run watch next)
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/llm/litert/LiteRtLmRuntime.kt (+java.util.concurrent.CancellationException import), docs/ENGINEERING_LOG.md (D-045), docs/PROGRESS.md (this entry), PLAN_STATE.md
+VERIFICATION: :app:compileDebugKotlin + :app:compileDebugUnitTestKotlin + :core:test + targeted :app:testDebugUnitTest (LiteRtTurnsTest, LiteRtErrorMappingTest, InferenceManagerTest, ChatServiceTest, VoiceLoopTest, NavGraphTest) BUILD SUCCESSFUL in 1m15s; zero new warnings (the shown LiteRtLmRuntime.kt:298:42 note is the pre-existing :288 callback-param warning shifted by the insertion)
+NEXT STEP: push wp/voice; dispatch build-memo-apk.yml on the new tip; gh run watch green; then merge wp/voice -> milestone/M1 (B-STD), push, CI on milestone/M1 - the user's combined APK comes from that run's memo-apk artifact; then STEP E = M2.B1 leftovers, one micro-task at a time
+NOTES: STEP D closed CI-green in between (run 40897735696 on 1fc26e8, 5m22s, all steps incl. APK verify + artifact upload). Fix shape per D-045: two cancel points (on-chunk-arrival, post-send) plus a receiver rule mapping onError(CancellationException) -> Run.Cancelled, which also stops the max-token-cap path from surfacing as failed. Device probe (Stop latency, STOPPED status, echo floor) stays in the end-of-M2 batch.
+---
+
+---
+
+TIMESTAMP: 2026-10-29T15:30:40Z
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: F - wp/voice merged into milestone/M1 (combined chat+voice head) after branch CI 40900232046 went green on 3fa7826
+PLAN REF: TASKS section 0.9; AGENTS.md rule 9 (fresh head, no dead code); PLAN_STATE CURRENT STEP
+STATUS: merge committed with parents e188ecf x 3fa7826; B-STD green locally; CI dispatch on milestone/M1 follows this push (watch next)
+FILES CHANGED: PLAN_STATE.md (conflict resolved to the wp/voice side per the STEP D adjudication; e188ecf stays in the DAG as a merge parent), docs/PROGRESS.md (auto-merge: the e188ecf STEP C checkpoint block and the voice chain coexist additively), docs/ENGINEERING_LOG.md (D-046), all code took wp/voice: one resident InferenceManager, Talk Voice/Text switch over LiveConversationScreen | ChatScreen, RuntimeFactory.kt deleted, M1.C2 Stop micro-fix (3fa7826)
+VERIFICATION: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` BUILD SUCCESSFUL in 55s on the resolved tree (merged code content is binary-equal to CI-verified 3fa7826, hence the FROM-CACHE reuse; the fresh-run gate is this head's CI dispatch). Zero conflicts outside PLAN_STATE.md; no conflict markers left (grep-verified).
+NEXT STEP: push milestone/M1; dispatch build-memo-apk.yml; gh run watch green - the run's memo-apk artifact is the user's combined installable APK; then STEP E = M2.B1 leftovers (composer recorder hooks, ReadAloud.kt, voice-message bubble), one micro-task at a time; hygiene (both agent-9db worktrees, wp/chat + wp/voice branches, non-forced) after git merge-base --is-ancestor checks.
+NOTES: The main checkout's local milestone/M1 sat at e188ecf, a never-pushed docs-only descendant of the merged-chat head 4be0b43 (STEP C checkpoint prose), so the union needed a true merge instead of a fast-forward; merge base 4be0b43 resolved every code file to the wp/voice side with zero conflicts. Details in D-046.
+---

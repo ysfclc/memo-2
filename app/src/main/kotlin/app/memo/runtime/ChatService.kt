@@ -11,8 +11,6 @@ import app.memo.core.platform.ChatTurn
 import app.memo.core.platform.GenParams
 import app.memo.core.platform.GenStats
 import app.memo.core.platform.LlmError
-import app.memo.core.platform.LlmRuntime
-import app.memo.core.platform.ModelFormat
 import app.memo.core.platform.ModelRef
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,15 +30,14 @@ import kotlinx.coroutines.flow.update
  * - **Threads.** Sinks run on the manager's worker thread. Storage writes are queued by the
  *   repository, so nothing blocks the generation thread.
  *
- * @param runtimeFactory creates the runtime for a model format (called on the manager's worker thread).
+ * @param inference the shared resident-model manager (M1.A3, one per app). This service adds
+ *   a state listener to it and never closes it; MemoRuntime owns the manager.
  * @param resolveModel returns the verified model for an id, or null when it is not installed.
- * @param onRuntimeState receives manager state changes, on the manager's worker thread.
  */
 class ChatService(
     private val repository: ChatRepository,
-    runtimeFactory: (ModelFormat) -> LlmRuntime,
+    private val inference: InferenceManager,
     private val resolveModel: (String) -> ModelRef?,
-    onRuntimeState: (InferenceManager.State) -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) : AutoCloseable {
 
@@ -78,11 +75,14 @@ class ChatService(
     val saveError: StateFlow<String?> = saveErrorState.asStateFlow()
 
     private val lastLoaded = java.util.concurrent.atomic.AtomicReference<String?>(null)
-    private val notify = onRuntimeState
 
-    private val inference = InferenceManager(runtimeFactory) { state ->
-        onManagerState(state)
-        notify(state)
+    /** This service's view of the shared manager; detached in [close]. */
+    private val stateListener: (InferenceManager.State) -> Unit = ::onManagerState
+
+    init {
+        // One resident model for the whole app (M1.A3): the manager is shared with the voice
+        // session, so this service registers on the shared one. It must not build its own.
+        inference.addListener(stateListener)
     }
 
     /**
@@ -156,8 +156,9 @@ class ChatService(
         return fixed
     }
 
+    /** Detaches from the shared manager. It never closes [inference]: MemoRuntime owns it. */
     override fun close() {
-        inference.close()
+        inference.removeListener(stateListener)
     }
 
     private fun onManagerState(state: InferenceManager.State) {
