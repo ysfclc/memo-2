@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
@@ -23,11 +22,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import app.memo.core.chat.MarkdownParser
 import app.memo.ui.theme.MemoTheme
@@ -65,7 +67,6 @@ private fun MarkdownParagraph(spans: List<MarkdownParser.Span>, modifier: Modifi
     val annotated = remember(spans) {
         buildAnnotatedString {
             spans.forEach { span ->
-                val start = length
                 val value = when (span) {
                     is MarkdownParser.Span.Text -> span.text
                     is MarkdownParser.Span.Bold -> span.text
@@ -73,29 +74,37 @@ private fun MarkdownParagraph(spans: List<MarkdownParser.Span>, modifier: Modifi
                     is MarkdownParser.Span.InlineCode -> span.text
                     is MarkdownParser.Span.Link -> span.label
                 }
-                append(value)
-                when (span) {
-                    is MarkdownParser.Span.Bold -> addStyle(SpanStyle(fontWeight = FontWeight.Bold), start, length)
-                    is MarkdownParser.Span.Italic -> addStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), start, length)
-                    is MarkdownParser.Span.InlineCode -> addStyle(SpanStyle(fontFamily = FontFamily.Monospace), start, length)
-                    is MarkdownParser.Span.Link -> {
-                        addStyle(SpanStyle(textDecoration = TextDecoration.Underline), start, length)
-                        addStringAnnotation("url", span.url, start, length)
+                if (span is MarkdownParser.Span.Link) {
+                    // LinkAnnotation carries its own click handler; only https URLs may open
+                    // (the text is model-generated, so arbitrary schemes must not fire).
+                    withLink(
+                        LinkAnnotation.Url(
+                            span.url,
+                            TextLinkStyles(style = SpanStyle(textDecoration = TextDecoration.Underline)),
+                        ) { link ->
+                            (link as LinkAnnotation.Url).url
+                                .takeIf { it.startsWith("https://") }
+                                ?.let { runCatching { uriHandler.openUri(it) } }
+                        },
+                    ) { append(value) }
+                } else {
+                    val start = length
+                    append(value)
+                    when (span) {
+                        is MarkdownParser.Span.Bold -> addStyle(SpanStyle(fontWeight = FontWeight.Bold), start, length)
+                        is MarkdownParser.Span.Italic -> addStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), start, length)
+                        is MarkdownParser.Span.InlineCode -> addStyle(SpanStyle(fontFamily = FontFamily.Monospace), start, length)
+                        is MarkdownParser.Span.Link -> Unit
+                        is MarkdownParser.Span.Text -> Unit
                     }
-                    is MarkdownParser.Span.Text -> Unit
                 }
             }
         }
     }
-    ClickableText(
-        text = annotated,
+    Text(
+        annotated,
         modifier = modifier.fillMaxWidth(),
         style = MemoTheme.typography.body.copy(color = MemoTheme.colors.ink),
-        onClick = { offset ->
-            annotated.getStringAnnotations("url", offset, offset).firstOrNull()?.item
-                ?.takeIf { it.startsWith("https://") }
-                ?.let { runCatching { uriHandler.openUri(it) } }
-        },
     )
 }
 
