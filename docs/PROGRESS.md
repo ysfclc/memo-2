@@ -152,3 +152,15 @@ VERIFICATION: git status clean after commit; no code changed.
 NEXT STEP: B — dispatch CI on wp/voice tip 5343db1 (gh workflow run build-memo-apk.yml -R ysfclc/memo-2 --ref wp/voice, watch to green); then C — merge wp/chat into milestone/M1.
 NOTES: User decisions 2026-10-29: commons-compress 1.28.0 pin ACCEPTED on leg-2's D-038 evidence (version-age law documented); merges delegated to the agent, lead-style, CI-gated. wp/voice tip 5343db1 still has NO green CI run (last green covers 32c7d5c) — B closes that before any merge. Renumber-on-merge heads-up: wp/voice D-038/D-039 collide with wp/chat D-038/D-039; resolved at STEP D. No code changed in this step.
 ---
+
+---
+TIMESTAMP: 2026-10-29T15:06:43+01:00
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: B — close leg-2's open verification: CI green on wp/voice tip 5343db1
+PLAN REF: TASKS §0.4 CI; AGENTS.md rule 7 (green CI = definition of done)
+STATUS: done
+FILES CHANGED: PLAN_STATE.md (checkpoint rewrite only)
+VERIFICATION: run 40887088494 (workflow_dispatch @ 5343db17539f42dff9bec3fabea886379b9edf58) -> ✓ Build Android APK in 6m42s; Build (core tests, app unit tests, lint, debug APK) ✓; Verify APK ✓; List APK native libraries ✓; Upload APK artifact ✓. Annotations: CI-platform noise only (node20 deprecation, ubuntu-latest migration).
+NEXT STEP: C — merge wp/chat into milestone/M1 (B-STD, push, CI on milestone/M1), then D — wp/voice (renumber D-038/D-039 on the merge).
+NOTES: wp/chat pre-merge facts verified before dispatch: 10 ahead / 1 behind milestone/M1, branch worktree clean, origin in sync. No source or docs changed this step.
+---
