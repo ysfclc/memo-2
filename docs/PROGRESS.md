@@ -119,3 +119,36 @@ Chronological notes kept by the lead while building. They cover what the user as
 - M0.F5 verified by the lead (run 40405257386 green on 9167f22; engine veto/persist diff read) and merged.
 - Open decision "non-ASCII re-key", resolved by the lead: `Registry.load` derives every natural key from row content (`scheme.id(decoded)`); keys are not stored. Rows re-key on load and no migration is needed. Rows that previously had a blank key were quarantined, and can now be released with `releaseQuarantined`.
 - UI follow-ups from F5 (reset confirmation, review/resume buttons, displayed-hash `decide`) are lead inline on milestone/M1 after M0 merges in.
+
+---
+TIMESTAMP: 2026-10-26T23:37:02+01:00
+STEP: 1 — establish full B-STD verification baseline
+STATUS: blocked
+FILES CHANGED: docs/PROGRESS.md
+VERIFICATION: `./gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest lintDebug assembleDebug` -> failed before tasks on both attempts; first wrapper lock access was denied, escalated retry could not establish Gradle loopback connection. No tests or build tasks ran.
+NEXT STEP: Diagnose the Gradle wrapper lock and loopback connection failures, then rerun the same B-STD command before resuming CHAT and VOICE.
+NOTES: No code changed. Latest Claude Code task output confirms M0 on `main` passed at `00a8a9e` and the `memo-apk` artifact is 75,555,680 bytes. The existing CHAT and VOICE worktrees remain untouched.
+---
+
+---
+TIMESTAMP: 2026-10-27T16:02:39+01:00
+STEP: 2 — B-STD local baseline established on milestone/M1 (c293c25)
+RESUMED FROM: STEP 1 above (blocked baseline); execution layer per user = GPT-app Codex (cloud sandbox), plan layer = Claude (docs/BUILD_PLAN.md + TASKS.md)
+STATUS: done
+FILES CHANGED: docs/PROGRESS.md (this entry only)
+VERIFICATION: `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` -> BUILD SUCCESSFUL in 1m 22s (30 tasks; :core:test and testDebugUnitTest executed and passed)
+NEXT STEP: Verify the uncommitted VOICE M2.A2 slice in worktree `.claude/worktrees/agent-af96ee867896a60ae` (branch wp/voice) with the same commands there; no edits unless a real failure, then secure it (commit, push, CI) per B-STD.
+NOTES: STEP 1's blockers (wrapper lock denial, Gradle loopback) do NOT reproduce in an unsandboxed shell — they were the prior agent's sandbox constraints; environment verified: JDK 17 on PATH, wrapper 8.14.6 unpacked, no zombie daemons. 3 pre-existing Kotlin warnings recorded (ModelHub.kt:280 cast, LiteRtLmRuntime.kt:288 callback param name, Persistence.kt:230 always-true) — owned by HUB/LLM/M0 code, deliberately untouched. CI truth: wp/chat tip c357270 green (run 40521058967); milestone/M1 integration green (run 40405377602); ENGINEERING_LOG numbering: wp/chat took D-038/D-039; WP VOICE records its dependency decision as D-038 in its own branch space — the lead renumbers on merge (wave-1 precedent).
+---
+
+---
+TIMESTAMP: 2026-10-29T14:57:27+01:00
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: A — resume housekeeping: secure the uncommitted handoff log, ignore the native build cache
+PLAN REF: TASKS §0.9 lead-inline items (docs, hygiene); engineering-log rule 1
+STATUS: done
+FILES CHANGED: docs/PROGRESS.md (leg-1/leg-2 STEP 1–2 entries now committed, plus this entry), PLAN_STATE.md (NEW, tracked), .gitignore (app/.cxx/)
+VERIFICATION: git status clean after commit; no code changed.
+NEXT STEP: B — dispatch CI on wp/voice tip 5343db1 (gh workflow run build-memo-apk.yml -R ysfclc/memo-2 --ref wp/voice, watch to green); then C — merge wp/chat into milestone/M1.
+NOTES: User decisions 2026-10-29: commons-compress 1.28.0 pin ACCEPTED on leg-2's D-038 evidence (version-age law documented); merges delegated to the agent, lead-style, CI-gated. wp/voice tip 5343db1 still has NO green CI run (last green covers 32c7d5c) — B closes that before any merge. Renumber-on-merge heads-up: wp/voice D-038/D-039 collide with wp/chat D-038/D-039; resolved at STEP D. No code changed in this step.
+---

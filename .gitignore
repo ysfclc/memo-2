@@ -14,6 +14,9 @@ local.properties
 # Kotlin/Native
 .kotlin/
 
+# Native build cache (CMake/Ninja)
+app/.cxx/
+
 # local secrets — never commit
 *.keystore
 *.jks
