@@ -1,21 +1,34 @@
 # PLAN STATE
 
 CHAIN: Claude (plan) -> GPT leg1 -> GLM leg2 -> GLM leg3 (this session)
-UPDATED: 2026-10-29T15:06:43+01:00
+UPDATED: 2026-10-29T15:26:00+01:00
 
 STEP STATUS:
   M0 foundation + R1/R2 reviews + fixes: DONE (merged to origin/main 00a8a9e, milestone/M0 2439013)
-  M1 wave 1 (UI-KIT M2.B0b-d, LLM M1.A1-A3, HUB M1.B1-B2): DONE (inside milestone/M1, CI green 40405377602)
-  WP CHAT (M1.C1, M1.C2, M1.B3): PARTIAL — ready on branch wp/chat tip 6427329 (CI green 40534283437; 10 ahead / 1 behind milestone/M1; worktree clean); merge = STEP C, IN PROGRESS
-  WP VOICE (M2.A1 done, M2.A2 ~done incl. emulator Kokoro, M2.A3 mini-tasks 1-3 built + 4-5 logic done, M3.6.C1 deferred to M3.6): DONE-BY-LEG2 on branch wp/voice tip 5343db1 — VERIFIED by leg-3: CI green run 40887088494 (6m42s, tests+lint+assembleDebug+artifact); merge = STEP D
-  M2.B1: mini-tasks 1-3 on wp/voice (compiled, 206 unit tests, CI green via 40887088494); B1-4 leftovers (composer hooks, read-aloud, bubble) unblock after STEP C; device probes = end-of-M2 batch (first audio <1.2 s, echo floor 0.04f UNVERIFIED)
+  M1 wave 1 (UI-KIT, LLM, HUB): DONE (inside milestone/M1, CI green 40405377602)
+  WP CHAT (M1.C1, M1.C2, M1.B3): DONE-BY-LEG2 on branch; MERGED into milestone/M1 by leg-3 (merge commit 9f15308),
+    warning debt fixed in-package (4be0b43: ClickableText -> LinkAnnotation, https-only guard kept);
+    B-STD green on merged head (`:core:test testDebugUnitTest` 1m40s, 30 tasks) + named tests
+    (`:core:test --tests app.memo.core.chat.*` 44s). CI on milestone/M1 @ 4be0b43 = run 40889886051 IN FLIGHT.
+    Open M1.C2 residual: Stop-under-load/prefill fix (two-point micro-fix proposed in docs on wp/chat) + one
+    emulator probe — worker needed, lead decision recorded in ENGINEERING_LOG, NOT part of this merge.
+  WP VOICE (M2.A1, M2.A2, M2.A3): VERIFIED — Confidential branch wp/voice tip 5343db1 CI green (run 40887088494,
+    6m42s: core+app tests, lint, assembleDebug, artifact, native-lib listing). MERGE = STEP D (next).
+  M2.B1: mini-tasks 1-3 done (compiled, 206 unit tests, CI green); B1-4 leftovers (composer hooks, read-aloud,
+    bubble) unblocked by the CHAT merge; device probes = end-of-M2 batch (first audio <1.2 s, echo floor
+    0.04f UNVERIFIED).
   WP AUTO-CORE (M3.5.A1/A2, M4.A0, M4.L1): NOT STARTED
   M1 close / M2 close (MCP): NOT STARTED (device checklists — user's emulator/phone)
 
-CURRENT STEP: C — merge wp/chat into milestone/M1 (B-STD, push, CI on milestone/M1)
-NEXT ACTION: STEP C: resolve the 1-behind (git merge wp/chat into milestone/M1; conflicts expected only in docs/ENGINEERING_LOG.md + docs/PROGRESS.md — additive, keep both sides), B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest`, push, dispatch CI on milestone/M1, watch green.
-OPEN BLOCKERS: none. Resolved by user 2026-10-29: (1) commons-compress 1.28.0 accepted (leg-2 D-038 evidence); (2) agent performs the CI-gated merges per TASKS §0.9; (3) parallel CI/watch approved by user.
+CURRENT STEP: C-closeout (CI on milestone/M1 @ 4be0b43 in flight, run 40889886051) — then D.
+NEXT ACTION: STEP D: in the wp/voice worktree merge origin/milestone/M1 (now 4be0b43+docs) into wp/voice;
+  renumber its ENGINEERING_LOG D-038/D-039 to the next free numbers (wp/chat holds D-038/D-039 on the
+  integration branch); B-STD on worktree; push wp/voice; CI green; then merge wp/voice into milestone/M1,
+  B-STD, push, CI green; docs same-merge (TASKS/FEATURES/PROGRESS/STATUS per rule 9); then hygiene:
+  ancestor-check + remove worktrees agent-a81ce3d37c1bd188d, agent-af96ee867896a60ae; delete branches
+  wp/chat, wp/voice (local+origin). Non-forced only; dirty worktree = stop and report.
+OPEN BLOCKERS: none. Resolved by user 2026-10-29: dep pin accepted; merges delegated (CI-gated); parallel work approved.
 VERIFY BASELINE: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest`
-  - c293c25 green (leg-2, PROGRESS STEP 2); milestone/M1 CI green 40405377602; wp/chat tip CI green 40534283437;
-    wp/voice tip 5343db1 CI green 40887088494 (rule 7 closed for WP VOICE branch).
-  - re-run at STEP C / STEP D as the no-new-failures gate.
+  - merged head 9f15308: BUILD SUCCESSFUL 1m40s (30 tasks) + chat-test filter run 44s; wp/voice tip: CI
+    40887088494 green. Pre-existing legal warnings: ModelHub.kt:307 cast, LiteRtLmRuntime.kt:288 param name,
+    Persistence.kt:230 always-true (owned packages, untouched). ChatMarkdown deprecation eliminated by 4be0b43.

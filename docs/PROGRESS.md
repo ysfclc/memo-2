@@ -166,6 +166,18 @@ NOTES: wp/chat pre-merge facts verified before dispatch: 10 ahead / 1 behind mil
 ---
 
 ---
+TIMESTAMP: 2026-10-29T15:26:00+01:00
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: C — merge wp/chat into milestone/M1 (CI-gated), in-package warning debt fix
+PLAN REF: TASKS §0.9 wave-2 CHAT (M1.C1, M1.C2, M1.B3) merges into the milestone; AGENTS.md 9 warnings-are-debt
+STATUS: done pending CI (run 40889886051 on 4be0b43, watched in background)
+FILES CHANGED: docs/PROGRESS.md (conflict resolved additively: milestone STEP A–B blocks + wp/chat STEP 2–97 blocks both kept), app/src/main/kotlin/app/memo/ui/chat/ChatMarkdown.kt (9f15308 merge + 4be0b43 warning fix), PLAN_STATE.md
+VERIFICATION: B-STD on merged head 9f15308 -> BUILD SUCCESSFUL 1m40s (30 tasks; new warning appeared: ChatMarkdown.kt:90 ClickableText deprecated). Warning fix 4be0b43 -> :app:compileDebugKotlin executed, no warnings block in output; named plan tests :core:test --tests app.memo.core.chat.* -> BUILD SUCCESSFUL 44s (MarkdownParserTest, ComposerStateTest).
+NEXT STEP: D — wp/voice: merge updated milestone/M1 in, renumber D-038/D-039, B-STD + CI green, then merge wp/voice into milestone/M1, docs same-merge, then worktree/branch hygiene after ancestor check.
+NOTES: First filtered run failed with "No tests found for given includes [app.memo.ui.chat.*]" — wrong package; plan's named tests live in core (app.memo.core.chat.*). Not a regression. NEW warning repaired at merge time per keep-fresh law; ModelHub/LiteRtLmRuntime/Persistence warnings pre-existing and left (owned packages). M1.C2 residual (Stop under load/prefill; two-point LiteRtLmRuntime micro-fix proposed on wp/chat, trace-complete note) recorded as open worker item — a real engine-state fix, NOT jammed into this merge.
+---
+
+---
 TIMESTAMP: 2026-10-27T05:48:24Z
 STEP: 2 — Preserve corrupt chat drafts
 STATUS: partial
