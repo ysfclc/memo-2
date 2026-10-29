@@ -10,6 +10,7 @@ import app.memo.core.platform.LoadResult
 import app.memo.core.platform.ModelFormat
 import app.memo.core.platform.ModelRef
 import app.memo.core.platform.RequestHandle
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -26,6 +27,8 @@ import kotlin.concurrent.withLock
  *   one terminal callback. A failure (load, refusal or generation error) ends that request
  *   only, and the next one starts.
  * - [cancel] removes a queued request at once, and cancels the running one through its handle.
+ * State observers: the constructor's [onStateChanged] plus every [addListener] listener are
+ * invoked on the worker thread after each published change.
  *
  * Callbacks for queued requests that are cancelled are delivered on the thread that called
  * [cancel] or [cancelAll]. Other callbacks run on the runtime's thread.
@@ -64,6 +67,9 @@ class InferenceManager(
 
     private val nextId = AtomicLong(1)
 
+    /** Listeners beyond [onStateChanged]; invoked on the worker thread after each published change. */
+    private val listeners = CopyOnWriteArrayList<(State) -> Unit>()
+
     // Worker-thread state.
     private val runtimes = HashMap<ModelFormat, LlmRuntime>()
     private var loaded: ModelRef? = null
@@ -78,6 +84,20 @@ class InferenceManager(
 
     /** The current state. Cheap and safe from any thread. */
     fun state(): State = state
+
+    /**
+     * Registers [listener] for state changes, invoked on the worker thread. Shared consumers
+     * (the chat service, the voice session) each add their own. Returns the manager.
+     */
+    fun addListener(listener: (State) -> Unit): InferenceManager {
+        listeners.add(listener)
+        return this
+    }
+
+    /** Unregisters a previously added listener. No-op if it was never added. */
+    fun removeListener(listener: (State) -> Unit) {
+        listeners.remove(listener)
+    }
 
     /**
      * Queues one chat request and returns its id. Use the id with [cancel].
@@ -132,6 +152,19 @@ class InferenceManager(
             r.sink.onError(LlmError.Cancelled)
         }
         current?.let { cancelRunning(it) }
+    }
+
+    /** Releases resident runtimes only when no request is active or queued. */
+    fun unloadIfIdle(): Boolean = lock.withLock {
+        if (closed || running != null || queue.isNotEmpty()) return false
+        try {
+            runtimes.values.forEach { it.unload() }
+        } catch (_: RuntimeException) {
+            return false
+        }
+        loaded = null
+        state = State.Idle
+        true
     }
 
     /**
@@ -251,6 +284,7 @@ class InferenceManager(
     private fun publish(next: State) {
         state = next
         onStateChanged(next)
+        listeners.forEach { it(next) }
     }
 
     private companion object {

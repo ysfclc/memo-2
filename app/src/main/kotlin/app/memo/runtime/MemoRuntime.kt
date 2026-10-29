@@ -30,11 +30,11 @@ import app.memo.core.engine.OutboundAudit
 import app.memo.core.engine.ReasonExecutor
 import app.memo.core.engine.WorkflowEngine
 import app.memo.core.plan.CommandGrammar
+import app.memo.core.platform.ModelRef
 import app.memo.core.registry.Registry
 import app.memo.core.registry.Workspace
 import app.memo.core.platform.LlmRuntime
 import app.memo.core.platform.ModelFormat
-import app.memo.core.platform.ModelRef
 import app.memo.models.ModelStore
 import app.memo.platform.android.llm.litert.LiteRtLmRuntime
 import app.memo.platform.android.llm.llama.LlamaCppRuntime
@@ -154,6 +154,14 @@ class MemoRuntime(context: Context) {
      */
     val inference = InferenceManager(factory = { format -> runtimeFor(format) })
 
+    internal val chats = ChatRepository(vault)
+    internal val chatSettings = ChatSettingsRepository(vault)
+    internal val chatService = ChatService(
+        repository = chats,
+        inference = inference,
+        resolveModel = ::resolveInstalledChatModel,
+    )
+
     /** The Talk tab's hands-free session; engines are built lazily on first [VoiceSession.prepare]. */
     val voice: VoiceSession by lazy {
         VoiceSession(
@@ -196,6 +204,12 @@ class MemoRuntime(context: Context) {
     }
 
     // ------------------------------------------------------------ commands
+
+    private fun resolveInstalledChatModel(modelId: String): ModelRef? {
+        val entry = models.entryFor(modelId) ?: return null
+        val file = models.hub.installedFile(entry) ?: return null
+        return ModelRef(entry.id, entry.format, file.absolutePath, entry.sha256, entry.sizeBytes)
+    }
 
     /** Entry point for typed or spoken input. Returns an immediate reply. */
     fun handleUtterance(raw: String): String {

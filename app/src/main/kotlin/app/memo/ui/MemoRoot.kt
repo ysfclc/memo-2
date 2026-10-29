@@ -2,6 +2,7 @@ package app.memo.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Icon
@@ -39,7 +39,6 @@ import app.memo.core.domain.RunStatus
 import app.memo.core.domain.StepKind
 import app.memo.core.domain.StepStatus
 import app.memo.runtime.MemoRuntime
-import app.memo.runtime.Planner
 import app.memo.ui.components.EmptyState
 import app.memo.ui.components.MemoButton
 import app.memo.ui.components.MemoButtonStyle
@@ -47,6 +46,7 @@ import app.memo.ui.components.MemoCard
 import app.memo.ui.components.Pill
 import app.memo.ui.components.ScreenHeader
 import app.memo.ui.components.StatTile
+import app.memo.ui.chat.ChatScreen
 import app.memo.ui.nav.MemoNavShell
 import app.memo.ui.nav.NavState
 import app.memo.ui.nav.Route
@@ -81,11 +81,11 @@ fun MemoRoot(runtime: MemoRuntime) {
                 onStopAll = { runtime.stopEverything() },
                 message = snap.lastReply,
             )
-            Route.TALK -> LiveConversationScreen(session = runtime.voice)
+            Route.TALK -> TalkScreen(runtime)
             Route.WORK -> WorkScreen(snap.people, snap.companies, snap.tasks)
             Route.STUDIO -> StudioScreen(snap.drafts)
             Route.BROWSER -> BrowserScreen()
-            Route.MODELS -> ModelsScreen(runtime.models)
+            Route.MODELS -> ModelsScreen(runtime)
             Route.SETTINGS -> SettingsScreen(
                 auditCount = snap.auditCount,
                 auditOk = snap.auditOk,
@@ -234,8 +234,37 @@ fun LiveScreen(
 
 // ------------------------------------------------------------------- Talk
 
-// The old placeholder Talk screen (system speech recognizer robot voice) is gone; the live
-// conversation screen lives in ui/voice/LiveConversationScreen.kt on the Talk tab.
+// ------------------------------------------------------------------- Talk
+
+// The Talk tab is voice-first (plan: voice and text with Memo). It opens on the live
+// conversation; the typed chat surface is one switch away on the same tab.
+
+@Composable
+fun TalkScreen(runtime: MemoRuntime) {
+    var textMode by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            MemoButton(
+                onClick = { textMode = false },
+                modifier = Modifier.weight(1f),
+                style = if (textMode) MemoButtonStyle.QUIET else MemoButtonStyle.PRIMARY,
+            ) { Text("Voice") }
+            MemoButton(
+                onClick = { textMode = true },
+                modifier = Modifier.weight(1f),
+                style = if (textMode) MemoButtonStyle.PRIMARY else MemoButtonStyle.QUIET,
+            ) { Text("Text") }
+        }
+        Box(Modifier.weight(1f)) {
+            if (textMode) ChatScreen(runtime) else LiveConversationScreen(session = runtime.voice)
+        }
+    }
+}
 
 // ------------------------------------------------------------------- Work
 

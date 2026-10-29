@@ -450,18 +450,22 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `RangeResumeLogicTest` (pure offsets, 200-vs-206 handling); `InstallSwapTest` (rollback on failure, temp dir); `HfClientRedirectPolicyTest`
 - Checks: verify happens before install; a token never appears in logs.
 
-### [ ] M1.B3 Models UI · deps M1.B2, M2.B0d
+### [x] M1.B3 Models UI · deps M1.B2, M2.B0d
 - Files: `app/.../ui/models/*`
-- Mini-tasks: [ ] Installed / Recommended / Browse (search, filters) / Voice / Import sections · [ ] cards with fit badge, licence, gated lock, one-tap progress ring · [ ] per-model settings sheet
+- Mini-tasks: [x] Installed / Recommended / Browse (search, filters) / Voice / Import sections · [x] cards with fit badge, licence, gated lock, one-tap progress ring · [x] per-model settings sheet
 - Tests: `FitBadgeTest` (RAM/size → badge)
 - Checks: tokens only; real progress only.
-- Build: emulator screenshots.
+- Build: CI run `40461314345` passed; screenshots are not possible, so composables were reviewed against design tokens per `docs/BUILD_PLAN.md`.
+- Continuation checkpoint (2026-10-27): implementation is present in `ModelsBrowserScreen`, including persistent revision pins and import outcomes. CI passed on `a1a7ec4`; the source review completed the BUILD_PLAN acceptance.
+- Next: continue M1.C2's emulator demo and the M1 close device checklist.
 
-### [ ] M1.C1 Conversation store · deps M0.C1
+### [x] M1.C1 Conversation store · deps M0.C1
 - Files: `core/.../chat/Conversation.kt`, `app/.../runtime/ChatRepository.kt`
 - Tests: `ConversationCodecTest`, `ConversationOrderingTest`, `ChatSearchTest`
+- Continuation checkpoint (2026-10-27): encrypted repository, codec, ordering, search and titles are implemented; CI run `40461314345` passed these tests on `a1a7ec4`.
+- Next: continue M1.C2's emulator demo and the M1 close device checklist.
 
-### [ ] M1.C2 Chat UI · deps M1.C1, M1.A3, M2.B0d
+### [~] M1.C2 Chat UI · deps M1.C1, M1.A3, M2.B0d
 - Files: `app/.../ui/chat/*`
 - Mini-tasks:
   - [ ] conversation list + thread
@@ -472,8 +476,12 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `MarkdownParserTest` (incremental chunks never break earlier spans); `ComposerStateTest`
 - Checks: no fake streaming; stop cancels the runtime.
 - Build: emulator demo with the smallest model.
+- Continuation checkpoint (2026-10-27): chat threads, streaming, Markdown, composer, local model picker and message actions are implemented; CI run `40461314345` passed on `a1a7ec4`. On isolated `Memo_API34_CHAT`, pinned Qwen3 0.6B installed and verified, and the short local prompt returned `Hello`. Stop remained visible after two taps, including one at the accessibility-confirmed clickable bounds; cancellation is unresolved. This is emulator evidence, not a phone check. Frontier execution and voice controls stay with their planned M4/M2 work.
+- Next: trace the LiteRT completion/cancel callback path before another Stop attempt or source edit; then continue the smallest-model and remaining M1 device checks below. Do not mark M1.C2 complete while stop cancellation is unresolved.
 
-### [ ] M1 close (MCP)
+### [~] M1 close (MCP)
+- Continuation checkpoint (2026-10-27): clean `Memo_API34_CHAT` AVD now has Qwen3 0.6B installed and verified; one short local inference returned `Hello`. Stop cancellation remains unresolved after two attempts, and the broader device checklist is still pending. The pre-existing app/data were preserved; this evidence is emulator-only.
+- Next: trace cancellation/completion before another Stop attempt; then continue the planned checklist: Gemma 4 E2B and Llama 3.2 3B Q4_K_M downloads and chats, stop mid-answer, switch models, pause/resume a download, and import a file.
 - Device checklist:
   - download Gemma 4 E2B (LiteRT) and Llama 3.2 3B Q4_K_M (GGUF)
   - chat with each
