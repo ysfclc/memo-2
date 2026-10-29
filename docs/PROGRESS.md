@@ -1265,3 +1265,16 @@ VERIFICATION: first compile found 2 merge-authored errors (duplicate ModelRef im
 NEXT STEP: merge commit here; push wp/voice; CI watch; then the same branch merges milestone/M1 -> CI green; APK goes to the user from the milestone run
 NOTES: Additive docs resolution: chat chain (wave-1 + STEPs 41..97) kept from theirs, voice chain (STEPS 1..15) kept from ours, e188ecf's PROGRESS held only the voice chain so it adds nothing unique here (recorded to prevent re-dropping chat entries on the next merge). InferenceManager's direct state set in unloadIfIdle does NOT publish - ChatService.unloadIfIdle resets its own modelStatus, documented in the KDoc. The e188ecf-era Stop-under-load bug stays open deliberately (chat NOTES STEP 97); its two-point micro-fix is a separate micro-task. Docs repair in this merge: the voice-side ENGINEERING_LOG copy had lost the `## CONSTRAINTS` heading (C-001..C-008 sat headerless under DECISIONS); it is restored in the union to match the base/chat structure.
 ---
+
+---
+
+TIMESTAMP: 2026-10-29T15:16:34Z
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session)
+STEP: 98 - Stop micro-fix implemented on wp/voice (the chat STEP 97 proposed fix; M1.C2 code half)
+PLAN REF: chat PROGRESS STEP 97 (trace, proposed two-point fix, verified upstream contract); TASKS.md M1.C2 `~` (stays until the device probe)
+STATUS: code + local verification done; branch CI pending after this commit (push + gh run watch next)
+FILES CHANGED: app/src/main/kotlin/app/memo/platform/android/llm/litert/LiteRtLmRuntime.kt (+java.util.concurrent.CancellationException import), docs/ENGINEERING_LOG.md (D-045), docs/PROGRESS.md (this entry), PLAN_STATE.md
+VERIFICATION: :app:compileDebugKotlin + :app:compileDebugUnitTestKotlin + :core:test + targeted :app:testDebugUnitTest (LiteRtTurnsTest, LiteRtErrorMappingTest, InferenceManagerTest, ChatServiceTest, VoiceLoopTest, NavGraphTest) BUILD SUCCESSFUL in 1m15s; zero new warnings (the shown LiteRtLmRuntime.kt:298:42 note is the pre-existing :288 callback-param warning shifted by the insertion)
+NEXT STEP: push wp/voice; dispatch build-memo-apk.yml on the new tip; gh run watch green; then merge wp/voice -> milestone/M1 (B-STD), push, CI on milestone/M1 - the user's combined APK comes from that run's memo-apk artifact; then STEP E = M2.B1 leftovers, one micro-task at a time
+NOTES: STEP D closed CI-green in between (run 40897735696 on 1fc26e8, 5m22s, all steps incl. APK verify + artifact upload). Fix shape per D-045: two cancel points (on-chunk-arrival, post-send) plus a receiver rule mapping onError(CancellationException) -> Run.Cancelled, which also stops the max-token-cap path from surfacing as failed. Device probe (Stop latency, STOPPED status, echo floor) stays in the end-of-M2 batch.
+---
