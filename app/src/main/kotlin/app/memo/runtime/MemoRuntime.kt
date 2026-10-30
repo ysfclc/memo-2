@@ -38,6 +38,12 @@ import app.memo.core.platform.ModelFormat
 import app.memo.models.ModelStore
 import app.memo.platform.android.llm.litert.LiteRtLmRuntime
 import app.memo.platform.android.llm.llama.LlamaCppRuntime
+import app.memo.platform.android.voice.SherpaOfflineAsr
+import app.memo.platform.android.voice.SherpaRecorderCapture
+import app.memo.platform.android.voice.SherpaRecorderTranscriber
+import app.memo.platform.android.voice.VoiceMessageStore
+import app.memo.platform.android.voice.VoiceModelInstaller
+import app.memo.platform.android.voice.VoiceModels
 import app.memo.platform.android.vault.KeystoreVault
 import org.json.JSONObject
 import java.io.File
@@ -178,6 +184,32 @@ class MemoRuntime(context: Context) {
                     sha256 = entry.sha256,
                     sizeBytes = entry.sizeBytes,
                 )
+            },
+        )
+    }
+
+    /**
+     * Hold-to-record voice messages on the Text tab (TASKS M2.B1 mini-task 1). Transcription
+     * builds the pinned offline Whisper lazily through [LazyRecorderTranscriber]: when the
+     * model is not installed the load throws a plain reason, which the recorder reports as
+     * Untranscribed - the audio is kept, and no fake text is produced.
+     */
+    val voiceMessages: VoiceMessageRecorder by lazy {
+        val installer = VoiceModelInstaller(File(appContext.filesDir, "voice"))
+        VoiceMessageRecorder(
+            capture = SherpaRecorderCapture(appContext),
+            store = VoiceMessageStore(appContext),
+            executor = Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "memo-voice-messages").apply { isDaemon = true }
+            },
+            transcriber = LazyRecorderTranscriber {
+                val whisper = VoiceModels.entries.first { it.id == "asr-whisper-base" }
+                if (!installer.isInstalled(whisper)) {
+                    throw IllegalStateException(
+                        "The Whisper voice-message model is not installed. Download it in Models.",
+                    )
+                }
+                SherpaRecorderTranscriber(SherpaOfflineAsr(installer.dirFor(whisper)))
             },
         )
     }

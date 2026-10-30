@@ -532,11 +532,11 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Checks: cancel reaches the runtime (`InferenceManager.cancel`); no state is updated off the loop thread.
 
 ### [ ] M2.B1 Voice messages + live conversation UI · deps M2.A3, M1.C2, M2.B0c
-- Files: `app/.../ui/voice/{VoiceRecorderBar,Waveform,LiveConversationScreen,ReadAloud}.kt`, `ui/chat/Composer.kt` hooks
+- Files: `app/.../ui/voice/{VoiceRecorderBar,Waveform,LiveConversationScreen,ReadAloud}.kt`, `ui/chat/ChatComposer.kt` hooks
 - Mini-tasks:
   - [ ] hold to record with a live waveform; slide to cancel; release sends (audio + transcript)
   - [ ] voice message bubble with playback and transcript
-  - [ ] live mode full screen: PresenceOrb driven by level, partial transcript, speaking captions, tap to interrupt, end
+  - [x] live mode full screen: PresenceOrb driven by level, partial transcript, speaking captions, tap to interrupt, end
   - [ ] read-aloud action on any message
 - Tests: `WaveformBucketsTest` (downsampling, empty); `RecorderGestureStateTest` (hold/slide/cancel/release)
 - Checks: `grep -rn RecognizerIntent app/src` is empty; `grep -rn "TextToSpeech" app/src` is empty (no system robot voice).

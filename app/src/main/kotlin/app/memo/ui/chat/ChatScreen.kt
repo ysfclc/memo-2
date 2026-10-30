@@ -112,7 +112,7 @@ fun ChatScreen(runtime: MemoRuntime) {
             onSuggestion = controller::onTextChanged,
             modifier = Modifier.weight(1f),
         )
-        ChatComposer(controller, streaming)
+        ChatComposer(controller, streaming, runtime.voiceMessages)
     }
     UndoSnackbarHost(snackbar)
 

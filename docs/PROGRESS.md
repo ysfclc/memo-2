@@ -1303,3 +1303,16 @@ VERIFICATION: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebug
 NEXT STEP: push milestone/M1; dispatch build-memo-apk.yml; gh run watch green - the run's memo-apk artifact is the user's combined installable APK; then STEP E = M2.B1 leftovers (composer recorder hooks, ReadAloud.kt, voice-message bubble), one micro-task at a time; hygiene (both agent-9db worktrees, wp/chat + wp/voice branches, non-forced) after git merge-base --is-ancestor checks.
 NOTES: The main checkout's local milestone/M1 sat at e188ecf, a never-pushed docs-only descendant of the merged-chat head 4be0b43 (STEP C checkpoint prose), so the union needed a true merge instead of a fast-forward; merge base 4be0b43 resolved every code file to the wp/voice side with zero conflicts. Details in D-046.
 ---
+
+---
+
+TIMESTAMP: 2026-10-30T12:09:02Z
+CHAIN: Claude (plan) -> GPT-app Codex leg1 -> GLM leg2 (wp/voice, wp/chat) -> GLM leg3 (this session) -> GLM leg4 task/e1-composer-recorder (this agent)
+STEP: E1 - M2.B1 composer recorder hooks: hold-to-record on the Text tab; the transcript lands as a reviewable draft
+PLAN REF: TASKS.md M2.B1 mini-task 1 (recorder half; the audio-sending half completes at E2) + mini-task 3 ticked in this commit (built by M2.A3, never ticked); BUILD_PLAN L1306-1315
+STATUS: code + local tests green; branch CI pending after this commit (push + gh run watch next)
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/RecorderPorts.kt (+LazyRecorderTranscriber: first-use engine build; failures reload on the next call), runtime/MemoRuntime.kt (+voiceMessages lazy: SherpaRecorderCapture + VoiceMessageStore + lazy Whisper on the "memo-voice-messages" daemon executor), ui/chat/ChatController.kt (+showNotice), ui/chat/ChatComposer.kt (mic -> Close toggle, VoiceRecorderBar mode with live levels/elapsed, permission flow mirrored from LiveConversationScreen, every exit cancels a running capture, Recorded -> showNotice or transcript draft), ui/chat/ChatScreen.kt (passes runtime.voiceMessages), app/src/test/kotlin/app/memo/runtime/LazyRecorderTranscriberTest.kt (new, 4 tests), docs/ENGINEERING_LOG.md (D-047), PLAN_STATE.md, TASKS.md (mini-3 tick + Composer.kt -> ChatComposer.kt name fix)
+VERIFICATION: :app:compileDebugKotlin + :app:compileDebugUnitTestKotlin + :core:test + targeted :app:testDebugUnitTest (LazyRecorderTranscriberTest, VoiceLoopTest, NavGraphTest) BUILD SUCCESSFUL in 48s; zero new warnings. First run failed on two pre-commit catches (ChatController.notice private-set - fixed with showNotice; my test built a fresh FakeDelegate instead of reading the loaded one - fixed to a shared instance).
+NEXT STEP: branch CI on task/e1-composer-recorder; merge E1 into milestone/M1; await E2/E3 reports, review + merge E2 then E3 (B-STD + CI per integration; D-number collisions renumbered at merge); ChatThread merges as two sources (E2 bubble + E3 anchor)
+NOTES: `by lazy` does not cache failures - pinned by test: first transcribe before the Whisper install throws through (recorder reports Untranscribed, audio kept), the next call reloads, so installing the model self-heals transcription. Transcript rides as an editable draft on purpose (review checkpoint). Device probes (hold UX, waveform, transcription quality) stay in the end-of-M2 batch.
+---

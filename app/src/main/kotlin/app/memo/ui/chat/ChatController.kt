@@ -223,6 +223,11 @@ class ChatController(
         action.action()
     }
 
+    /** Sets the one-line notice the screen shows until the user dismisses it. */
+    fun showNotice(text: String) {
+        notice = text
+    }
+
     fun dismissNotice() {
         notice = null
     }

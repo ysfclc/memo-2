@@ -1,6 +1,8 @@
 package app.memo.ui.chat
 
 import android.database.Cursor
+import android.os.Handler
+import android.os.Looper
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,21 +26,33 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.memo.core.chat.ChatLimits
+import app.memo.platform.android.voice.AudioCapture
+import app.memo.platform.android.voice.MicPermission
 import app.memo.runtime.ChatService
+import app.memo.runtime.VoiceMessageRecorder
 import app.memo.ui.components.MemoButton
 import app.memo.ui.components.MemoButtonStyle
 import app.memo.ui.theme.MemoTheme
+import app.memo.ui.voice.VoiceRecorderBar
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
 @Composable
-fun ChatComposer(controller: ChatController, streaming: ChatService.Streaming?) {
+fun ChatComposer(
+    controller: ChatController,
+    streaming: ChatService.Streaming?,
+    voiceMessages: VoiceMessageRecorder,
+) {
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -51,6 +65,61 @@ fun ChatComposer(controller: ChatController, streaming: ChatService.Streaming?) 
             }.onSuccess { controller.attach(name, it) }
                 .onFailure { controller.rejectAttachment(name, "file could not be opened") }
         }
+    }
+
+    var voiceMode by remember { mutableStateOf(false) }
+    var permissionDenied by remember { mutableStateOf(false) }
+    var levels by remember { mutableStateOf(emptyList<Float>()) }
+    var elapsedMs by remember { mutableStateOf(0L) }
+    // The recorder's callbacks arrive on its executor thread; state writes and controller
+    // notices hop through the main handler so the composition observes them in order.
+    val main = remember { Handler(Looper.getMainLooper()) }
+
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        permissionDenied = !granted
+        if (granted) voiceMode = true
+    }
+
+    fun exitVoiceMode() {
+        voiceMode = false
+        levels = emptyList()
+        elapsedMs = 0L
+    }
+
+    fun beginRecording() {
+        val started = voiceMessages.start { frameLevels, frameMs ->
+            levels = frameLevels
+            elapsedMs = frameMs
+        }
+        if (started != AudioCapture.Start.Started) {
+            exitVoiceMode()
+            controller.showNotice("The microphone is off.")
+        }
+    }
+
+    fun cancelRecording() {
+        voiceMessages.cancel()
+        exitVoiceMode()
+    }
+
+    fun releaseRecording() {
+        val finishing = voiceMessages.finish { recorded ->
+            main.post {
+                exitVoiceMode()
+                when (recorded) {
+                    is VoiceMessageRecorder.Recorded.Message ->
+                        if (recorded.transcript.isBlank()) {
+                            controller.showNotice("Recording kept, but nothing was transcribed.")
+                        } else {
+                            controller.onTextChanged(recorded.transcript)
+                        }
+                    is VoiceMessageRecorder.Recorded.Untranscribed ->
+                        controller.showNotice("Audio kept; transcription unavailable: ${recorded.reason}.")
+                    VoiceMessageRecorder.Recorded.Empty -> controller.showNotice("Recording too short; nothing stored.")
+                }
+            }
+        }
+        if (finishing) exitVoiceMode()
     }
 
     Column(Modifier.fillMaxWidth().padding(horizontal = MemoTheme.spacing.space5, vertical = MemoTheme.spacing.space3)) {
@@ -71,29 +140,76 @@ fun ChatComposer(controller: ChatController, streaming: ChatService.Streaming?) 
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(MemoTheme.spacing.space2),
         ) {
-            IconButton(onClick = { picker.launch(arrayOf("text/*", "application/json")) }, enabled = streaming == null) {
+            IconButton(onClick = { picker.launch(arrayOf("text/*", "application/json")) }, enabled = streaming == null && !voiceMode) {
                 Icon(Icons.Outlined.AttachFile, contentDescription = "Attach text file", tint = MemoTheme.colors.inkMuted)
             }
-            BasicTextField(
-                value = controller.composer.text,
-                onValueChange = controller::onTextChanged,
-                modifier = Modifier.weight(1f).padding(vertical = MemoTheme.spacing.space4),
-                textStyle = MemoTheme.typography.body.copy(color = MemoTheme.colors.ink),
-                maxLines = 6,
-                enabled = streaming == null,
-                decorationBox = { inner ->
-                    if (controller.composer.text.isEmpty()) {
-                        Text("Message Memo", style = MemoTheme.typography.body, color = MemoTheme.colors.inkFaint)
+            if (voiceMode) {
+                // Unlike the Talk tab, a quick tap here returns to typing instead of the live
+                // conversation: the Text tab's recording mode is hold-to-record only.
+                if (permissionDenied) {
+                    Column(Modifier.weight(1f)) {
+                        Text("The microphone is off", style = MemoTheme.typography.body, color = MemoTheme.colors.ink)
+                        Text(
+                            MicPermission.RATIONALE,
+                            style = MemoTheme.typography.caption,
+                            color = MemoTheme.colors.inkMuted,
+                        )
                     }
-                    inner()
+                } else {
+                    VoiceRecorderBar(
+                        levels = levels,
+                        elapsedMs = elapsedMs,
+                        onRecordingStarted = { beginRecording() },
+                        onRecordingCanceled = { cancelRecording() },
+                        onRecordingSent = { releaseRecording() },
+                        // A tap also pressed first, so stop that capture before leaving:
+                        // never leave the Text tab with a still-running recorder.
+                        onTap = {
+                            if (voiceMessages.isRecording) voiceMessages.cancel()
+                            exitVoiceMode()
+                        },
+                        modifier = Modifier.weight(1f),
+                        hint = "Hold to record · tap to type instead",
+                    )
+                }
+            } else {
+                BasicTextField(
+                    value = controller.composer.text,
+                    onValueChange = controller::onTextChanged,
+                    modifier = Modifier.weight(1f).padding(vertical = MemoTheme.spacing.space4),
+                    textStyle = MemoTheme.typography.body.copy(color = MemoTheme.colors.ink),
+                    maxLines = 6,
+                    enabled = streaming == null,
+                    decorationBox = { inner ->
+                        if (controller.composer.text.isEmpty()) {
+                            Text("Message Memo", style = MemoTheme.typography.body, color = MemoTheme.colors.inkFaint)
+                        }
+                        inner()
+                    },
+                )
+            }
+            IconButton(
+                onClick = {
+                    if (voiceMode) {
+                        if (voiceMessages.isRecording) voiceMessages.cancel()
+                        exitVoiceMode()
+                    } else if (MicPermission.isGranted(context)) {
+                        voiceMode = true
+                    } else {
+                        permission.launch(MicPermission.PERMISSION)
+                    }
                 },
-            )
-            IconButton(onClick = {}, enabled = false) {
-                Icon(Icons.Outlined.Mic, contentDescription = "Local voice arrives with M2", tint = MemoTheme.colors.inkFaint)
+                enabled = streaming == null,
+            ) {
+                Icon(
+                    if (voiceMode) Icons.Outlined.Close else Icons.Outlined.Mic,
+                    contentDescription = if (voiceMode) "Exit voice recording" else "Record a voice message",
+                    tint = MemoTheme.colors.inkMuted,
+                )
             }
             MemoButton(
                 onClick = if (streaming == null) controller::send else controller::stop,
-                enabled = streaming != null || controller.composer.canSend,
+                enabled = !voiceMode && (streaming != null || controller.composer.canSend),
                 style = MemoButtonStyle.PRIMARY,
             ) {
                 Icon(

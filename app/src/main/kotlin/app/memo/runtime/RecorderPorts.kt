@@ -23,3 +23,18 @@ interface RecorderTranscriber {
 interface RecorderStore {
     fun save(wav: ByteArray): File
 }
+
+/**
+ * A [RecorderTranscriber] that builds the real engine on first use. The load runs on the
+ * recorder's executor thread (the only transcribe caller), and `by lazy` does not cache
+ * failures: when [load] throws - usually because the pinned Whisper model is absent - the
+ * failure propagates and the next transcribe attempt reloads, so installing the model
+ * heals transcription without rebuilding or dropping the recorder.
+ */
+class LazyRecorderTranscriber(private val load: () -> RecorderTranscriber) : RecorderTranscriber {
+
+    private val delegate by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { load() }
+
+    override fun transcribe(samples: FloatArray, sampleRate: Int): String =
+        delegate.transcribe(samples, sampleRate)
+}
