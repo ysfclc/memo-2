@@ -1386,4 +1386,11 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G4b-1; verdict ACCEPT, 
 FILES CHANGED: core/.../chat/Composer.kt, core/.../chat/ComposerStateTest.kt (+5 tests), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; ComposerStateTest 16/0 fail
 NEXT: G4b-2 app wiring (controller send with clip, composer chip, bubble dedupe)
+PHASE: close-gap (user-reported install failure)
+ITEM: app identity app.memo -> app.memo2, label "Memo 2" (D-053)
+STATUS: done locally; CI pending
+FILES CHANGED: app/build.gradle.kts, app/src/main/res/values/strings.xml, AGENTS.md (rule 10 frozen id), docs/ARCHITECTURE.md, docs/ENGINEERING_LOG.md (D-053), docs/PROGRESS.md
+VERIFICATION: emulator reproduced the phone failure for the G1 APK: INSTALL_FAILED_UPDATE_INCOMPATIBLE (existing app.memo.debug, other signer); B-STD on milestone/M1 c580e4a + this change: 697 tests 0 fail
+NEXT: CI APK -> install side by side on emulator-5554 (no uninstall) -> publish preview for the phone
+NOTES: root cause = the user's separate earlier Memo project owns app.memo; user chose app.memo2 / Memo 2.
 ---
