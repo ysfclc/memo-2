@@ -1528,3 +1528,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A4c; verdict ACCEPT; foll
 FILES CHANGED: app/.../runtime/AgentTools.kt (new), AgentToolsTest (14), MemoRuntime.kt (reason route, runReasonAgent, packetProvider), app/.../runtime/PacketBuilder.kt (deleted), core PacketBuilder.summary + 2 tests, docs TASKS (M3.A2 ticked, M3.A4 [~]), PROGRESS
 VERIFICATION: lead B-STD EXIT 0; AgentToolsTest 14/0, PacketBuilderTest 12/0; grep for the echo placeholder = 0
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 APPROVALS
+ITEM: M3.B1a artifact renderers - one per ARTIFACT_KINDS entry + JSON fallback (pure ArtifactFields + Compose ArtifactView)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.B1a; verdict ACCEPT; renderers adapted to the real domain fields (no cover letter/location; SocialPost has an excerpt); follow-up: company/posting/contact fields show stored keys, not resolved names
+FILES CHANGED: app/.../ui/artifact/ArtifactFields.kt, ArtifactView.kt, app/src/test/.../ui/artifact/RendererCoverageTest.kt (10), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; RendererCoverageTest 10/0; no Color(0x in ui/artifact
+---
