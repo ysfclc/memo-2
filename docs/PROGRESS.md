@@ -1632,3 +1632,13 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.4b; verdict ACCEPT; extr
 FILES CHANGED: app/.../runtime/EntityService.kt (new), app/.../ui/chat/EntityReviewSheet.kt (new), MemoRuntime.kt (entityService, extractEntities, applyEntitiesOnRuntime), ChatThread.kt (Extract action), ChatScreen.kt (review state + sheet), EntityServiceTest (6), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; EntityServiceTest 6/0; total 906 tests 0 fail; no Color(0x. Device UNVERIFIED
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: device crash fix (first real-phone crash report, Redmi ruby / Android 14)
+ITEM: SIGABRT in sherpa TTS callback (JNI NoSuchMethodError invoke([F)Ljava/lang/Integer;) - D-060
+FIX (lead inline, review-size): SherpaTts.ChunkBridge explicit class instead of a lambda; SherpaTtsCallbackTest pins the JNI signature by reflection
+VERIFICATION: B-STD EXIT 0; SherpaTtsCallbackTest 2/0. Device re-check by the user pending. Open: the preceding answer failure (VoiceLoop.answerFailed) - need the next log
+---

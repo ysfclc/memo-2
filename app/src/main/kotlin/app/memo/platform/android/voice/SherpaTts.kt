@@ -52,12 +52,21 @@ class SherpaTts private constructor(
     ): GeneratedAudio = if (onChunk == null) {
         tts.generate(text, speakerId, speed)
     } else {
-        tts.generateWithCallback(text, speakerId, speed) { samples ->
-            if (onChunk.onChunk(samples)) 1 else 0
-        }
+        tts.generateWithCallback(text, speakerId, speed, ChunkBridge(onChunk))
     }
 
     override fun close() = tts.release()
+
+    /**
+     * The callback handed to sherpa-onnx's JNI. Its native code looks the method up by the EXACT
+     * signature `invoke([F)Ljava/lang/Integer;`. A Kotlin lambda here compiles to an invokedynamic
+     * lambda that D8 turns into a synthetic class with only the erased `invoke(Object)Object`, so
+     * the lookup failed and the app aborted (device crash 2026-10-31, D-060). A real class keeps
+     * the specialised `invoke(FloatArray): Int` (boxed to Integer). Pinned by SherpaTtsCallbackTest.
+     */
+    internal class ChunkBridge(private val onChunk: GenerateCallback) : (FloatArray) -> Int {
+        override fun invoke(samples: FloatArray): Int = if (onChunk.onChunk(samples)) 1 else 0
+    }
 
     companion object {
 
