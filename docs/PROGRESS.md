@@ -1452,3 +1452,14 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G12; wrapper reaped und
 FILES CHANGED: core/.../chat/ContextBudget.kt (historyTurns: text, else transcript, else VOICE_WITHOUT_TRANSCRIPT for voice messages), core/.../chat/ContextBudgetTest.kt (+5), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; ContextBudgetTest 13/0 incl. the select() regression
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A1b TemplateLibrary - 5 seed WorkflowTemplates (UC-1..UC-5) as few-shot/reuse sources
+IMPLEMENTER RUN: model Haiku subagent (D-058 fallback); task M3.A1b; verdict ACCEPT, no defects; its report matched the diff (2 new files) and the lead run
+FILES CHANGED: core/.../plan/TemplateLibrary.kt (new), core/.../plan/TemplateLibraryTest.kt (5), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; TemplateLibraryTest 5/0 (every seed parses and passes WorkflowPolicy.validateSpec; uc3/uc4 side effects gated)
+---
