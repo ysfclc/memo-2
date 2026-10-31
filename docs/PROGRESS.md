@@ -1362,6 +1362,11 @@ VERIFICATION (leg-4, task/m2-b1-read-aloud): B-STD BUILD SUCCESSFUL 2m46s; ReadA
 TIMESTAMP: 2026-10-31
 CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
 PHASE: close-gap
+ITEM: gap G8 - M1.B1 Llama 3.1 8B GGUF seed (DRIFTED -> closing)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G8; verdict ACCEPT, no defects; values identical to the lead-fetched HF API pins (unsloth/Llama-3.1-8B-Instruct-GGUF @ 600b002, Q4_K_M, 4920739200 B, sha256 b3bdbf23...c506, gated false)
+FILES CHANGED: core/.../catalog/ModelCatalog.kt (+1 ModelEntry after llama-3.2-3b), core/.../catalog/SeedCatalogTest.kt (+llama31_8bSeedIsPinned), docs/PROGRESS.md
+VERIFICATION: GLM B-STD BUILD SUCCESSFUL; lead :core:test EXIT 0, SeedCatalogTest 6/0 fail
+NEXT: merge latest milestone/M1, CI, merge
 ITEM: gap G4 - M2.B1 voice-message bubble (E2 work, found uncommitted) ported onto milestone/M1 414dd03
 STATUS: done locally; branch CI pending
 FILES CHANGED: core chat Conversation.kt + ConversationCodec.kt (v2, v1 reader), core voice ClipPlayback.kt (new), app ClipPlayerPorts.kt + MediaPlayerClipPlayer.kt (new), ChatThread.kt (VoiceMessageBubble; imports merged with the read-aloud anchor), tests ConversationCodecTest, ChatRepositoryTest, VoiceMessageStorageTest (new), ClipPlaybackTest (new); docs ENGINEERING_LOG D-052 (ex-D-047)

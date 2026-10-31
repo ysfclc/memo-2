@@ -54,6 +54,19 @@ class SeedCatalogTest {
     }
 
     @Test
+    fun llama31_8bSeedIsPinned() {
+        val e = ModelCatalog.byId("llama-3.1-8b-instruct-gguf")!!
+        assertEquals("b3bdbf23b47d7e6bb791c99b206deb169cd5a96362a9e3399028df2faacdc506", e.sha256)
+        assertEquals(4_920_739_200L, e.sizeBytes)
+        assertEquals("600b0020115fd6b17f0752848fe7b5a1be686bcd", e.revision)
+        assertEquals(
+            "https://huggingface.co/unsloth/Llama-3.1-8B-Instruct-GGUF/resolve/600b0020115fd6b17f0752848fe7b5a1be686bcd/Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+            e.url,
+        )
+        assertEquals(e.sizeBytes + e.sizeBytes / 4 + 512L * 1024 * 1024, e.minRamBytes)
+    }
+
+    @Test
     fun knownPinsAreStable() {
         val qwen = ModelCatalog.byId("qwen3-0.6b")!!
         assertEquals("03e7da1eb1108b50dffaa9bb52cc7bcbad2eb0c66ca990267f480c1e545d2856", qwen.sha256)
