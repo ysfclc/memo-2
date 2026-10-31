@@ -154,4 +154,86 @@ class ChatRepositoryTest {
         assertEquals(original.toList(), vault.data[ChatRepository.DRAFTS_NAME]?.toList())
         repo.close()
     }
+
+    // -------------------------------------------------- voice messages (M2.B1)
+
+    private fun voiceDoc(blind: String, ref: String, transcript: String?, note: String?): ConversationDoc {
+        val message = ChatMessage(
+            id = "m$blind",
+            role = ChatRole.USER,
+            text = "",
+            voiceClipRef = ref,
+            durationMs = 24_500,
+            transcript = transcript,
+            transcriptNote = note,
+            createdAt = 42,
+        )
+        return ConversationDoc(
+            Conversation(id = blind, title = "Voice roundtrip", createdAt = 0, updatedAt = 1, modelId = null),
+            listOf(message),
+        )
+    }
+
+    @Test
+    fun voiceMessageRoundTripsThroughTheVault() {
+        val vault = MemoryVault()
+        val repo = ChatRepository(vault)
+        val doc = voiceDoc("aaaaaa01", "20261030-090000-123", "Tomorrow at nine.", null)
+        saveSync(repo, doc)
+        assertEquals(doc, ChatRepository(vault).readDoc("aaaaaa01"))
+        repo.close()
+    }
+
+    @Test
+    fun untranscribedVoiceMessageRoundTripsThroughTheVault() {
+        val vault = MemoryVault()
+        val repo = ChatRepository(vault)
+        val doc = voiceDoc("aaaaaa02", "20261030-090000-456", null, "the Whisper model is not installed")
+        saveSync(repo, doc)
+        val read = ChatRepository(vault).readDoc("aaaaaa02")!!
+        assertEquals(null, read.messages.single().transcript)
+        assertEquals("the Whisper model is not installed", read.messages.single().transcriptNote)
+        assertEquals(24_500L, read.messages.single().durationMs)
+        repo.close()
+    }
+
+    /** A raw format-1 entry, written exactly as older builds wrote them, must read as before. */
+    @Test
+    fun legacyTextOnlyEntryStillDecodesThroughTheRepository() {
+        val vault = MemoryVault()
+        val legacy =
+            "{\"v\":1," +
+                "\"conversation\":{\"id\":\"aabbcc01\",\"title\":\"Before voice\",\"createdAt\":1700000000000," +
+                "\"updatedAt\":1700000100000,\"modelId\":\"gemma-3-1b\"," +
+                "\"pinned\":false,\"archived\":false}," +
+                "\"messages\":[" +
+                "{\"id\":\"1111aaaa\",\"role\":\"USER\",\"text\":\"note to self\",\"thinking\":\"\"," +
+                "\"createdAt\":1700000001000,\"status\":\"DONE\",\"errorText\":\"\"}]}"
+        vault.data[ChatRepository.ENTRY_PREFIX + "aabbcc01"] = legacy.toByteArray(Charsets.UTF_8)
+        val doc = ChatRepository(vault).readDoc("aabbcc01")!!
+        assertEquals(
+            Conversation(
+                id = "aabbcc01",
+                title = "Before voice",
+                createdAt = 1_700_000_000_000,
+                updatedAt = 1_700_000_100_000,
+                modelId = "gemma-3-1b",
+            ),
+            doc.conversation,
+        )
+        val message = doc.messages.single()
+        assertEquals("note to self", message.text)
+        assertNull("voiceClipRef", message.voiceClipRef)
+        assertNull("durationMs", message.durationMs)
+        assertNull("transcript", message.transcript)
+        assertNull("transcriptNote", message.transcriptNote)
+        // And the entry still saves from this state: encoding re-tags the document as version 2
+        // without touching a single field, and a reload reads the same content back.
+        val reload = ChatRepository(vault)
+        saveSync(reload, doc.copy(conversation = doc.conversation.copy(updatedAt = 2)))
+        val reread = ChatRepository(vault).readDoc("aabbcc01")!!
+        assertEquals(doc.copy(conversation = doc.conversation.copy(updatedAt = 2)), reread)
+        assertEquals("note to self", reread.messages.single().text)
+        assertTrue(String(vault.data[ChatRepository.ENTRY_PREFIX + "aabbcc01"]!!, Charsets.UTF_8).contains("\"v\":2"))
+    }
 }

@@ -10,18 +10,27 @@ class ChatCodecException(message: String) : RuntimeException(message)
 /**
  * JSON codec for conversation entries and the conversation index (org.json, strict).
  *
- * Format version 1. Parsing is strict: the version must be 1, every required field must be
- * present with the right JSON type, unknown fields are rejected, enums must match exactly, and
- * every [ChatLimits] bound is checked through the model constructors. Nullable fields are
- * omitted when null.
+ * Format version 2 adds voice-message fields on `ChatMessage` ([durationMs], [transcript],
+ * [transcriptNote]; all optional and omitted when null). It is backward compatible by
+ * construction: version **1 entries decode in the identical shape they were written in** —
+ * the reader accepts 1 and 2, a v1 entry may not carry the new keys, and v1 entries round-trip
+ * through decode/encode unchanged in meaning (an encode rewrites them tagged v2). Parsing is
+ * strict: the version must be 1 or 2, every required field must be present with the right JSON
+ * type, unknown fields are rejected, enums must match exactly, and every [ChatLimits] bound is
+ * checked through the model constructors. Nullable fields are omitted when null.
  */
 object ConversationCodec {
-    const val VERSION: Int = 1
+    const val VERSION: Int = 2
+    private const val LEGACY_VERSION: Int = 1
 
     private val CONVERSATION_KEYS = setOf("id", "title", "createdAt", "updatedAt", "modelId", "pinned", "archived")
     private val MESSAGE_KEYS = setOf(
-        "id", "role", "text", "thinking", "modelId", "voiceClipRef", "createdAt", "status", "errorText",
+        "id", "role", "text", "thinking", "modelId", "voiceClipRef", "durationMs", "transcript", "transcriptNote",
+        "createdAt", "status", "errorText",
     )
+
+    /** The keys only format 2 writes; a v1 entry must not carry them. */
+    private val VERSION_2_MESSAGE_KEYS = setOf("durationMs", "transcript", "transcriptNote")
 
     // ------------------------------------------------------------ encode
 
@@ -46,10 +55,13 @@ object ConversationCodec {
 
     fun decodeDoc(text: String): ConversationDoc {
         val root = parseRoot(text, setOf("v", "conversation", "messages"))
+        val version = root.version()
         val conversation = conversationFromJson(root.objectField("conversation"))
         val array = root.arrayField("messages")
         if (array.length() > ChatLimits.MAX_MESSAGES_PER_CONVERSATION) throw ChatCodecException("too many messages")
-        val messages = (0 until array.length()).map { messageFromJson(array.optJSONObject(it) ?: fail("message must be an object")) }
+        val messages = (0 until array.length()).map {
+            messageFromJson(array.optJSONObject(it) ?: fail("message must be an object"), version)
+        }
         return try {
             ConversationDoc(conversation, messages)
         } catch (e: IllegalArgumentException) {
@@ -82,6 +94,9 @@ object ConversationCodec {
         .put("thinking", m.thinking)
         .putOpt("modelId", m.modelId)
         .putOpt("voiceClipRef", m.voiceClipRef)
+        .putOpt("durationMs", m.durationMs)
+        .putOpt("transcript", m.transcript)
+        .putOpt("transcriptNote", m.transcriptNote)
         .put("createdAt", m.createdAt)
         .put("status", m.status.name)
         .put("errorText", m.errorText)
@@ -103,8 +118,11 @@ object ConversationCodec {
         }
     }
 
-    private fun messageFromJson(o: JSONObject): ChatMessage {
+    private fun messageFromJson(o: JSONObject, version: Int): ChatMessage {
         o.exact(MESSAGE_KEYS, required = setOf("id", "role", "text", "thinking", "createdAt", "status", "errorText"))
+        if (version == LEGACY_VERSION) {
+            VERSION_2_MESSAGE_KEYS.forEach { key -> if (o.has(key)) fail("field $key needs format version $VERSION") }
+        }
         return try {
             ChatMessage(
                 id = o.str("id"),
@@ -113,6 +131,9 @@ object ConversationCodec {
                 thinking = o.str("thinking"),
                 modelId = o.optStrOrNull("modelId"),
                 voiceClipRef = o.optStrOrNull("voiceClipRef"),
+                durationMs = o.optLongOrNull("durationMs"),
+                transcript = o.optStrOrNull("transcript"),
+                transcriptNote = o.optStrOrNull("transcriptNote"),
                 createdAt = o.long("createdAt"),
                 status = enumNamed<MessageStatus>(o.str("status")),
                 errorText = o.str("errorText"),
@@ -133,8 +154,17 @@ object ConversationCodec {
             throw ChatCodecException("entry is not valid JSON")
         }
         root.exact(keys + "v", required = keys + "v")
-        if (root.get("v") != VERSION) fail("unsupported format version")
+        root.version()
         return root
+    }
+
+    private fun JSONObject.version(): Int {
+        val value = get("v")
+        if (value !is Int && value !is Long) fail("field must be an integer")
+        val version = (value as Number).toInt()
+        // Legacy v1 entries where written by older builds: legible forever, never re-tagged.
+        if (version !in LEGACY_VERSION..VERSION) fail("unsupported format version")
+        return version
     }
 
     private fun checkedSize(json: String): String {
@@ -159,6 +189,13 @@ object ConversationCodec {
     private fun JSONObject.bool(key: String): Boolean = (get(key) as? Boolean) ?: fail("field must be a boolean")
 
     private fun JSONObject.long(key: String): Long {
+        val value = get(key)
+        if (value !is Int && value !is Long) fail("field must be an integer")
+        return (value as Number).toLong()
+    }
+
+    private fun JSONObject.optLongOrNull(key: String): Long? {
+        if (!has(key) || isNull(key)) return null
         val value = get(key)
         if (value !is Int && value !is Long) fail("field must be an integer")
         return (value as Number).toLong()

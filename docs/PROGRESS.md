@@ -1356,3 +1356,16 @@ VERIFICATION: see the leg-4 B-STD line appended below
 ---
 
 VERIFICATION (leg-4, task/m2-b1-read-aloud): B-STD BUILD SUCCESSFUL 2m46s; ReadAloudTest 12/0 fail; total 671 tests (core 429 + app 242) 0 fail; warnings = the 4 pre-existing (ModelHub.kt:307, LiteRtLmRuntime.kt:298, AudioCapture.kt:46, Persistence.kt:230), none new; `grep -rn "TextToSpeech|RecognizerIntent" app/src` = 0 after rewording one KDoc line.
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G4 - M2.B1 voice-message bubble (E2 work, found uncommitted) ported onto milestone/M1 414dd03
+STATUS: done locally; branch CI pending
+FILES CHANGED: core chat Conversation.kt + ConversationCodec.kt (v2, v1 reader), core voice ClipPlayback.kt (new), app ClipPlayerPorts.kt + MediaPlayerClipPlayer.kt (new), ChatThread.kt (VoiceMessageBubble; imports merged with the read-aloud anchor), tests ConversationCodecTest, ChatRepositoryTest, VoiceMessageStorageTest (new), ClipPlaybackTest (new); docs ENGINEERING_LOG D-052 (ex-D-047)
+REVIEW (leg-4): stray build-bstd.log dropped; D-047 dup -> D-052; bubble UNREACHABLE (no voiceClipRef writer) -> user decision 2026-10-31 "draft + attach audio" = gap G4b (next, GLM); TASKS bubble box stays unticked until reachable
+VERIFICATION: B-STD BUILD SUCCESSFUL; 697 tests 0 fail (core + app); new compiler warnings: none in touched files (CommandGrammarTest redundant-cast warnings are pre-existing test warnings surfaced by the core test recompile)
+NEXT: CI on task/m2-b1-voice-bubble -> merge; then G4b send path via GLM
+---

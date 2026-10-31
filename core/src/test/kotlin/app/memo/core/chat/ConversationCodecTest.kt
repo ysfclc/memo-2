@@ -67,16 +67,16 @@ class ConversationCodecTest {
     }
 
     @Test
-    fun rejectsWrongVersion() {
+    fun rejectsFutureVersion() {
         val text = ConversationCodec.encodeDoc(ConversationDoc(conversation, emptyList()))
-            .replace("\"v\":1", "\"v\":2")
+            .replace("\"v\":2", "\"v\":3")
         assertFailsWith<ChatCodecException> { ConversationCodec.decodeDoc(text) }
     }
 
     @Test
     fun rejectsUnknownFields() {
         val text = ConversationCodec.encodeDoc(ConversationDoc(conversation, emptyList()))
-            .replace("\"v\":1", "\"v\":1,\"extra\":true")
+            .replace("\"v\":2", "\"v\":2,\"extra\":true")
         assertFailsWith<ChatCodecException> { ConversationCodec.decodeDoc(text) }
     }
 
