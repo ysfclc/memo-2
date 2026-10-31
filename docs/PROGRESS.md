@@ -1502,3 +1502,14 @@ FILES CHANGED: core/.../agent/Tools.kt, core/.../agent/ToolCallParser.kt, core/.
 VERIFICATION: lead B-STD EXIT 0 (read before commit); ToolCallParserTest 20/0
 NEXT: M3.A4b AgentEngine loop (budgets, repairs, no-progress, side-effecting tools -> gated workflow steps)
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A2 PacketBuilder - context retrieval across all 16 registries + recent chat; mention > natural key/name > keyword; budget-capped; redacted
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A2; review round 1 REJECTED one functional defect (natural keys are hashes, so mention/natural-key could never match typed names) -> round 2 ACCEPT: matches display names (fullName/name/title/displayName - Company uses displayName, verified People.kt) with word boundaries
+FILES CHANGED: core/.../prompts/PacketBuilder.kt (new), core/.../prompts/PacketBuilderTest.kt (10), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (read before commit); PacketBuilderTest 10/0
+---
