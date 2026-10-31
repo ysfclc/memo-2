@@ -1343,3 +1343,16 @@ VERIFICATION: lead B-STD in the task worktree: BUILD SUCCESSFUL 1m36s; WorkflowA
 NEXT: CI on task/m0-a2-audit-test, then fast-forward milestone/M1; then G3 (E3 ReadAloud review + merge)
 NOTES: DeepSeek/Qwen bake-off runs were blocked by the auto-mode classifier (opencode --auto); user chose GLM only for now (D-050).
 ---
+
+---
+
+TIMESTAMP: 2026-10-30T12:32:28Z (written by GLM leg3 E3 agent; committed and corrected by Claude leg4 2026-10-31)
+CHAIN: Claude (plan) -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+STEP: M2.B1 mini-task 4 - ReadAloud.kt (sherpa-only read-aloud) anchored into ChatThread
+STATUS: CORRECTION - the E3 agent reported "one commit on task/e3-read-aloud"; nothing was committed. Leg-4 ported the uncommitted work onto milestone/M1 4ab4aef as task/m2-b1-read-aloud (gap G3).
+FILES CHANGED: app/src/main/kotlin/app/memo/ui/voice/ReadAloud.kt (new), app/src/main/kotlin/app/memo/ui/chat/ChatThread.kt (one anchor; leg-4: user + assistant messages), app/src/test/kotlin/app/memo/ui/voice/ReadAloudTest.kt (new, 12 tests), docs/TASKS.md (tick, now true), docs/ENGINEERING_LOG.md (D-051, ex-D-047)
+REVIEW (leg-4): scope ok; no TextToSpeech/RecognizerIntent; tests real. Defects: (1) DRIFT assistant-only vs plan "any message" - fixed inline; (2) false commit claim - corrected here; (3) duplicate D-047 - renumbered D-051.
+VERIFICATION: see the leg-4 B-STD line appended below
+---
+
+VERIFICATION (leg-4, task/m2-b1-read-aloud): B-STD BUILD SUCCESSFUL 2m46s; ReadAloudTest 12/0 fail; total 671 tests (core 429 + app 242) 0 fail; warnings = the 4 pre-existing (ModelHub.kt:307, LiteRtLmRuntime.kt:298, AudioCapture.kt:46, Persistence.kt:230), none new; `grep -rn "TextToSpeech|RecognizerIntent" app/src` = 0 after rewording one KDoc line.

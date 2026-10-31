@@ -539,7 +539,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
   - [ ] hold to record with a live waveform; slide to cancel; release sends (audio + transcript)
   - [ ] voice message bubble with playback and transcript
   - [x] live mode full screen: PresenceOrb driven by level, partial transcript, speaking captions, tap to interrupt, end
-  - [ ] read-aloud action on any message
+  - [x] read-aloud action on any message (D-051: user and assistant messages; device listening UNVERIFIED)
 - Tests: `WaveformBucketsTest` (downsampling, empty); `RecorderGestureStateTest` (hold/slide/cancel/release)
 - Checks: `grep -rn RecognizerIntent app/src` is empty; `grep -rn "TextToSpeech" app/src` is empty (no system robot voice).
 - Build: emulator: record with the host mic (`-allow-host-audio`), screenshots.

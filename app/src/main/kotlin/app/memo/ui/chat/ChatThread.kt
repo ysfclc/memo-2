@@ -46,6 +46,10 @@ import app.memo.runtime.ChatService
 import app.memo.ui.components.MemoButton
 import app.memo.ui.components.MemoButtonStyle
 import app.memo.ui.theme.MemoTheme
+import app.memo.ui.voice.ReadAloud
+import app.memo.ui.voice.ReadAloudMessageButton
+import app.memo.ui.voice.ReadAloudMessageLine
+import app.memo.ui.voice.rememberReadAloud
 import kotlinx.coroutines.launch
 
 @Composable
@@ -56,6 +60,7 @@ fun ChatThread(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val readAloud = rememberReadAloud()
     val doc = controller.doc
     val messages = doc?.messages.orEmpty()
     val listState = rememberLazyListState()
@@ -90,6 +95,7 @@ fun ChatThread(
                     message = message,
                     canRegenerate = streaming == null && message.role == ChatRole.ASSISTANT && message.id == messages.lastOrNull()?.id,
                     actionsEnabled = streaming == null,
+                    readAloud = readAloud,
                     onRegenerate = controller::regenerate,
                     onEdit = { value -> controller.editAndResend(message.id, value) },
                     onDelete = { controller.deleteMessage(message.id) },
@@ -147,6 +153,7 @@ private fun ChatMessageRow(
     message: ChatMessage,
     canRegenerate: Boolean,
     actionsEnabled: Boolean,
+    readAloud: ReadAloud,
     onRegenerate: () -> Unit,
     onEdit: (String) -> Unit,
     onDelete: () -> Unit,
@@ -173,11 +180,13 @@ private fun ChatMessageRow(
             if (actionsEnabled) MessageActions(
                 message = message,
                 canRegenerate = canRegenerate,
+                readAloud = readAloud,
                 onRegenerate = onRegenerate,
                 onEdit = { editOpen = true },
                 onDelete = { deleteOpen = true },
             )
         }
+        ReadAloudMessageLine(readAloud, message.id)
     }
     if (editOpen && actionsEnabled) EditMessageDialog(message.text, onDismiss = { editOpen = false }) { updated ->
         editOpen = false
@@ -214,6 +223,7 @@ private fun MessageBubble(role: ChatRole, content: @Composable androidx.compose.
 private fun MessageActions(
     message: ChatMessage,
     canRegenerate: Boolean,
+    readAloud: ReadAloud,
     onRegenerate: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -223,6 +233,7 @@ private fun MessageActions(
         IconButton(onClick = { clipboard.setText(AnnotatedString(message.text)) }) {
             Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy message", tint = MemoTheme.colors.inkMuted)
         }
+        ReadAloudMessageButton(readAloud, message.id, message.text)
         if (canRegenerate) IconButton(onClick = onRegenerate) {
             Icon(Icons.Outlined.Refresh, contentDescription = "Regenerate response", tint = MemoTheme.colors.inkMuted)
         }
