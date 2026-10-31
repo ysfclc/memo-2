@@ -1490,3 +1490,15 @@ ROOT CAUSE of the failure: VaultFormatTest corrupted a sealed blob by setting it
 FIX: flip a bit (xor 0x01) instead, in both corrupting tests - always corrupts
 VERIFICATION: B-STD BUILD SUCCESSFUL, 740 tests 0 fail (read before committing)
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A4a agent tool catalog (12 tools from 2g, 5 side-effecting) + strict ToolCallParser
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A4a; verdict ACCEPT, no defects; deviations accepted: text-bearing params maxChars 8000, optional params rendered "(optional)"
+FILES CHANGED: core/.../agent/Tools.kt, core/.../agent/ToolCallParser.kt, core/.../agent/ToolCallParserTest.kt (20), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (read before commit); ToolCallParserTest 20/0
+NEXT: M3.A4b AgentEngine loop (budgets, repairs, no-progress, side-effecting tools -> gated workflow steps)
+---
