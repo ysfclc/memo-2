@@ -1425,3 +1425,14 @@ FILES CHANGED: docs/TASKS.md (M0.R2, M2.B0b, M1.A2, M1.A3, M1.B1, M1.B2 ticked w
 VERIFICATION: each tick cites a test/CI run in the line itself; docs only
 NEXT: G10 part 2 after G5/G4b-2/G6 merge (their boxes), STATUS.md refresh
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G4b-2 - Send attaches the recorded clip (draft + attach audio)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G4b-2; verdict ACCEPT, no defects; follow-up noted (not a defect of the brief): a clip-only message with no transcript reaches the model as an empty prompt
+FILES CHANGED: app/.../ui/chat/ChatController.kt (attachVoiceClip/removeVoiceClip, send passes the clip, internal userMessageWithClip), ChatComposer.kt (Recorded.Message/Untranscribed attach the clip, chip with remove), ChatThread.kt (unedited transcript not shown twice), app/src/test/.../ui/chat/VoiceClipSendTest.kt (4), docs/TASKS.md (M2.B1 mini-tasks 1+2 ticked), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; VoiceClipSendTest 4/0; grep voiceClipRef = -> new writer in ChatController; no new warnings in touched files. UNVERIFIED on device: chip, send, playback
+---
