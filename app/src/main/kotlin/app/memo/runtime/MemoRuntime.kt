@@ -8,6 +8,9 @@ import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import app.memo.core.agent.AgentEngine
+import app.memo.core.agent.ApprovalSummary
+import app.memo.core.agent.EntityApproval
+import app.memo.core.agent.ExtractionResult
 import app.memo.core.audit.AuditSink
 import app.memo.core.audit.HashChainAudit
 import app.memo.core.catalog.ModelCatalog
@@ -356,6 +359,52 @@ class MemoRuntime(context: Context) {
                 PlanReply("Planning failed: ${SynCodec.safeMessage(e, 160)}", null)
             }
             onReply(reply.text, reply.runId)
+        }
+    }
+
+    /**
+     * Entity extraction and approval for chat messages (ENT.4b). The model comes from the active
+     * chat model; approvals run on the runtime thread through [applyEntitiesOnRuntime].
+     */
+    val entityService: EntityService by lazy {
+        EntityService(
+            modelFor = {
+                models.activeId?.let(::resolveInstalledChatModel)
+                    ?.let { ref -> InferencePlanModel(inference::submit, { inference.cancel(it) }, ref) }
+            },
+            applyOnRuntime = ::applyEntitiesOnRuntime,
+            clock = System::currentTimeMillis,
+        )
+    }
+
+    /**
+     * Extracts people and things from one chat message, off the caller's thread. [onResult] is
+     * delivered on the planner thread; the caller hops to the main thread itself.
+     */
+    fun extractEntities(text: String, messageId: String, onResult: (Extracted) -> Unit) {
+        planExec.execute { onResult(entityService.extract(text, messageId)) }
+    }
+
+    /**
+     * Saves the ticked selection on the runtime thread, then persists and publishes. Blocks the
+     * caller until done, so never call it from [exec] or the main thread. Refused while read-only.
+     */
+    private fun applyEntitiesOnRuntime(
+        result: ExtractionResult,
+        selected: Set<Int>,
+        selectedRelations: Set<Int>,
+    ): ApprovalSummary {
+        val applied = exec.submit(Callable {
+            check(!readOnly()) { READ_ONLY_SAVE }
+            val summary = EntityApproval.apply(workspace, result, selected, selectedRelations, System.currentTimeMillis())
+            persistAll()
+            publish("")
+            summary
+        })
+        return try {
+            applied.get(APPLY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } catch (e: ExecutionException) {
+            throw e.cause ?: e
         }
     }
 
@@ -767,6 +816,8 @@ class MemoRuntime(context: Context) {
     private companion object {
         const val TAG = "MemoRuntime"
         const val PROPOSE_TIMEOUT_SECONDS = 10L
+        const val APPLY_TIMEOUT_SECONDS = 10L
+        const val READ_ONLY_SAVE = "storage is read-only this session; nothing was saved"
         const val READ_ONLY_REASON = "storage is read-only this session; side effects are refused"
         const val READ_ONLY_APPROVAL =
             "Storage is read-only; approvals that lead to outbound actions are disabled until storage is fixed"

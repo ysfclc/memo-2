@@ -1621,3 +1621,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.4a; round 1 STOPPED hone
 FILES CHANGED: core agent/EntityExtraction.kt (kept order), EntityExtractionTest (14), agent/EntityApproval.kt (new), EntityApprovalTest (7), registry/ArtifactStore.keyOf, docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0 (899 tests 0 fail); after the merge-test add, :core:test EXIT 0 with EntityApprovalTest 7/0
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: ENTITIES wave (D-059)
+ITEM: ENT.4b Extract action on any chat message -> evidence-backed extraction -> review sheet (checkboxes, excerpts, relations) -> save only what is ticked
+IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.4b; verdict ACCEPT; extras accepted: refuses to save while storage is read-only; reply lands on the conversation the user is in. Implementer note: opencode free + GitHub Copilot CLI free quotas both exhausted 2026-10-31 (user asked to use Copilot next) - Haiku remains the implementer
+FILES CHANGED: app/.../runtime/EntityService.kt (new), app/.../ui/chat/EntityReviewSheet.kt (new), MemoRuntime.kt (entityService, extractEntities, applyEntitiesOnRuntime), ChatThread.kt (Extract action), ChatScreen.kt (review state + sheet), EntityServiceTest (6), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; EntityServiceTest 6/0; total 906 tests 0 fail; no Color(0x. Device UNVERIFIED
+---

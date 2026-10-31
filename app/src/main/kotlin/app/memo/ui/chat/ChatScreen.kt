@@ -23,16 +23,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.memo.core.agent.ExtractionResult
+import app.memo.core.chat.ChatMessage
 import app.memo.core.chat.ModelSettings
+import app.memo.core.codec.SynCodec
 import app.memo.core.platform.ModelFormat
 import app.memo.models.ModelStore
 import app.memo.runtime.ChatService
+import app.memo.runtime.Extracted
 import app.memo.runtime.MemoRuntime
 import app.memo.ui.components.MemoButton
 import app.memo.ui.components.MemoButtonStyle
 import app.memo.ui.components.UndoSnackbarHost
 import app.memo.ui.components.showUndo
 import app.memo.ui.theme.MemoTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ChatScreen(runtime: MemoRuntime) {
@@ -40,6 +47,9 @@ fun ChatScreen(runtime: MemoRuntime) {
     val snackbar = remember { SnackbarHostState() }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
     var modelsOpen by rememberSaveable { mutableStateOf(false) }
+    var extracting by remember { mutableStateOf(false) }
+    var review by remember { mutableStateOf<ExtractionResult?>(null) }
+    var saving by remember { mutableStateOf(false) }
     val controller = remember(runtime) {
         ChatController(
             repo = runtime.chats,
@@ -80,6 +90,22 @@ fun ChatScreen(runtime: MemoRuntime) {
         is ChatService.ModelStatus.Failed -> "Model could not be loaded"
         is ChatService.ModelStatus.Ready -> runtime.models.entryFor(state.modelId)?.displayName ?: "Local model ready"
         ChatService.ModelStatus.None -> selected?.displayName ?: "Choose a local model"
+    }
+
+    /** Finds people and things in one message (ENT.4b). The model runs off main; the sheet opens on main. */
+    fun extract(message: ChatMessage) {
+        if (extracting) return
+        extracting = true
+        runtime.extractEntities(message.text, message.id) { outcome ->
+            scope.launch {
+                extracting = false
+                when (outcome) {
+                    is Extracted.Ready -> review = outcome.result
+                    Extracted.NoModel -> controller.showNotice("Install a chat model in Models to find people and things.")
+                    is Extracted.Failed -> controller.showNotice("Could not read this message: ${outcome.message}")
+                }
+            }
+        }
     }
 
     LaunchedEffect(controller) {
@@ -124,11 +150,42 @@ fun ChatScreen(runtime: MemoRuntime) {
             onSuggestion = controller::onTextChanged,
             readClip = runtime::readVoiceClip,
             planCards = planCards,
+            onExtract = ::extract,
             modifier = Modifier.weight(1f),
         )
+        if (extracting) {
+            Text(
+                "Finding people and things…",
+                style = MemoTheme.typography.caption,
+                color = MemoTheme.colors.inkMuted,
+                modifier = Modifier.padding(horizontal = MemoTheme.spacing.space5),
+            )
+        }
         ChatComposer(controller, streaming, runtime.voiceMessages)
     }
     UndoSnackbarHost(snackbar)
+
+    review?.let { result ->
+        EntityReviewSheet(
+            result = result,
+            saving = saving,
+            onSave = { selected, relations ->
+                saving = true
+                scope.launch {
+                    val line = withContext(Dispatchers.IO) {
+                        runCatching { runtime.entityService.approve(result, selected, relations) }
+                    }.fold(
+                        onSuccess = { runtime.entityService.summaryLine(it) },
+                        onFailure = { "Could not save: ${SynCodec.safeMessage(it, 160)}" },
+                    )
+                    saving = false
+                    review = null
+                    controller.showNotice(line)
+                }
+            },
+            onDismiss = { review = null },
+        )
+    }
 
     if (historyOpen) ChatHistorySheet(controller) { historyOpen = false }
     if (modelsOpen) ChatModelPickerSheet(

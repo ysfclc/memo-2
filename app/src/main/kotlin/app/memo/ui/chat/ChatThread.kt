@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
@@ -83,6 +84,7 @@ fun ChatThread(
     onSuggestion: (String) -> Unit,
     readClip: (String) -> ByteArray?,
     planCards: PlanCardHooks,
+    onExtract: (ChatMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -127,6 +129,7 @@ fun ChatThread(
                     onRegenerate = controller::regenerate,
                     onEdit = { value -> controller.editAndResend(message.id, value) },
                     onDelete = { controller.deleteMessage(message.id) },
+                    onExtract = { onExtract(message) },
                 )
             }
             streamForThisChat?.let { current ->
@@ -187,6 +190,7 @@ private fun ChatMessageRow(
     onRegenerate: () -> Unit,
     onEdit: (String) -> Unit,
     onDelete: () -> Unit,
+    onExtract: () -> Unit,
 ) {
     var editOpen by remember(message.id) { mutableStateOf(false) }
     var deleteOpen by remember(message.id) { mutableStateOf(false) }
@@ -215,6 +219,7 @@ private fun ChatMessageRow(
                 onRegenerate = onRegenerate,
                 onEdit = { editOpen = true },
                 onDelete = { deleteOpen = true },
+                onExtract = onExtract,
             )
         }
         ReadAloudMessageLine(readAloud, message.id)
@@ -435,6 +440,7 @@ private fun MessageActions(
     onRegenerate: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onExtract: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     Row {
@@ -442,6 +448,13 @@ private fun MessageActions(
             Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy message", tint = MemoTheme.colors.inkMuted)
         }
         ReadAloudMessageButton(readAloud, message.id, message.text)
+        if (message.text.isNotBlank()) IconButton(onClick = onExtract) {
+            Icon(
+                Icons.Outlined.AutoAwesome,
+                contentDescription = "Find people and things in this message",
+                tint = MemoTheme.colors.inkMuted,
+            )
+        }
         if (canRegenerate) IconButton(onClick = onRegenerate) {
             Icon(Icons.Outlined.Refresh, contentDescription = "Regenerate response", tint = MemoTheme.colors.inkMuted)
         }
