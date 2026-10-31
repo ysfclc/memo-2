@@ -218,6 +218,22 @@ class MemoRuntime(context: Context) {
         )
     }
 
+    /**
+     * Per-model voice downloads for the Models tab's Voice section (plan task M2.A2). Installs
+     * block on network and SHA-256 verification, so they run on a dedicated daemon thread;
+     * [VoiceModelDownloads] writes its Compose state from that thread. The installer reads and
+     * writes the same `filesDir/voice` root the voice session, read-aloud and voice-message
+     * transcription use.
+     */
+    val voiceModelDownloads: VoiceModelDownloads by lazy {
+        VoiceModelDownloads(
+            port = InstallerVoicePort(VoiceModelInstaller(File(appContext.filesDir, "voice"))),
+            executor = Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "memo-voice-downloads").apply { isDaemon = true }
+            },
+        )
+    }
+
     private fun runtimeFor(format: ModelFormat): LlmRuntime = when (format) {
         ModelFormat.LITERTLM -> LiteRtLmRuntime(
             cacheDir = File(appContext.cacheDir, "litert-lm"),

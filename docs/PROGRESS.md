@@ -1388,3 +1388,14 @@ VERIFICATION: emulator reproduced the phone failure for the G1 APK: INSTALL_FAIL
 NEXT: CI APK -> install side by side on emulator-5554 (no uninstall) -> publish preview for the phone
 NOTES: root cause = the user's separate earlier Memo project owns app.memo; user chose app.memo2 / Memo 2.
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G5 - M2.A2 voice models downloadable in the Models tab (Voice section)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G5; first run reaped under memory pressure (orphan stopped by lead), relaunched run completed on top of its partial files; verdict ACCEPT, no defects; one import outside the stated region, needed to compile
+FILES CHANGED: app/.../runtime/VoiceModelDownloads.kt (new), app/.../runtime/MemoRuntime.kt (+voiceModelDownloads lazy, executor memo-voice-downloads, same filesDir/voice root), app/.../ui/ModelsBrowser.kt (VOICE branch: 4 model cards with Download / Downloading n% / Installed / Failed+Retry), app/src/test/.../runtime/VoiceModelDownloadsTest.kt (7), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; VoiceModelDownloadsTest 7/0; no Color(0x and no placeholder text in ModelsBrowser; no new warnings in touched files. UNVERIFIED on device: real ~637 MB download over phone network; downloads run on a daemon thread, so they stop if Android kills the backgrounded process (retry resumes via the installer range-resume)
+---
