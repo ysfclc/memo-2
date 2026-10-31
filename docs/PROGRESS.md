@@ -1388,3 +1388,14 @@ VERIFICATION: emulator reproduced the phone failure for the G1 APK: INSTALL_FAIL
 NEXT: CI APK -> install side by side on emulator-5554 (no uninstall) -> publish preview for the phone
 NOTES: root cause = the user's separate earlier Memo project owns app.memo; user chose app.memo2 / Memo 2.
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G9 - M2.B1 named tests WaveformBucketsTest + RecorderGestureStateTest
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G9; run wrapper reaped under memory pressure after the files were written; verdict ACCEPT, no defects (lead re-derived the 2-into-4 and clamp/drop cases by hand)
+FILES CHANGED: app/src/test/kotlin/app/memo/ui/voice/{WaveformBucketsTest,RecorderGestureStateTest}.kt (new), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; WaveformBucketsTest 4/0, RecorderGestureStateTest 6/0
+---
