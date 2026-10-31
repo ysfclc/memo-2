@@ -1463,3 +1463,15 @@ ROOT CAUSE: MainActivity enableEdgeToEdge() makes adjustResize a no-op; no scree
 FIX (lead inline, 4 lines): MemoNavShell consumes the Scaffold insets (consumeWindowInsets(pad)); ChatScreen column gets imePadding()
 VERIFICATION: B-STD EXIT 0; device re-check by the user pending
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: fix
+ITEM: flaky VaultFormatTest (corruptCandidate tests) + LEAD PROCESS SLIP
+LEAD SLIP (recorded honestly): the keyboard-fix commit 3 entries up was committed and pushed while its B-STD had FAILED (EXIT=1) - the result was not read before chaining the commit. Nothing was merged; its CI run 41193566974 was cancelled. Gate restated: read B-STD EXIT before every commit.
+ROOT CAUSE of the failure: VaultFormatTest corrupted a sealed blob by setting its last byte to 0, which is a no-op whenever that GCM tag byte is already 0 (1 in 256 random keys) -> decryption succeeds -> selectReadableReturnsNullWhenAllCorrupt fails intermittently. Pre-existing (leg1), unrelated to the keyboard change.
+FIX: flip a bit (xor 0x01) instead, in both corrupting tests - always corrupts
+VERIFICATION: B-STD BUILD SUCCESSFUL, 740 tests 0 fail (read before committing)
+---
