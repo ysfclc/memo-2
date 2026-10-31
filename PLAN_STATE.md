@@ -1,6 +1,6 @@
 # PLAN STATE
 CHAIN: Claude(plan) -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
-UPDATED: 2026-10-31 (leg-4, Step 1 everyday app complete on milestone/M1)
+UPDATED: 2026-10-31 (leg-4; Step 2 BRAIN in progress on milestone/M3)
 AUDIT + GAP REGISTER (authoritative detail): ~/.claude/plans/use-glm-5-4-free-staged-koala.md
 RULES: AGENTS.md rule 10 (in-place updates, shared debug keystore), rule 11 (strict implementation; /implement)
 
@@ -27,7 +27,7 @@ GAP REGISTER:
   G11 device batch (user's phone): OPEN
   ID app.memo2 / label Memo (D-053, D-054): app-id CI 41185263209 green; label CI 41186450339 on 33b86e1 pending
 
-CURRENT: Step 1 (everyday app) complete; CI on milestone/M1 head for the user APK; then G11 device batch (user phone)
-NEXT ACTION: confirm CI green on milestone/M1 head, give the user the run link; user installs + runs the G11 checklist; then Step 2 = M3 BRAIN (M3.A1 orchestrator, M3.A4 agent engine, M3.A2 context) via /implement, per the Relay-ordered plan in ~/.claude/plans/use-glm-5-4-free-staged-koala.md
+CURRENT: Step 2 BRAIN on milestone/M3 - done: M3.A1a/b/c (orchestrator, templates, planner wiring), M3.A4a (tool catalog + parser), M3.A4b (agent loop), M3.A2 (context retrieval); in progress: M3.A4c (agent runs REASON steps; one PacketBuilder)
+NEXT ACTION: review M3.A4c (worktree ../memo-wt/m3a4c), lead B-STD (read EXIT before commit), CI, merge to milestone/M3; then M3.A3 chat<->workflow bridge + PlanCard, M3.B1 approval UX (APPROVALS wave, BUILD_PLAN D-057 order). Follow-ups: planning indicator in chat; voice status hint in chat model picker; agent transcript cap vs model context. Implementer = Haiku subagent (opencode free quota exhausted, D-058). Machine: emulator off, max 1 Gradle build at a time.
 VERIFY BASELINE: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` -> 697 tests 0 fail (2026-10-31, after G4+G7+ID change)
 OPEN BLOCKERS: G11 needs the phone (user: uninstall the other-key Memo not needed any more after app.memo2). User decisions PD1 (unused kit components), PD2 (Piper), PD3 (vision re-grounding), PD4 (bulk approval)
