@@ -1356,3 +1356,16 @@ VERIFICATION: see the leg-4 B-STD line appended below
 ---
 
 VERIFICATION (leg-4, task/m2-b1-read-aloud): B-STD BUILD SUCCESSFUL 2m46s; ReadAloudTest 12/0 fail; total 671 tests (core 429 + app 242) 0 fail; warnings = the 4 pre-existing (ModelHub.kt:307, LiteRtLmRuntime.kt:298, AudioCapture.kt:46, Persistence.kt:230), none new; `grep -rn "TextToSpeech|RecognizerIntent" app/src` = 0 after rewording one KDoc line.
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G7 - M1.A3 step 3: InferenceManager state -> InferenceService.onManagerState (FGS after 10 s of generation)
+STATUS: done locally; branch CI pending
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G7; verdict ACCEPT, no defects; diff = MemoRuntime.kt only, 5 lines, exactly the briefed change; report accurate vs diff
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt, docs/PROGRESS.md
+VERIFICATION: GLM B-STD + lead B-STD BUILD SUCCESSFUL; grep onManagerState( -> InferenceService.kt:63 (def) + MemoRuntime.kt:164 (caller); no new warnings. UNVERIFIED on device: the ongoing "Memo is generating a reply" notification after 10 s (also needs POST_NOTIFICATIONS on Android 13+ for the notification to be visible; the FGS itself runs without it)
+NEXT: CI -> merge; device batch G11 adds "long generation shows the notification and survives backgrounding"
+---
