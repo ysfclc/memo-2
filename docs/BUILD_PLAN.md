@@ -1927,6 +1927,30 @@ Split into small tasks, all following §2i.
 
 **M4 close:** PR. Device checklist: sign in to ChatGPT in the Browser tab; run a consult step; take over and resume; enable accessibility and run "open Calculator and type 2+2" (safe app); check discovery lists the installed AI apps.
 
+### ENTITIES wave — scope widened (2026-10-31, D-059, user decision: "all kinds + anything in the original plan and the failed apps")
+Runs right after APPROVALS (D-057 order). Every extracted fact cites its source; nothing is saved without approval; reuse-first (rule 2).
+
+**ENT.1 — Every artifact kind is persisted (gap found in leg-4 review)**
+- today only person/company/task/draft are saved after approval; job_posting, application and post fail with "not persisted in this build", and project/note cannot be produced by a plan.
+- files: `core/.../prompts/Prompts.kt` (ARTIFACT_KINDS + project, note), `app/.../ui/artifact/ArtifactFields.kt` (+ project, note renderers), `app/.../runtime/MemoRuntime.kt` persistRow (all 9 kinds), tests
+- acceptance: a persist test per kind (Created → Reused → Bumped); RendererCoverageTest covers 9 kinds.
+
+**ENT.2 — Generic entities + relationships with provenance (Fieldwork lesson, done properly)**
+- files: `core/.../domain/Entity.kt` (`Entity(type, title, properties, reviewStatus, provenance{sourceKind, sourceId, excerpt}, version)`, `Relation(fromKey, toKey, relationType, provenance)`), two new Workspace registries (additive SynCodec change + migration reader), natural keys, tests
+- covers anything without a typed registry: place, event/meeting, product, idea, reminder context, topic…; typed kinds stay typed.
+- acceptance: round-trip + key tests; relation dedupe by (from, to, type); a v-previous workspace still loads.
+
+**ENT.3 — Evidence-backed extraction (= M4.A4d, pulled forward)**
+- files: `core/.../agent/EntityExtraction.kt`, tests
+- the local model proposes entities/relations from a message, note or capture; core keeps only facts whose cited excerpt actually occurs in the source text; typed kinds map to their registries, everything else to Entity.
+- acceptance: tests incl. a rejected unsupported claim, a fabricated excerpt, a duplicate that is reused.
+
+**ENT.4 — Review + approve extracted entities in chat**
+- files: `app/.../runtime/EntityService.kt`, `app/.../ui/chat/EntityCard.kt`
+- extracted items arrive as an approvable card (renderers from M3.B1a); approve saves through persistRow/Entity registry; veto discards.
+
+**ENT.5 — M3.C2 CRM capture** (unchanged scope) on top of ENT.1–4: person + company + place, reuse existing, follow-up tasks.
+
 ### M4.R — PORTER: move data between the user's own logged-in sites (Relay-inspired, 2026-10-31, D-057)
 Inspiration (not spec): the user's "Relay" brainstorm — the browser is the final API; the user is already logged in; Memo does the tedious moving. Memo stays Android-only: WebView sessions (§2b), DOM/AX-first grounding (§2a), Humanizer pacing (§2d), ActionPolicy tiers, hash-chained audit. Not carried over from Relay: Playwright/CDP, desktop multi-tab parallelism, unsigned third-party script packs.
 
