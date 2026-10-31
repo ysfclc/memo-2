@@ -1462,4 +1462,9 @@ ITEM: M3.A1b TemplateLibrary - 5 seed WorkflowTemplates (UC-1..UC-5) as few-shot
 IMPLEMENTER RUN: model Haiku subagent (D-058 fallback); task M3.A1b; verdict ACCEPT, no defects; its report matched the diff (2 new files) and the lead run
 FILES CHANGED: core/.../plan/TemplateLibrary.kt (new), core/.../plan/TemplateLibraryTest.kt (5), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; TemplateLibraryTest 5/0 (every seed parses and passes WorkflowPolicy.validateSpec; uc3/uc4 side effects gated)
+ITEM: M3.A1a core Orchestrator (command fast-path, chat vs plan, model plan with <=2 repairs, labelled FALLBACK, template reuse, few-shot)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task M3.A1a; verdict ACCEPT, no defects (note: catches Throwable on the model call - deliberate, OOM becomes a fallback plan); opencode free quota exhausted right after (D-058)
+FILES CHANGED: core/.../plan/Orchestrator.kt (new), core/.../plan/OrchestratorTest.kt (13), docs/ENGINEERING_LOG.md (D-058), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; OrchestratorTest 13/0
+NEXT: M3.A1b TemplateLibrary seeds (Haiku), M3.A1c PlannerService wiring (Haiku)
 ---
