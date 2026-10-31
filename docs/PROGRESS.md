@@ -1479,3 +1479,15 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A1c; verdict ACCEPT; Haik
 FILES CHANGED: app/.../runtime/PlannerService.kt (new: InferencePlanModel + PlannerService), MemoRuntime.kt (plannerService, memo-planner executor, handlePlanRequest), ChatController.kt (runPlan param, plan branch, appendSystemReply), ChatScreen.kt (wiring), core Orchestrator.kt (public isPlanIntent), PlannerServiceTest (8), docs TASKS (M3.A1 ticked), PROGRESS
 VERIFICATION: lead B-STD EXIT 0 on milestone/M3 + this change; PlannerServiceTest 8/0, OrchestratorTest 13/0; no new warnings in touched files. Follow-up: no planning indicator in the chat UI
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A4a agent tool catalog (12 tools from 2g, 5 side-effecting) + strict ToolCallParser
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A4a; verdict ACCEPT, no defects; deviations accepted: text-bearing params maxChars 8000, optional params rendered "(optional)"
+FILES CHANGED: core/.../agent/Tools.kt, core/.../agent/ToolCallParser.kt, core/.../agent/ToolCallParserTest.kt (20), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (read before commit); ToolCallParserTest 20/0
+NEXT: M3.A4b AgentEngine loop (budgets, repairs, no-progress, side-effecting tools -> gated workflow steps)
+---
