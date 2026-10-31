@@ -270,6 +270,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Checks: shared settlement path; gate re-checked on delivery.
 
 ### [x] M0.A2 Audit wiring (folded into M0.A1)
+- 2026-10-31 (leg-4 G2, D-050): `WorkflowAuditTest` (4 tests) now asserts `HashChainAudit.verify()` on an engine-produced chain, as the plan's acceptance requires.
 - Checks: `outbound` is recorded exactly once per completed side effect (existing gateFlow/persistedRun tests plus deliveredSideEffectRecordsOutboundEventOnce).
 
 ### [x] M0.A3 Domain v2 entities

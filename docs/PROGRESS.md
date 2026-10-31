@@ -1329,3 +1329,17 @@ VERIFICATION: baseline before change - B-STD BUILD SUCCESSFUL, core 425 tests / 
 NEXT: watch CI on milestone/M1; check the APK cert from the memo-apk artifact; then G2 = model bake-off (WorkflowAuditTest) via /implement
 NOTES: Audit findings (leg-4): the keystore was gitignored while D-048 said "committed"; E2/E3 work sits uncommitted in opencode worktrees (E3's PROGRESS entry claims a commit that does not exist); voice models are not downloadable in-app; voice WAVs are plaintext; InferenceService FGS is never started; TASKS/FEATURES checkboxes stale. User 2026-10-31: free opencode implementers, strict verification rule, Relay brainstorm folded in as a PORTER wave after BRAIN/APPROVALS/entities (PD3/PD4 pending the user).
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G2 - M0.A2 WorkflowAuditTest (DRIFTED -> closing)
+STATUS: done locally; branch CI pending
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G2; verdict ACCEPT after 1 inline cosmetic fix (identifier typo); defects found: none functional; report accurate vs diff
+FILES CHANGED: core/src/test/kotlin/app/memo/core/engine/WorkflowAuditTest.kt (new, 4 tests), docs/ENGINEERING_LOG.md (D-050), docs/TASKS.md (M0.A2 note), docs/PROGRESS.md
+VERIFICATION: lead B-STD in the task worktree: BUILD SUCCESSFUL 1m36s; WorkflowAuditTest 4/0 fail; core 429 total
+NEXT: CI on task/m0-a2-audit-test, then fast-forward milestone/M1; then G3 (E3 ReadAloud review + merge)
+NOTES: DeepSeek/Qwen bake-off runs were blocked by the auto-mode classifier (opencode --auto); user chose GLM only for now (D-050).
+---
