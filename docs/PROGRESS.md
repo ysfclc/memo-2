@@ -1475,3 +1475,12 @@ ROOT CAUSE of the failure: VaultFormatTest corrupted a sealed blob by setting it
 FIX: flip a bit (xor 0x01) instead, in both corrupting tests - always corrupts
 VERIFICATION: B-STD BUILD SUCCESSFUL, 740 tests 0 fail (read before committing)
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: device crash fix (back-port from milestone/M3)
+ITEM: SIGABRT in sherpa TTS callback (JNI NoSuchMethodError invoke([F)Ljava/lang/Integer;) - D-060
+FIX: SherpaTts.ChunkBridge explicit class; SherpaTtsCallbackTest pins the JNI signature. Cherry-picked from task/fix-tts-callback-jni (CI 41206578046 green)
+---
