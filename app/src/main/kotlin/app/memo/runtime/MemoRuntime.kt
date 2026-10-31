@@ -37,6 +37,7 @@ import app.memo.core.engine.WorkflowEngine
 import app.memo.core.plan.CommandGrammar
 import app.memo.core.plan.Orchestrator
 import app.memo.core.plan.TemplateLibrary
+import app.memo.core.platform.ComputePreference
 import app.memo.core.platform.ModelRef
 import app.memo.core.platform.VaultName
 import app.memo.core.prompts.ContextPacket
@@ -282,7 +283,14 @@ class MemoRuntime(context: Context) {
     private fun resolveInstalledChatModel(modelId: String): ModelRef? {
         val entry = models.entryFor(modelId) ?: return null
         val file = models.hub.installedFile(entry) ?: return null
-        return ModelRef(entry.id, entry.format, file.absolutePath, entry.sha256, entry.sizeBytes)
+        return ModelRef(entry.id, entry.format, file.absolutePath, entry.sha256, entry.sizeBytes, compute = savedCompute(entry.id))
+    }
+
+    /** The saved Compute choice for [modelId]. Any failure reads as AUTO, so a bad record never blocks a load. */
+    private fun savedCompute(modelId: String): ComputePreference = try {
+        chatSettings.load(modelId).compute
+    } catch (_: Exception) {
+        ComputePreference.AUTO
     }
 
     /** Entry point for typed or spoken input. Returns an immediate reply. */

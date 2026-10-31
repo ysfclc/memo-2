@@ -34,6 +34,14 @@ class PlatformContractsTest {
     }
 
     @Test
+    fun modelRefsDifferingOnlyInComputeAreNotEqual() {
+        val auto = ModelRef("qwen3-0.6b", ModelFormat.LITERTLM, "/q.litertlm", SHA, 1L)
+        assertEquals(ComputePreference.AUTO, auto.compute)
+        assertFalse(auto == auto.copy(compute = ComputePreference.GPU))
+        assertFalse(auto.copy(compute = ComputePreference.GPU) == auto.copy(compute = ComputePreference.CPU))
+    }
+
+    @Test
     fun chatTurnRequiresToolNameOnlyForToolRole() {
         assertEquals("search", ChatTurn(ChatTurn.Role.TOOL, "result", "search").toolName)
         assertFailsWith<IllegalArgumentException> { ChatTurn(ChatTurn.Role.TOOL, "result") }

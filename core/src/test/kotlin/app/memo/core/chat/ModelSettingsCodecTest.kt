@@ -1,5 +1,6 @@
 package app.memo.core.chat
 
+import app.memo.core.platform.ComputePreference
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -13,6 +14,7 @@ class ModelSettingsCodecTest {
         topP = 0.8,
         contextTokens = 8192,
         thinking = true,
+        compute = ComputePreference.GPU,
     )
 
     @Test
@@ -26,8 +28,30 @@ class ModelSettingsCodecTest {
     }
 
     @Test
+    fun computeRoundTripsForGpuAndCpu() {
+        for (pref in listOf(ComputePreference.GPU, ComputePreference.CPU)) {
+            val s = custom.copy(compute = pref)
+            assertEquals(s, ModelSettingsCodec.decode(ModelSettingsCodec.encode(s)))
+        }
+    }
+
+    @Test
+    fun version1EntryWithoutComputeDecodesAsAuto() {
+        val v1 = """{"v":1,"systemPrompt":"Be brief.","temperature":0.75,"topK":20,"topP":0.8,"contextTokens":8192,"thinking":true}"""
+        assertEquals(custom.copy(systemPrompt = "Be brief.", compute = ComputePreference.AUTO), ModelSettingsCodec.decode(v1))
+    }
+
+    @Test
+    fun unknownComputeValueIsRejected() {
+        val unknown = ModelSettingsCodec.encode(custom).replace("\"compute\":\"GPU\"", "\"compute\":\"TPU\"")
+        assertFailsWith<ModelSettingsException> { ModelSettingsCodec.decode(unknown) }
+        val wrongType = ModelSettingsCodec.encode(custom).replace("\"compute\":\"GPU\"", "\"compute\":1")
+        assertFailsWith<ModelSettingsException> { ModelSettingsCodec.decode(wrongType) }
+    }
+
+    @Test
     fun rejectsUnknownFieldAndMissingField() {
-        val withExtra = ModelSettingsCodec.encode(custom).replace("\"v\":1", "\"v\":1,\"x\":2")
+        val withExtra = ModelSettingsCodec.encode(custom).replace("\"v\":2", "\"v\":2,\"x\":2")
         assertFailsWith<ModelSettingsException> { ModelSettingsCodec.decode(withExtra) }
         val missing = ModelSettingsCodec.encode(custom).replace("\"topK\":20,", "")
         assertFailsWith<ModelSettingsException> { ModelSettingsCodec.decode(missing) }
@@ -37,7 +61,7 @@ class ModelSettingsCodecTest {
     fun rejectsWrongTypeAndVersion() {
         val wrongType = ModelSettingsCodec.encode(custom).replace("\"thinking\":true", "\"thinking\":\"yes\"")
         assertFailsWith<ModelSettingsException> { ModelSettingsCodec.decode(wrongType) }
-        val wrongVersion = ModelSettingsCodec.encode(custom).replace("\"v\":1", "\"v\":9")
+        val wrongVersion = ModelSettingsCodec.encode(custom).replace("\"v\":2", "\"v\":9")
         assertFailsWith<ModelSettingsException> { ModelSettingsCodec.decode(wrongVersion) }
     }
 

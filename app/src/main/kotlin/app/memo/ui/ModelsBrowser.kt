@@ -50,6 +50,7 @@ import app.memo.core.catalog.ModelEntry
 import app.memo.core.chat.Fit
 import app.memo.core.chat.ModelFit
 import app.memo.core.chat.ModelSettings
+import app.memo.core.platform.ComputePreference
 import app.memo.core.platform.ModelFormat
 import app.memo.models.ModelStore
 import app.memo.runtime.ChatSettingsRepository
@@ -546,6 +547,17 @@ private fun ModelSettingsSheet(
                     }
                 }
             }
+            if (entry.format == ModelFormat.LITERTLM) {
+                Column(verticalArrangement = Arrangement.spacedBy(MemoTheme.spacing.space2)) {
+                    Text("Compute · ${computeLabel(settings.compute)}", style = MemoTheme.typography.label, color = MemoTheme.colors.ink)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(MemoTheme.spacing.space2)) {
+                        ComputePreference.entries.forEach { pref ->
+                            MemoButton(onClick = { settings = settings.copy(compute = pref) }, enabled = !loading && error == null, style = if (settings.compute == pref) MemoButtonStyle.SECONDARY else MemoButtonStyle.QUIET) { Text(computeLabel(pref)) }
+                        }
+                    }
+                    Text("If the screen flickers while Memo generates, try CPU.", style = MemoTheme.typography.caption, color = MemoTheme.colors.inkMuted)
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Thinking mode", style = MemoTheme.typography.label, color = MemoTheme.colors.ink)
@@ -580,6 +592,12 @@ private fun fitRank(fit: Fit): Int = when (fit) { Fit.FITS -> 0; Fit.TIGHT -> 1;
 private fun formatLabel(format: ModelFormat): String = when (format) {
     ModelFormat.LITERTLM -> "LiteRT-LM"
     ModelFormat.GGUF -> "GGUF"
+}
+
+private fun computeLabel(pref: ComputePreference): String = when (pref) {
+    ComputePreference.AUTO -> "Auto"
+    ComputePreference.GPU -> "GPU"
+    ComputePreference.CPU -> "CPU"
 }
 
 private fun mb(bytes: Long): String = "%.1f MB".format(bytes / 1_000_000.0)

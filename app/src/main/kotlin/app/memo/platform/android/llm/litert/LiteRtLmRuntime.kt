@@ -2,6 +2,7 @@ package app.memo.platform.android.llm.litert
 
 import app.memo.core.platform.ChatSink
 import app.memo.core.platform.ChatTurn
+import app.memo.core.platform.ComputePreference
 import app.memo.core.platform.GenParams
 import app.memo.core.platform.GenStats
 import app.memo.core.platform.LlmError
@@ -44,8 +45,9 @@ import java.util.concurrent.atomic.AtomicReference
  * never touches the caller's thread. One engine stays resident. Each request
  * gets a fresh conversation, which is closed when the request ends.
  *
- * Backend choice: the engine starts on GPU. If that init throws, the GPU engine
- * is dropped without `close()` (its init failed) and a CPU engine is created. If
+ * Backend choice follows [ModelRef.compute] (see [backendOrder]). AUTO and GPU
+ * start on GPU. If that init throws, the GPU engine is dropped without `close()`
+ * (its init failed) and a CPU engine is created. CPU never touches the GPU. If
  * the first generation fails on GPU before any output was delivered, the engine
  * is closed and the generation is retried once on CPU. A retry is never made
  * after output has reached the sink, because that would repeat text.
@@ -131,7 +133,7 @@ class LiteRtLmRuntime(
             if (!cacheDir.isDirectory && !cacheDir.mkdirs() && !cacheDir.isDirectory) {
                 throw IllegalStateException("cache directory unavailable")
             }
-            val (engine, onGpu) = initWithFallback(ref.path)
+            val (engine, onGpu) = initWithFallback(ref.path, ref.compute)
             val label = if (onGpu) GPU_LABEL else CPU_LABEL
             resident = Resident(
                 modelId = ref.id,
@@ -339,10 +341,15 @@ class LiteRtLmRuntime(
     }
 
     /**
-     * Initialises on GPU, then CPU. A GPU engine whose init threw is not closed.
+     * Initialises in [backendOrder]. A GPU engine whose init threw is not closed.
      * A CPU init failure propagates, and that engine is not closed either.
      */
-    private fun initWithFallback(path: String): Pair<Engine, Boolean> {
+    private fun initWithFallback(path: String, compute: ComputePreference): Pair<Engine, Boolean> {
+        if (backendOrder(compute) == listOf(CPU_LABEL)) {
+            val cpu = newEngine(path, Backend.CPU())
+            cpu.initialize()
+            return cpu to false
+        }
         val gpu = newEngine(path, Backend.GPU())
         try {
             gpu.initialize()
@@ -419,11 +426,22 @@ class LiteRtLmRuntime(
     }
 
     private companion object {
-        const val GPU_LABEL = "litert-gpu"
-        const val CPU_LABEL = "litert-cpu"
         val NONE_INFO = RuntimeInfo(backend = "none", loadedModelId = null, contextTokens = 0)
 
         /** Upper bound for one generation. It ends the wait only if the engine never reports completion. */
         const val MAX_GENERATION_SECONDS = 900L
     }
+}
+
+internal const val GPU_LABEL = "litert-gpu"
+internal const val CPU_LABEL = "litert-cpu"
+
+/**
+ * The backends to try, in order, for a [ComputePreference]. [ComputePreference.GPU]
+ * still lists CPU second so the app keeps working, and the loaded label reports
+ * which backend actually initialised. [ComputePreference.CPU] never lists GPU.
+ */
+internal fun backendOrder(compute: ComputePreference): List<String> = when (compute) {
+    ComputePreference.AUTO, ComputePreference.GPU -> listOf(GPU_LABEL, CPU_LABEL)
+    ComputePreference.CPU -> listOf(CPU_LABEL)
 }

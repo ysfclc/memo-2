@@ -4,11 +4,18 @@ package app.memo.core.platform
 enum class ModelFormat { LITERTLM, GGUF }
 
 /**
+ * Which accelerator a runtime should initialise on. [AUTO] and [GPU] try GPU
+ * first and fall back to CPU if that fails; [CPU] never touches the GPU.
+ */
+enum class ComputePreference { AUTO, GPU, CPU }
+
+/**
  * A pinned, verified model file on device.
  *
  * [id] is the catalog id (lowercase, `[a-z0-9][a-z0-9.-]{0,63}`), [path] is
  * the app-private location of the file, [sha256] is the lowercase hex digest
- * of the verified bytes. [sizeBytes] is 0 when the size is unknown.
+ * of the verified bytes. [sizeBytes] is 0 when the size is unknown. [compute]
+ * is the user's accelerator choice; refs that differ only in [compute] are not equal.
  */
 data class ModelRef(
     val id: String,
@@ -16,6 +23,7 @@ data class ModelRef(
     val path: String,
     val sha256: String,
     val sizeBytes: Long,
+    val compute: ComputePreference = ComputePreference.AUTO,
 ) {
     init {
         require(ID_PATTERN.matches(id)) { "invalid model id: $id" }

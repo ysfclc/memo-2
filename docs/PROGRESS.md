@@ -1653,3 +1653,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task FLK.2; verdict ACCEPT; lead 
 FILES CHANGED: app/.../runtime/StreamThrottle.kt (new) + StreamThrottleTest (4), ChatService.kt (per-job throttle, streamClock param), ChatServiceTest (+2), SherpaTtsCallbackTest (warning), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; 914 tests 0 fail. Device flicker effect UNVERIFIED (user A/B with FLK.1 compute setting)
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: device flicker fixes
+ITEM: FLK.1 per-model Compute setting Auto/GPU/CPU (LiteRT-LM), so the user can A/B the GPU flicker
+IMPLEMENTER RUN: model Haiku subagent (D-058); task FLK.1; verdict ACCEPT after a lead fix: it found that InferenceManager.ensureLoaded compares only id+format (the lead brief wrongly assumed full ModelRef equality), so a compute switch would not reload -> lead added compute to the identity check + test changingComputePreferenceReloadsTheSameModel
+FILES CHANGED: core Llm.kt (ComputePreference, ModelRef.compute), core ModelSettings (compute, codec v2 reads v1), ModelSettingsCodecTest, PlatformContractsTest, app LiteRtLmRuntime (backendOrder, CPU-only path), BackendOrderTest (3), MemoRuntime (compute from settings), ModelsBrowser (Compute row for LiteRT models), InferenceManager (compute in identity) + test, docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; InferenceManagerTest 16/0, BackendOrderTest 3/0, ModelSettingsCodecTest 10/0; total 922 tests 0 fail. Device A/B pending (user)
+---

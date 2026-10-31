@@ -2,6 +2,7 @@ package app.memo.runtime
 
 import app.memo.core.platform.ChatSink
 import app.memo.core.platform.ChatTurn
+import app.memo.core.platform.ComputePreference
 import app.memo.core.platform.GenParams
 import app.memo.core.platform.GenStats
 import app.memo.core.platform.LlmError
@@ -137,6 +138,28 @@ class InferenceManagerTest {
             second.next()
 
             assertEquals(listOf("load:a", "chat:x", "chat:z"), log)
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
+    fun changingComputePreferenceReloadsTheSameModel() {
+        val log = mutableListOf<String>()
+        val runtime = FakeRuntime(log)
+        val manager = InferenceManager({ runtime })
+        try {
+            val first = RecordingSink()
+            manager.submit(model("a"), turns("x"), GenParams.ROUTINE, first)
+            complete(pendingOf(runtime))
+            first.next()
+
+            val second = RecordingSink()
+            manager.submit(model("a").copy(compute = ComputePreference.CPU), turns("z"), GenParams.ROUTINE, second)
+            complete(pendingOf(runtime))
+            second.next()
+
+            assertEquals(2, log.count { it == "load:a" }, "a compute switch must reload: $log")
         } finally {
             manager.close()
         }

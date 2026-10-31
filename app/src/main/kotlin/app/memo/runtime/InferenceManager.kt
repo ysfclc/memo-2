@@ -263,7 +263,8 @@ class InferenceManager(
     /** Makes [model] the resident model. Returns the load error, or null on success. */
     private fun ensureLoaded(model: ModelRef): LlmError? {
         val current = loaded
-        if (current != null && current.id == model.id && current.format == model.format) return null
+        // compute is part of identity: switching Auto/GPU/CPU must reload on the new backend (FLK.1).
+        if (current != null && current.id == model.id && current.format == model.format && current.compute == model.compute) return null
 
         if (current != null) {
             runtimes[current.format]?.unload()

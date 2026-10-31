@@ -1,5 +1,6 @@
 package app.memo.core.chat
 
+import app.memo.core.platform.ComputePreference
 import app.memo.core.platform.GenParams
 import org.json.JSONException
 import org.json.JSONObject
@@ -15,6 +16,7 @@ data class ModelSettings(
     val topP: Double = 0.9,
     val contextTokens: Int = 4096,
     val thinking: Boolean = false,
+    val compute: ComputePreference = ComputePreference.AUTO,
 ) {
     init {
         require(systemPrompt.length <= MAX_PROMPT_CHARS) { "system prompt too long" }
@@ -41,10 +43,15 @@ data class ModelSettings(
     }
 }
 
-/** Strict JSON codec for [ModelSettings] (format v1). Unknown fields and wrong types are rejected. */
+/**
+ * Strict JSON codec for [ModelSettings] (format v2). Unknown fields and wrong types are rejected.
+ * v1 entries (no `compute` key) still decode, with [ComputePreference.AUTO].
+ */
 object ModelSettingsCodec {
-    const val VERSION: Int = 1
-    private val KEYS = setOf("v", "systemPrompt", "temperature", "topK", "topP", "contextTokens", "thinking")
+    const val VERSION: Int = 2
+    private const val VERSION_1: Int = 1
+    private val KEYS_V1 = setOf("v", "systemPrompt", "temperature", "topK", "topP", "contextTokens", "thinking")
+    private val KEYS_V2 = KEYS_V1 + "compute"
 
     fun encode(settings: ModelSettings): String = JSONObject()
         .put("v", VERSION)
@@ -54,6 +61,7 @@ object ModelSettingsCodec {
         .put("topP", settings.topP)
         .put("contextTokens", settings.contextTokens)
         .put("thinking", settings.thinking)
+        .put("compute", settings.compute.name)
         .toString()
 
     /** @throws ModelSettingsException when the text does not match the format. */
@@ -64,9 +72,14 @@ object ModelSettingsCodec {
         } catch (e: JSONException) {
             throw ModelSettingsException("settings are not valid JSON")
         }
-        o.keys().forEach { if (it !in KEYS) throw ModelSettingsException("unknown field") }
-        KEYS.forEach { if (!o.has(it) || o.isNull(it)) throw ModelSettingsException("missing field") }
-        if (o.get("v") != VERSION) throw ModelSettingsException("unsupported format version")
+        if (!o.has("v") || o.isNull("v")) throw ModelSettingsException("missing field")
+        val keys = when (o.get("v")) {
+            VERSION_1 -> KEYS_V1
+            VERSION -> KEYS_V2
+            else -> throw ModelSettingsException("unsupported format version")
+        }
+        o.keys().forEach { if (it !in keys) throw ModelSettingsException("unknown field") }
+        keys.forEach { if (!o.has(it) || o.isNull(it)) throw ModelSettingsException("missing field") }
         return try {
             ModelSettings(
                 systemPrompt = str(o, "systemPrompt"),
@@ -75,10 +88,16 @@ object ModelSettingsCodec {
                 topP = number(o, "topP"),
                 contextTokens = int(o, "contextTokens"),
                 thinking = bool(o, "thinking"),
+                compute = if ("compute" in keys) compute(o, "compute") else ComputePreference.AUTO,
             )
         } catch (e: IllegalArgumentException) {
             throw ModelSettingsException("settings out of range")
         }
+    }
+
+    private fun compute(o: JSONObject, key: String): ComputePreference {
+        val name = o.get(key) as? String ?: fail(key)
+        return ComputePreference.entries.firstOrNull { it.name == name } ?: fail(key)
     }
 
     private fun str(o: JSONObject, key: String): String = (o.get(key) as? String) ?: fail(key)
