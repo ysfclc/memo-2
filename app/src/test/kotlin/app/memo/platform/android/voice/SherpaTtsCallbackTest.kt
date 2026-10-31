@@ -12,7 +12,7 @@ class SherpaTtsCallbackTest {
     @Test
     fun chunkBridgeExposesTheExactJniSignature() {
         val method = SherpaTts.ChunkBridge::class.java.getMethod("invoke", FloatArray::class.java)
-        assertEquals(java.lang.Integer::class.java, method.returnType)
+        assertEquals("java.lang.Integer", method.returnType.name) // boxed Integer, exactly what the JNI lookup needs
     }
 
     @Test

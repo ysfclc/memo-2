@@ -72,11 +72,16 @@ class ChatServiceTest {
         listOf(ChatMessage("u0000001", ChatRole.USER, "Hi there", createdAt = 1)),
     )
 
-    private fun service(repo: ChatRepository, runtime: ScriptedRuntime) = ChatService(
+    private fun service(
+        repo: ChatRepository,
+        runtime: ScriptedRuntime,
+        streamClock: () -> Long = System::currentTimeMillis,
+    ) = ChatService(
         repository = repo,
         inference = InferenceManager({ runtime }),
         resolveModel = { id -> if (id == model.id) model else null },
         now = { 100L },
+        streamClock = streamClock,
     )
 
     /** Waits until the reply has been finished and returns the saved assistant message. */
@@ -177,6 +182,51 @@ class ChatServiceTest {
         val fixed = svc.recoverInterrupted(doc)
         assertEquals(MessageStatus.STOPPED, fixed.messages.single().status)
         assertEquals(MessageStatus.STOPPED, repo.readDoc("c0000001")!!.messages.single().status)
+        svc.close()
+        repo.close()
+    }
+
+    @Test
+    fun tokenBurstWithinIntervalPublishesOnceAndKeepsAllText() {
+        val (repo, _, runtime) = setup()
+        var clock = 0L
+        val svc = service(repo, runtime, streamClock = { clock })
+        val publishes = mutableListOf<String>()
+        val finished = awaitReply(svc, userDoc()) {
+            val sink = runtime.chats.poll(5, TimeUnit.SECONDS)!!
+            repeat(50) { i ->
+                sink.onToken("t$i ")
+                val shown = svc.streaming.value!!.text
+                if (publishes.lastOrNull() != shown) publishes.add(shown)
+            }
+            sink.onComplete(GenStats(50, 2, 5, "scripted"))
+        }
+        assertEquals(listOf("t0 "), publishes)
+        assertEquals((0 until 50).joinToString("") { "t$it " }, finished.messages.last().text)
+        assertNull(svc.streaming.value)
+        svc.close()
+        repo.close()
+    }
+
+    @Test
+    fun streamingPublishesAgainOnceIntervalPasses() {
+        val (repo, _, runtime) = setup()
+        var clock = 0L
+        val svc = service(repo, runtime, streamClock = { clock })
+        val seen = mutableListOf<String>()
+        awaitReply(svc, userDoc()) {
+            val sink = runtime.chats.poll(5, TimeUnit.SECONDS)!!
+            sink.onToken("a")
+            seen += svc.streaming.value!!.text
+            clock = 50
+            sink.onToken("b")
+            seen += svc.streaming.value!!.text
+            clock = 150
+            sink.onToken("c")
+            seen += svc.streaming.value!!.text
+            sink.onComplete(GenStats(3, 2, 5, "scripted"))
+        }
+        assertEquals(listOf("a", "a", "abc"), seen)
         svc.close()
         repo.close()
     }

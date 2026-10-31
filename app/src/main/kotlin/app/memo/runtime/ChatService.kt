@@ -33,12 +33,15 @@ import kotlinx.coroutines.flow.update
  * @param inference the shared resident-model manager (M1.A3, one per app). This service adds
  *   a state listener to it and never closes it; MemoRuntime owns the manager.
  * @param resolveModel returns the verified model for an id, or null when it is not installed.
+ * @param streamClock time source for the stream throttle: streaming state is published at most
+ *   once per 100 ms per reply. Terminal states are never throttled.
  */
 class ChatService(
     private val repository: ChatRepository,
     private val inference: InferenceManager,
     private val resolveModel: (String) -> ModelRef?,
     private val now: () -> Long = System::currentTimeMillis,
+    private val streamClock: () -> Long = System::currentTimeMillis,
 ) : AutoCloseable {
 
     /** A reply in progress. [loading] is true until the first token or thinking chunk arrives. */
@@ -104,7 +107,7 @@ class ChatService(
         val selection = ContextBudget.select(systemPrompt, ContextBudget.historyTurns(doc.messages), budget)
             ?: return StartResult.Refused("this message is too long for the model context")
 
-        val job = Job(doc, ChatRepository.newId(), modelId, now(), onFinished)
+        val job = Job(doc, ChatRepository.newId(), modelId, now(), onFinished, StreamThrottle(clock = streamClock))
         val requestId = inference.submit(model, selection.turns, params, Sink(job))
         job.requestId = requestId
         streamingState.value = Streaming(doc.conversation.id, requestId, "", "", loading = true)
@@ -177,6 +180,7 @@ class ChatService(
         val modelId: String,
         val createdAt: Long,
         val onFinished: (ConversationDoc) -> Unit,
+        val throttle: StreamThrottle,
     ) {
         val text = StringBuilder()
         val thinking = StringBuilder()
@@ -195,7 +199,7 @@ class ChatService(
                 }
                 job.text.append(text)
                 lastLoaded.set(job.modelId)
-                publish(job)
+                if (job.throttle.shouldPublish()) publish(job)
             }
         }
 
@@ -203,7 +207,7 @@ class ChatService(
             synchronized(job) {
                 if (job.finished) return
                 if (job.thinking.length + text.length <= ChatLimits.MAX_THINKING_CHARS) job.thinking.append(text)
-                publish(job)
+                if (job.throttle.shouldPublish()) publish(job)
             }
         }
 

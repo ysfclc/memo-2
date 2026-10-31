@@ -1642,3 +1642,14 @@ ITEM: SIGABRT in sherpa TTS callback (JNI NoSuchMethodError invoke([F)Ljava/lang
 FIX (lead inline, review-size): SherpaTts.ChunkBridge explicit class instead of a lambda; SherpaTtsCallbackTest pins the JNI signature by reflection
 VERIFICATION: B-STD EXIT 0; SherpaTtsCallbackTest 2/0. Device re-check by the user pending. Open: the preceding answer failure (VoiceLoop.answerFailed) - need the next log
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: device flicker fixes (user report: flicker persists on GPU)
+ITEM: FLK.2 coalesce streaming chat redraws to <= 1 per 100 ms while a reply streams (every token still kept; terminal paths unchanged)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task FLK.2; verdict ACCEPT; lead fixed a warning its build surfaced in the lead-written SherpaTtsCallbackTest (java.lang.Integer usage)
+FILES CHANGED: app/.../runtime/StreamThrottle.kt (new) + StreamThrottleTest (4), ChatService.kt (per-job throttle, streamClock param), ChatServiceTest (+2), SherpaTtsCallbackTest (warning), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; 914 tests 0 fail. Device flicker effect UNVERIFIED (user A/B with FLK.1 compute setting)
+---
