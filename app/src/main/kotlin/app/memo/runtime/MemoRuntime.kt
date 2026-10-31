@@ -7,6 +7,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import app.memo.core.agent.AgentEngine
 import app.memo.core.audit.AuditSink
 import app.memo.core.audit.HashChainAudit
 import app.memo.core.catalog.ModelCatalog
@@ -35,6 +36,8 @@ import app.memo.core.plan.Orchestrator
 import app.memo.core.plan.TemplateLibrary
 import app.memo.core.platform.ModelRef
 import app.memo.core.platform.VaultName
+import app.memo.core.prompts.ContextPacket
+import app.memo.core.prompts.PacketBuilder
 import app.memo.core.registry.Registry
 import app.memo.core.registry.Workspace
 import app.memo.core.platform.LlmRuntime
@@ -138,7 +141,11 @@ class MemoRuntime(context: Context) {
 
     val engine: WorkflowEngine = WorkflowEngine(
         routes = ExecutorRoutes(
-            reason = ReasonExecutor { _, step -> Attempt.Completed(output = step.prompt) },
+            reason = ReasonExecutor { ctx, step ->
+                val ticket = "agent:${ctx.idempotencyKey}"
+                planExec.execute { runReasonAgent(ctx.runId, ctx.stepId, ticket, step.prompt, ctx.packet) }
+                Attempt.Pending(ticket)
+            },
             browser = app.memo.core.engine.BrowserExecutor { _, _ ->
                 Attempt.Failed("browser automation is not available in this build")
             },
@@ -151,7 +158,7 @@ class MemoRuntime(context: Context) {
             dataStore = DataStore { kind, _, payload -> persistRow(kind, payload) },
             artifactBuilder = ArtifactBuilder { _, type, prior -> buildArtifact(type, prior) },
         ),
-        packetProvider = { PacketBuilder.build(workspace) },
+        packetProvider = { PacketBuilder.summary(workspace) },
         audit = OutboundAudit { event -> auditChain.append(event, System.currentTimeMillis()) },
         checkpoint = { run -> checkpointRun(run) },
     )
@@ -308,6 +315,32 @@ class MemoRuntime(context: Context) {
 
     /** Blocking planner calls run here: the model wait must never hold [exec] or the main thread. */
     private val planExec = Executors.newSingleThreadExecutor { r -> Thread(r, "memo-planner").apply { isDaemon = true } }
+
+    /**
+     * Runs one REASON step with the active local chat model, on [planExec] (never on [exec]).
+     * Read-only tools see the workspace through [WorkspaceToolRunner]; the result is delivered
+     * back on [exec], which owns the engine. Any failure becomes a failed attempt.
+     */
+    private fun runReasonAgent(runId: String, stepId: String, ticket: String, prompt: String, packet: ContextPacket) {
+        val attempt = try {
+            val ref = models.activeId?.let(::resolveInstalledChatModel)
+            if (ref == null) {
+                Attempt.Failed("Install a chat model in Models to run this step.")
+            } else {
+                val planModel = InferencePlanModel(inference::submit, { inference.cancel(it) }, ref)
+                val tools = WorkspaceToolRunner({ workspace }, planModel)
+                val result = AgentEngine(planModel, tools, System::currentTimeMillis).run(prompt, packet)
+                WorkspaceToolRunner.summarize(result)
+            }
+        } catch (e: Exception) {
+            Attempt.Failed("Agent step failed: ${SynCodec.safeMessage(e, 160)}")
+        }
+        exec.execute {
+            runCatching { engine.deliverExternal(runId, stepId, ticket, attempt) }
+            persistAll()
+            drive()
+        }
+    }
 
     /**
      * Plans [text] with the local chat model [modelId] off the caller's thread, then delivers

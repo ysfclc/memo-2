@@ -1517,3 +1517,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A2; review round 1 REJECT
 FILES CHANGED: core/.../prompts/PacketBuilder.kt (new), core/.../prompts/PacketBuilderTest.kt (10), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0 (read before commit); PacketBuilderTest 10/0
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A4c - workflow REASON steps run the local AgentEngine (async: Pending ticket, planExec, deliverExternal on exec); read-only WorkspaceToolRunner; one PacketBuilder (app copy folded into core summary() and deleted)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A4c; verdict ACCEPT; follow-ups: REASON steps get the summary packet, not a query-specific one; agent runs share planExec with plan requests (contention); workspace read from planExec is a documented snapshot-read limitation
+FILES CHANGED: app/.../runtime/AgentTools.kt (new), AgentToolsTest (14), MemoRuntime.kt (reason route, runReasonAgent, packetProvider), app/.../runtime/PacketBuilder.kt (deleted), core PacketBuilder.summary + 2 tests, docs TASKS (M3.A2 ticked, M3.A4 [~]), PROGRESS
+VERIFICATION: lead B-STD EXIT 0; AgentToolsTest 14/0, PacketBuilderTest 12/0; grep for the echo placeholder = 0
+---

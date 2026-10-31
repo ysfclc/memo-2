@@ -594,12 +594,12 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `OrchestratorTest` (fake LlmRuntime: good plan, repaired plan, 2 failed repairs → fallback, reuse hit, command fast-path skips the model)
 - Checks: model output is never executed without validation; fallback is labelled in the UI.
 
-### [ ] M3.A4 Local agent engine (tool-using) [§2g] · deps M3.A1, M1.A3
+### [~] M3.A4 Local agent engine (tool-using) [§2g] · deps M3.A1, M1.A3 — 2026-10-31: M3.A4a tool catalog + strict parser (ToolCallParserTest 20), M3.A4b AgentEngine loop (AgentEngineTest 11), M3.A4c agent runs workflow REASON steps async with read-only workspace tools (AgentToolsTest 14); open: quality checks + frontier escalation routing, side-effecting tools -> gated steps via M3.A3/M3.B1
 - Files: `core/.../agent/{AgentEngine,Tools,ToolCallParser}.kt`, `app/.../runtime/AgentTools.kt`
 - Mini-tasks: [ ] strict tool schemas + arg validation · [ ] loop with step/token/time budgets · [ ] invalid call → repair prompt · [ ] no-progress stop · [ ] side-effecting tools become gated workflow steps · [ ] quality check → escalate to frontier when routing allows
 - Tests: `AgentEngineTest` (valid call, invalid → repair → success, budget exhausted, no-progress, gated tool queued not run, escalation), `ToolCallParserTest` (malformed JSON, extra fields, wrong types)
 
-### [ ] M3.A2 Context retrieval · deps M3.A1
+### [x] M3.A2 Context retrieval · deps M3.A1 — 2026-10-31: core PacketBuilder (rank/build/summary), PacketBuilderTest 12; the old app PacketBuilder folded in and deleted
 - Files: `core/.../prompts/PacketBuilder.kt`
 - Tests: `PacketBuilderTest` (budget cap, redaction applied, mention > natural key > keyword ordering, recent chat included)
 

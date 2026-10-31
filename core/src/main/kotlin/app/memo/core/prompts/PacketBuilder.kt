@@ -35,6 +35,8 @@ object PacketBuilder {
 
     const val RECENT_CHAT_FIELD = "recent_chat"
     const val RECENT_CHAT_LINES = 6
+    private const val SUMMARY_LATEST_TASKS = 5
+    private const val SUMMARY_LATEST_PROJECTS = 3
     private const val MIN_KEYWORD_CHARS = 4
     private const val MIN_NATURAL_KEY_CHARS = 3
     private const val MIN_NAME_CHARS = 3
@@ -60,6 +62,28 @@ object PacketBuilder {
                 .thenBy { it.kind }
                 .thenBy { it.key },
         )
+    }
+
+    /**
+     * Workspace overview: record counts and the most recent task and project titles.
+     * Only these values leave the registry. Read where the workspace is owned.
+     */
+    fun summary(workspace: Workspace): ContextPacket {
+        val latestTasks = workspace.tasks.items()
+            .sortedByDescending { it.updatedAt }
+            .take(SUMMARY_LATEST_TASKS)
+            .map { it.title }
+        val latestProjects = workspace.projects.items()
+            .sortedByDescending { it.updatedAt }
+            .take(SUMMARY_LATEST_PROJECTS)
+            .map { it.name }
+        return ContextPacket.Builder()
+            .put("people_count", workspace.people.size.toString())
+            .put("task_count", workspace.tasks.size.toString())
+            .put("draft_count", workspace.drafts.size.toString())
+            .put("latest_tasks", latestTasks.joinToString("; "))
+            .put("latest_projects", latestProjects.joinToString("; "))
+            .build()
     }
 
     /**

@@ -1,7 +1,10 @@
 package app.memo.core.prompts
 
 import app.memo.core.domain.Company
+import app.memo.core.domain.ContentDraft
 import app.memo.core.domain.Person
+import app.memo.core.domain.Project
+import app.memo.core.domain.Task
 import app.memo.core.registry.Workspace
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -132,6 +135,38 @@ class PacketBuilderTest {
         for (n in 3..8) assertTrue(value.contains("chat-%02d".format(n)), "missing chat-%02d".format(n))
         assertFalse(value.contains("chat-01"))
         assertFalse(value.contains("chat-02"))
+    }
+
+    @Test
+    fun summaryHasCountsAndNewestTitlesOnly() {
+        val ws = Workspace()
+        ws.addPerson("Ada Lovelace")
+        ws.addPerson("Grace Hopper")
+        repeat(6) { i -> ws.tasks.upsert(Task(title = "task ${i + 1}"), now + i) }
+        listOf("alpha", "beta", "gamma", "delta").forEachIndexed { i, name ->
+            ws.projects.upsert(Project(name = name), now + i)
+        }
+        ws.drafts.upsert(ContentDraft(title = "draft one", body = "text"), now)
+
+        val fields = PacketBuilder.summary(ws).fieldsSnapshot()
+
+        assertEquals(
+            mapOf(
+                "people_count" to "2",
+                "task_count" to "6",
+                "draft_count" to "1",
+                "latest_tasks" to "task 6; task 5; task 4; task 3; task 2",
+                "latest_projects" to "delta; gamma; beta",
+            ),
+            fields,
+        )
+    }
+
+    @Test
+    fun summaryOfEmptyWorkspaceKeepsOnlyZeroCounts() {
+        val fields = PacketBuilder.summary(Workspace()).fieldsSnapshot()
+
+        assertEquals(mapOf("people_count" to "0", "task_count" to "0", "draft_count" to "0"), fields)
     }
 
     @Test
