@@ -1539,3 +1539,15 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.B1a; verdict ACCEPT; rend
 FILES CHANGED: app/.../ui/artifact/ArtifactFields.kt, ArtifactView.kt, app/src/test/.../ui/artifact/RendererCoverageTest.kt (10), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; RendererCoverageTest 10/0; no Color(0x in ui/artifact
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 APPROVALS
+ITEM: M3.A3a pure plan-card state (run -> step rail, actions Run/Discard/Approve/Veto/Stop, gate with artifact, status line, source label)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3a; verdict ACCEPT, no defects; deviations are spec-silent choices (title fallback, truncation shape)
+FILES CHANGED: app/.../ui/chat/PlanCardState.kt, PlanCardStateTest (12), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; PlanCardStateTest 12/0
+NEXT: M3.A3b plan card UI + bridge (proposal created not started; Run/Discard/Approve/Veto wired to MemoRuntime), M3.B1b edit-before-approve rehash
+---
