@@ -13,7 +13,7 @@ STEP STATUS:
 GAP REGISTER:
   G1 INCOMPLETE D-048 keystore/rules: CLOSED - CI 41177528061 green on 1b77d52; CI APK signer SHA-256 9e526ee8...20be2e = committed keystore
   G2 DRIFTED M0.A2 WorkflowAuditTest: CLOSED - CI 41180102118 green on c93398d; WorkflowAuditTest 4/0 fail; implementer glm-5.3-flash-free (D-050)
-  G3 M2.B1 E3 ReadAloud merge: OPEN
+  G3 M2.B1 E3 ReadAloud merge: CLOSED - CI 41183393240 green on 9014aba; ReadAloudTest 12/0; any-message drift fixed (D-051)
   G4 M2.B1 E2 voice bubble merge: OPEN
   G9 M2.B1 missing tests: OPEN
   G5 M2.A2 in-app voice model download: OPEN
@@ -23,7 +23,7 @@ GAP REGISTER:
   G10 docs/hygiene sync: OPEN
   G11 device batch (user's phone): OPEN
 
-CURRENT: G3
-NEXT ACTION: G3 - review the uncommitted E3 ReadAloud work in ~/.local/share/opencode/worktree/1a05db/e3-read-aloud (task/e3-read-aloud @ df9932b): read full diff, rebase onto milestone/M1 head, renumber its D-047 to the next free D-number, remove its false "one commit" PROGRESS claim, B-STD, commit, CI, merge
-VERIFY BASELINE: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` -> core 429/0 fail, app 230/0 fail (2026-10-31, after G2)
+CURRENT: G4 (lead port) + G7 (GLM, parallel, disjoint files)
+NEXT ACTION: G4 - port uncommitted E2 voice bubble (~/.local/share/opencode/worktree/1a05db/e2-voice-bubble) onto milestone/M1: resolve ChatThread with the read-aloud anchor, D-047 dup -> next free, drop build-bstd.log, review, B-STD, CI, merge. G7 - GLM brief at scratchpad brief-G7.md, worktree ../memo-wt/g7
+VERIFY BASELINE: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` -> 671 tests 0 fail: core 429, app 242 (2026-10-31, after G3)
 OPEN BLOCKERS: user decisions PD1 (unused kit components), PD2 (Piper), PD3 (vision re-grounding), PD4 (bulk approval)
