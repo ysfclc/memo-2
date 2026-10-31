@@ -1446,4 +1446,9 @@ ITEM: gaps G6a + G6b - M0.C2 voice clips encrypted at rest; playback from decryp
 IMPLEMENTER RUNS: model opencode/glm-5.3-flash-free; G6a verdict ACCEPT (no defects); G6b verdict ACCEPT (no defects; lead confirmed it left the G6a files untouched); shipped together on purpose
 FILES CHANGED: G6a - RecorderPorts.kt, VoiceMessageRecorder.kt, SherpaLoopAdapters.kt (VoiceMessageStore), MemoRuntime.kt (voiceMessages block), ChatComposer.kt (recorded.ref), VoiceMessageStoreTest (5); G6b - MediaPlayerClipPlayer.kt, ByteArrayMediaDataSource.kt (new), MemoRuntime.readVoiceClip, ChatScreen/ChatThread readClip param, ByteArrayMediaDataSourceTest (6); docs ENGINEERING_LOG D-056, PROGRESS
 VERIFICATION: lead B-STD EXIT 0; VoiceMessageStoreTest 5/0, ByteArrayMediaDataSourceTest 6/0; grep writeBytes / setDataSource(file in app main outside the vault/hub/installer = 0; no new warnings in touched files. UNVERIFIED on device: record -> send -> play
+PHASE: close-gap (defect found in lead review of G4b-2)
+ITEM: G12 - clip-only voice message dropped from model history -> ContextBudget.select require() would throw
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G12; wrapper reaped under memory pressure, the opencode process finished on its own; verdict ACCEPT, no defects (side effect: whitespace-only messages are now skipped instead of sent as whitespace - harmless)
+FILES CHANGED: core/.../chat/ContextBudget.kt (historyTurns: text, else transcript, else VOICE_WITHOUT_TRANSCRIPT for voice messages), core/.../chat/ContextBudgetTest.kt (+5), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; ContextBudgetTest 13/0 incl. the select() regression
 ---

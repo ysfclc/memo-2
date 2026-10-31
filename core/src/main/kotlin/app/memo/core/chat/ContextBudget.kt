@@ -14,6 +14,9 @@ object ContextBudget {
     /** Tokens kept free for the chat template and turn markers. */
     const val TEMPLATE_RESERVE_TOKENS: Int = 256
 
+    /** Placeholder text sent for a voice message with neither text nor transcript. */
+    const val VOICE_WITHOUT_TRANSCRIPT: String = "[Voice message without a transcript]"
+
     /** A selection: the turns to send in order, and how many older messages were left out. */
     data class Selection(val turns: List<ChatTurn>, val droppedMessages: Int)
 
@@ -52,16 +55,24 @@ object ContextBudget {
 
     /**
      * Turns for the model from stored messages. Streaming messages and errors are skipped.
-     * Stopped replies keep their partial text. Thinking is never sent back.
+     * Stopped replies keep their partial text. Thinking is never sent back. A voice message
+     * with blank text uses its transcript, or the [VOICE_WITHOUT_TRANSCRIPT] placeholder.
      */
     fun historyTurns(messages: List<ChatMessage>): List<ChatTurn> = messages.mapNotNull { m ->
         if (m.status == MessageStatus.STREAMING || m.status == MessageStatus.ERROR) return@mapNotNull null
-        if (m.text.isEmpty()) return@mapNotNull null
+        val text = turnText(m) ?: return@mapNotNull null
         val role = when (m.role) {
             ChatRole.USER -> ChatTurn.Role.USER
             ChatRole.ASSISTANT -> ChatTurn.Role.ASSISTANT
             ChatRole.SYSTEM -> ChatTurn.Role.SYSTEM
         }
-        ChatTurn(role, m.text)
+        ChatTurn(role, text)
+    }
+
+    /** The text sent to the model for one message, or null when the message is skipped. */
+    private fun turnText(m: ChatMessage): String? = when {
+        m.text.isNotBlank() -> m.text
+        m.voiceClipRef != null -> m.transcript?.takeIf { it.isNotBlank() } ?: VOICE_WITHOUT_TRANSCRIPT
+        else -> null
     }
 }

@@ -73,4 +73,58 @@ class ContextBudgetTest {
         )
         assertEquals(listOf("q", "partial", "again"), ContextBudget.historyTurns(messages).map { it.text })
     }
+
+    private fun clip(
+        id: String,
+        text: String = "",
+        transcript: String? = null,
+        transcriptNote: String? = null,
+    ) = ChatMessage(
+        id = id,
+        role = ChatRole.USER,
+        text = text,
+        voiceClipRef = "clip-$id.wav",
+        transcript = transcript,
+        transcriptNote = transcriptNote,
+        createdAt = 1,
+    )
+
+    @Test
+    fun clipOnlyMessageUsesTranscriptAsTurnText() {
+        assertEquals(
+            listOf("hello there"),
+            ContextBudget.historyTurns(listOf(clip("u0000010", transcript = "hello there"))).map { it.text },
+        )
+    }
+
+    @Test
+    fun clipWithoutTranscriptUsesPlaceholder() {
+        assertEquals(
+            listOf(ContextBudget.VOICE_WITHOUT_TRANSCRIPT),
+            ContextBudget.historyTurns(
+                listOf(clip("u0000011", transcriptNote = "model missing")),
+            ).map { it.text },
+        )
+    }
+
+    @Test
+    fun editedTextWinsOverTranscript() {
+        assertEquals(
+            listOf("edited"),
+            ContextBudget.historyTurns(
+                listOf(clip("u0000012", text = "edited", transcript = "original")),
+            ).map { it.text },
+        )
+    }
+
+    @Test
+    fun emptyNonVoiceMessageIsStillSkipped() {
+        assertTrue(ContextBudget.historyTurns(listOf(ChatMessage("u0000013", ChatRole.USER, "", createdAt = 1))).isEmpty())
+    }
+
+    @Test
+    fun selectAcceptsClipOnlyHistory() {
+        val history = ContextBudget.historyTurns(listOf(clip("u0000014", transcript = "hello there")))
+        assertTrue(ContextBudget.select(null, history, 10_000) != null)
+    }
 }
