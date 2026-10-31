@@ -588,7 +588,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 
 ## M3 — Orchestrator + Live environment (`milestone/M3`)
 
-### [ ] M3.A1 Orchestrator planner · deps M1.A3, M0.A4
+### [x] M3.A1 Orchestrator planner · deps M1.A3, M0.A4 — 2026-10-31: done as M3.A1a (core Orchestrator, OrchestratorTest 13), M3.A1b (TemplateLibrary, 5 validated seeds), M3.A1c (PlannerService + chat wiring, PlannerServiceTest 8); fallback labelled in the reply; device UNVERIFIED; follow-up: no "planning…" indicator in chat yet
 - Files: `core/.../plan/{Orchestrator,TemplateLibrary}.kt`, `app/.../runtime/PlannerService.kt`
 - Mini-tasks: [ ] intent: chat / plan / command (grammar fast-path first) · [ ] plan prompt = templates (few-shot) + ContextPacket · [ ] parse + `WorkflowPolicy.validateSpec`, ≤2 repairs citing violations · [ ] deterministic fallback, labelled · [ ] reuse-first lookup of template/project
 - Tests: `OrchestratorTest` (fake LlmRuntime: good plan, repaired plan, 2 failed repairs → fallback, reuse hit, command fast-path skips the model)

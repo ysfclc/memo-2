@@ -55,6 +55,7 @@ fun ChatScreen(runtime: MemoRuntime) {
             },
             settingsFor = runtime.chatSettings::load,
             runCommand = runtime::handleUtterance,
+            runPlan = runtime::handlePlanRequest,
             modelEntryFor = runtime.models::entryFor,
         )
     }

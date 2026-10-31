@@ -227,12 +227,6 @@ class Orchestrator(
 
     // ---- Intent helpers -------------------------------------------------
 
-    /** Rule 3: plan intent, detected on the lowercase text only via [PLAN_CUES]. */
-    private fun isPlanIntent(input: String): Boolean {
-        val lowered = input.trim().lowercase()
-        return lowered.startsWithAny(PLAN_CUES) || lowered.contains(CONTAINS_CUE)
-    }
-
     /**
      * Rule 4: reuse lookup key — trimmed, lowercase, whitespace-collapsed,
      * with the matched plan cue stripped. Prefix cues come before `/plan`
@@ -253,8 +247,6 @@ class Orchestrator(
     private fun normalizeIntent(text: String): String =
         text.trim().replace(WHITESPACE_RUNS, " ")
 
-    private fun String.startsWithAny(cues: List<String>): Boolean = cues.any { startsWith(it) }
-
     private fun note(text: String): String = text.trim().take(NOTE_MAX_CHARS)
 
     /** Recursion-free exception description (message preferred). */
@@ -267,6 +259,15 @@ class Orchestrator(
 
         /** Contained plan cue. */
         const val CONTAINS_CUE: String = " step by step"
+
+        /**
+         * Rule 3: plan intent, detected on the lowercase text only via [PLAN_CUES].
+         * Public so the chat controller can route plan requests before generation.
+         */
+        fun isPlanIntent(text: String): Boolean {
+            val lowered = text.trim().lowercase()
+            return PLAN_CUES.any { lowered.startsWith(it) } || lowered.contains(CONTAINS_CUE)
+        }
 
         private const val MAX_REPAIRS = 2
         private const val FEW_SHOT_EXAMPLES = 3

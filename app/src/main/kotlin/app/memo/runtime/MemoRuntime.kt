@@ -31,6 +31,8 @@ import app.memo.core.engine.OutboundAudit
 import app.memo.core.engine.ReasonExecutor
 import app.memo.core.engine.WorkflowEngine
 import app.memo.core.plan.CommandGrammar
+import app.memo.core.plan.Orchestrator
+import app.memo.core.plan.TemplateLibrary
 import app.memo.core.platform.ModelRef
 import app.memo.core.platform.VaultName
 import app.memo.core.registry.Registry
@@ -286,6 +288,40 @@ class MemoRuntime(context: Context) {
             ?: return "That command cannot be planned yet."
         exec.execute { startRun(spec) }
         return "Planned \"${spec.title}\". Review it in Live."
+    }
+
+    /** Runs the orchestrator for plan-intent chat text (M3.A1c); see [handlePlanRequest]. */
+    private val plannerService: PlannerService by lazy {
+        PlannerService(
+            orchestratorFor = { ref ->
+                Orchestrator(
+                    model = InferencePlanModel(inference::submit, { inference.cancel(it) }, ref),
+                    clock = System::currentTimeMillis,
+                )
+            },
+            resolveModel = { id -> id?.let(::resolveInstalledChatModel) },
+            templates = { TemplateLibrary.seeds },
+            startRun = { spec -> exec.execute { startRun(spec) } },
+            runCommand = ::handleUtterance,
+        )
+    }
+
+    /** Blocking planner calls run here: the model wait must never hold [exec] or the main thread. */
+    private val planExec = Executors.newSingleThreadExecutor { r -> Thread(r, "memo-planner").apply { isDaemon = true } }
+
+    /**
+     * Plans [text] with the local chat model [modelId] off the caller's thread, then delivers
+     * the reply to [onReply] on the planner thread. A failure is delivered as a reply, never thrown.
+     */
+    fun handlePlanRequest(text: String, modelId: String?, onReply: (String) -> Unit) {
+        planExec.execute {
+            val reply = try {
+                plannerService.plan(text, modelId)
+            } catch (e: Exception) {
+                "Planning failed: ${SynCodec.safeMessage(e, 160)}"
+            }
+            onReply(reply)
+        }
     }
 
     /**

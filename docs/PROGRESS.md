@@ -1468,3 +1468,14 @@ FILES CHANGED: core/.../plan/Orchestrator.kt (new), core/.../plan/OrchestratorTe
 VERIFICATION: lead B-STD EXIT 0; OrchestratorTest 13/0
 NEXT: M3.A1b TemplateLibrary seeds (Haiku), M3.A1c PlannerService wiring (Haiku)
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A1c PlannerService - plan-intent chat text -> Orchestrator -> run; labelled reply as a SYSTEM message
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A1c; verdict ACCEPT; Haiku correctly fixed an error in the lead brief (startRun does not post to exec itself, so the planner hands it to exec to keep the engine thread-confined); extra: a late reply lands in its own stored conversation
+FILES CHANGED: app/.../runtime/PlannerService.kt (new: InferencePlanModel + PlannerService), MemoRuntime.kt (plannerService, memo-planner executor, handlePlanRequest), ChatController.kt (runPlan param, plan branch, appendSystemReply), ChatScreen.kt (wiring), core Orchestrator.kt (public isPlanIntent), PlannerServiceTest (8), docs TASKS (M3.A1 ticked), PROGRESS
+VERIFICATION: lead B-STD EXIT 0 on milestone/M3 + this change; PlannerServiceTest 8/0, OrchestratorTest 13/0; no new warnings in touched files. Follow-up: no planning indicator in the chat UI
+---

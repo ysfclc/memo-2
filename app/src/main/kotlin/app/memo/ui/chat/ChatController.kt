@@ -19,6 +19,7 @@ import app.memo.core.chat.ModelSettings
 import app.memo.core.chat.MessageStatus
 import app.memo.core.chat.VoiceClipDraft
 import app.memo.core.plan.CommandGrammar
+import app.memo.core.plan.Orchestrator
 import app.memo.runtime.ChatRepository
 import app.memo.runtime.ChatService
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,7 @@ import java.time.ZoneId
  * @param installedModels the verified models the user can pick.
  * @param settingsFor reads the stored settings of a model (may block).
  * @param runCommand runs a planner command (`MemoRuntime.handleUtterance`) and returns its reply.
+ * @param runPlan plans plan-intent text (`MemoRuntime.handlePlanRequest`); the reply arrives later through its callback.
  */
 class ChatController(
     private val repo: ChatRepository,
@@ -47,6 +49,9 @@ class ChatController(
     private val runCommand: (String) -> String,
     private val modelEntryFor: (String) -> ModelEntry? = ModelCatalog::byId,
     private val nowMs: () -> Long = System::currentTimeMillis,
+    private val runPlan: (text: String, modelId: String?, onReply: (String) -> Unit) -> Unit = { _, _, onReply ->
+        onReply("Planning is not available.")
+    },
 ) {
     /** A short action the snackbar offers to undo. */
     class Undo(val label: String, val action: () -> Unit)
@@ -315,6 +320,14 @@ class ChatController(
             return
         }
 
+        if (body != null && Orchestrator.isPlanIntent(body)) {
+            doc = withUser
+            saveDoc(withUser)
+            val conversationId = withUser.conversation.id
+            runPlan(body, model) { reply -> scope.launch { appendSystemReply(conversationId, reply) } }
+            return
+        }
+
         if (model == null) {
             notice = "Install a model in Models first."
             doc = withUser
@@ -346,6 +359,23 @@ class ChatController(
             }
             if (result is ChatService.StartResult.Refused) notice = result.reason
         }
+    }
+
+    /**
+     * Adds a planner reply as a SYSTEM message. The shown conversation is updated in place;
+     * when the user has moved on, the stored conversation gets the reply so it is not lost.
+     */
+    private suspend fun appendSystemReply(conversationId: String, reply: String) {
+        val shown = doc?.takeIf { it.conversation.id == conversationId }
+        val target = shown
+            ?: withContext(Dispatchers.IO) { runCatching { repo.readDoc(conversationId) }.getOrNull() }
+            ?: return
+        val message = ChatMessage(
+            ChatRepository.newId(), ChatRole.SYSTEM, reply, createdAt = nowMs(), status = MessageStatus.DONE,
+        )
+        val done = target.copy(messages = target.messages + message)
+        if (shown != null) doc = done
+        saveDoc(done)
     }
 
     private fun applyFinished(finished: ConversationDoc) {
