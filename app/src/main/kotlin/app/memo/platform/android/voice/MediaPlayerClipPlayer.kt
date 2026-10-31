@@ -8,15 +8,14 @@ import android.media.MediaPlayer
 import app.memo.core.chat.VoiceClipRefs
 import app.memo.core.voice.ClipPlayerEvent
 import app.memo.runtime.ClipPlayerDevice
-import java.io.File
 
 /**
  * The device wiring of [ClipPlayerDevice] over [MediaPlayer]: plays stored voice messages
- * (16 kHz mono PCM16 WAV, written by [VoiceMessageStore]) straight from the file — no
- * re-decode into PCM buffers, unlike the loop's [AudioPlayback], and no streaming synthesis
- * semantics. The clip stays app-private: [start] resolves the reference inside
- * `filesDir/voice-messages/` (the [VoiceMessageStore] directory) and refuses anything that
- * would join outside it.
+ * (16 kHz mono PCM16 WAV, written by [VoiceMessageStore]) from the decrypted bytes of the
+ * encrypted vault — no re-decode into PCM buffers, unlike the loop's [AudioPlayback], and no
+ * streaming synthesis semantics. The clip stays app-private and never touches disk in
+ * plaintext: [start] asks [readClip] for the bytes (invalid or missing references, and
+ * decryption failures, are refused with a [ClipPlayerEvent.Failed] reason).
  *
  * Threading: construction and every port call are expected on the main thread, which is the
  * Compose caller's thread; [MediaPlayer] posts its listeners to the creating thread's looper,
@@ -27,11 +26,11 @@ import java.io.File
  */
 class MediaPlayerClipPlayer(
     context: Context,
+    private val readClip: (String) -> ByteArray?,
     private val onEvent: (ClipPlayerEvent) -> Unit,
 ) : ClipPlayerDevice {
 
     private val appContext = context.applicationContext
-    private val voiceDir = File(appContext.filesDir, "voice-messages")
     private val audioManager = appContext.getSystemService(AudioManager::class.java)
     private val attributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANT)
@@ -47,9 +46,14 @@ class MediaPlayerClipPlayer(
             failed("invalid clip reference")
             return
         }
-        val file = File(voiceDir, ref)
-        if (!file.isFile) {
-            failed("the recording file is missing")
+        val bytes = try {
+            readClip(ref)
+        } catch (e: Exception) {
+            failed("the recording could not be decrypted")
+            return
+        }
+        if (bytes == null) {
+            failed("the recording is missing")
             return
         }
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
@@ -66,7 +70,7 @@ class MediaPlayerClipPlayer(
         try {
             media = MediaPlayer()
             media.setAudioAttributes(attributes)
-            media.setDataSource(file.absolutePath)
+            media.setDataSource(ByteArrayMediaDataSource(bytes))
             media.setOnErrorListener { _, what, extra ->
                 failed("media error $what/$extra")
                 true

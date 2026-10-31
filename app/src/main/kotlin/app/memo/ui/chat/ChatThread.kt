@@ -81,6 +81,7 @@ fun ChatThread(
     controller: ChatController,
     streaming: ChatService.Streaming?,
     onSuggestion: (String) -> Unit,
+    readClip: (String) -> ByteArray?,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -120,6 +121,7 @@ fun ChatThread(
                     canRegenerate = streaming == null && message.role == ChatRole.ASSISTANT && message.id == messages.lastOrNull()?.id,
                     actionsEnabled = streaming == null,
                     readAloud = readAloud,
+                    readClip = readClip,
                     onRegenerate = controller::regenerate,
                     onEdit = { value -> controller.editAndResend(message.id, value) },
                     onDelete = { controller.deleteMessage(message.id) },
@@ -178,6 +180,7 @@ private fun ChatMessageRow(
     canRegenerate: Boolean,
     actionsEnabled: Boolean,
     readAloud: ReadAloud,
+    readClip: (String) -> ByteArray?,
     onRegenerate: () -> Unit,
     onEdit: (String) -> Unit,
     onDelete: () -> Unit,
@@ -185,7 +188,7 @@ private fun ChatMessageRow(
     var editOpen by remember(message.id) { mutableStateOf(false) }
     var deleteOpen by remember(message.id) { mutableStateOf(false) }
     MessageBubble(message.role) {
-        if (message.voiceClipRef != null) VoiceMessageBubble(message)
+        if (message.voiceClipRef != null) VoiceMessageBubble(message, readClip)
         if (message.text.isNotBlank() && message.text.trim() != message.transcript?.trim()) ChatMarkdown(message.text)
         if (message.status == MessageStatus.ERROR && message.errorText.isNotBlank()) {
             Text(message.errorText, style = MemoTheme.typography.bodySmall, color = MemoTheme.colors.danger)
@@ -262,14 +265,14 @@ private const val CLIP_PROGRESS_BARS = 24
  * failures surface their reason with a retry on the next tap.
  */
 @Composable
-private fun VoiceMessageBubble(message: ChatMessage) {
+private fun VoiceMessageBubble(message: ChatMessage, readClip: (String) -> ByteArray?) {
     val ref = message.voiceClipRef ?: return
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val events = remember(ref) { Channel<ClipPlayerEvent>(Channel.CONFLATED) }
     var state by remember(ref) { mutableStateOf<ClipPlayerState>(ClipPlayerState.Idle) }
     var playheadMs by remember(ref) { mutableLongStateOf(0L) }
-    val player = remember(ref) { MediaPlayerClipPlayer(context) { events.trySend(it) } }
+    val player = remember(ref) { MediaPlayerClipPlayer(context, readClip) { events.trySend(it) } }
 
     DisposableEffect(ref) { onDispose { player.release() } }
     LaunchedEffect(player) {

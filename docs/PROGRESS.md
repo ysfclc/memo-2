@@ -1432,3 +1432,14 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G4b-2; verdict ACCEPT, 
 FILES CHANGED: app/.../ui/chat/ChatController.kt (attachVoiceClip/removeVoiceClip, send passes the clip, internal userMessageWithClip), ChatComposer.kt (Recorded.Message/Untranscribed attach the clip, chip with remove), ChatThread.kt (unedited transcript not shown twice), app/src/test/.../ui/chat/VoiceClipSendTest.kt (4), docs/TASKS.md (M2.B1 mini-tasks 1+2 ticked), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; VoiceClipSendTest 4/0; grep voiceClipRef = -> new writer in ChatController; no new warnings in touched files. UNVERIFIED on device: chip, send, playback
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gaps G6a + G6b - M0.C2 voice clips encrypted at rest; playback from decrypted memory (D-056)
+IMPLEMENTER RUNS: model opencode/glm-5.3-flash-free; G6a verdict ACCEPT (no defects); G6b verdict ACCEPT (no defects; lead confirmed it left the G6a files untouched); shipped together on purpose
+FILES CHANGED: G6a - RecorderPorts.kt, VoiceMessageRecorder.kt, SherpaLoopAdapters.kt (VoiceMessageStore), MemoRuntime.kt (voiceMessages block), ChatComposer.kt (recorded.ref), VoiceMessageStoreTest (5); G6b - MediaPlayerClipPlayer.kt, ByteArrayMediaDataSource.kt (new), MemoRuntime.readVoiceClip, ChatScreen/ChatThread readClip param, ByteArrayMediaDataSourceTest (6); docs ENGINEERING_LOG D-056, PROGRESS
+VERIFICATION: lead B-STD EXIT 0; VoiceMessageStoreTest 5/0, ByteArrayMediaDataSourceTest 6/0; grep writeBytes / setDataSource(file in app main outside the vault/hub/installer = 0; no new warnings in touched files. UNVERIFIED on device: record -> send -> play
+---

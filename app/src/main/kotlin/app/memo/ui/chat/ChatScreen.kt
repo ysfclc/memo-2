@@ -110,6 +110,7 @@ fun ChatScreen(runtime: MemoRuntime) {
             controller = controller,
             streaming = streaming,
             onSuggestion = controller::onTextChanged,
+            readClip = runtime::readVoiceClip,
             modifier = Modifier.weight(1f),
         )
         ChatComposer(controller, streaming, runtime.voiceMessages)

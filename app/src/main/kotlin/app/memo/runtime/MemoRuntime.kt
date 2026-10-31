@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import app.memo.core.audit.AuditSink
 import app.memo.core.audit.HashChainAudit
 import app.memo.core.catalog.ModelCatalog
+import app.memo.core.chat.VoiceClipRefs
 import app.memo.core.codec.SynCodec
 import app.memo.core.domain.AgentRun
 import app.memo.core.domain.AuditEntry
@@ -31,6 +32,7 @@ import app.memo.core.engine.ReasonExecutor
 import app.memo.core.engine.WorkflowEngine
 import app.memo.core.plan.CommandGrammar
 import app.memo.core.platform.ModelRef
+import app.memo.core.platform.VaultName
 import app.memo.core.registry.Registry
 import app.memo.core.registry.Workspace
 import app.memo.core.platform.LlmRuntime
@@ -220,6 +222,10 @@ class MemoRuntime(context: Context) {
             },
         )
     }
+
+    /** Decrypts one voice-message clip from the vault, or null for an unsafe/unknown reference. */
+    fun readVoiceClip(ref: String): ByteArray? =
+        if (VoiceClipRefs.isFilenameSafe(ref) && VaultName.PATTERN.matches(ref)) vault.read(ref) else null
 
     private fun runtimeFor(format: ModelFormat): LlmRuntime = when (format) {
         ModelFormat.LITERTLM -> LiteRtLmRuntime(
