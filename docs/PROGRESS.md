@@ -1368,4 +1368,10 @@ FILES CHANGED: core chat Conversation.kt + ConversationCodec.kt (v2, v1 reader),
 REVIEW (leg-4): stray build-bstd.log dropped; D-047 dup -> D-052; bubble UNREACHABLE (no voiceClipRef writer) -> user decision 2026-10-31 "draft + attach audio" = gap G4b (next, GLM); TASKS bubble box stays unticked until reachable
 VERIFICATION: B-STD BUILD SUCCESSFUL; 697 tests 0 fail (core + app); new compiler warnings: none in touched files (CommandGrammarTest redundant-cast warnings are pre-existing test warnings surfaced by the core test recompile)
 NEXT: CI on task/m2-b1-voice-bubble -> merge; then G4b send path via GLM
+ITEM: gap G7 - M1.A3 step 3: InferenceManager state -> InferenceService.onManagerState (FGS after 10 s of generation)
+STATUS: done locally; branch CI pending
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G7; verdict ACCEPT, no defects; diff = MemoRuntime.kt only, 5 lines, exactly the briefed change; report accurate vs diff
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt, docs/PROGRESS.md
+VERIFICATION: GLM B-STD + lead B-STD BUILD SUCCESSFUL; grep onManagerState( -> InferenceService.kt:63 (def) + MemoRuntime.kt:164 (caller); no new warnings. UNVERIFIED on device: the ongoing "Memo is generating a reply" notification after 10 s (also needs POST_NOTIFICATIONS on Android 13+ for the notification to be visible; the FGS itself runs without it)
+NEXT: CI -> merge; device batch G11 adds "long generation shows the notification and survives backgrounding"
 ---
