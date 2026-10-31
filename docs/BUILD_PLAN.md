@@ -1951,6 +1951,15 @@ Runs right after APPROVALS (D-057 order). Every extracted fact cites its source;
 
 **ENT.5 — M3.C2 CRM capture** (unchanged scope) on top of ENT.1–4: person + company + place, reuse existing, follow-up tasks.
 
+### DEVICE wave — phone & app manager (2026-10-31, D-061, user request; runs AFTER the PORTER wave)
+User: "see what runs, what they cost, the power of the phone, and manage it; kill background apps, kill running apps, memory… like a cleaner app, but no ads". No ads, no tracking, nothing leaves the device.
+What Android 14 allows a third-party app (stated honestly in the UI):
+- **DEV.1 Memo's own cost** — RAM, resident model size, backend (GPU/CPU), tokens/s, battery drain and temperature while generating (own process: full detail).
+- **DEV.2 Phone power** — battery %, charging, temperature, thermal status (PowerManager), system RAM total/available/low-memory (ActivityManager.MemoryInfo).
+- **DEV.3 What runs** — per-app foreground time and last used via UsageStatsManager (user grants Usage access once). Per-app battery/RAM of OTHER apps is system-only since Android 10 → not shown, and the UI says why.
+- **DEV.4 Manage** — kill background processes (KILL_BACKGROUND_PROCESSES; Android may restart them — said in the UI); force-stop a running app only by automating Settings → Force stop through the M4.B1 accessibility service, with a confirmation per app (gated like any side effect).
+- Placement: a "Device" destination; Memo's own cost also shown inline while a model runs.
+
 ### M4.R — PORTER: move data between the user's own logged-in sites (Relay-inspired, 2026-10-31, D-057)
 Inspiration (not spec): the user's "Relay" brainstorm — the browser is the final API; the user is already logged in; Memo does the tedious moving. Memo stays Android-only: WebView sessions (§2b), DOM/AX-first grounding (§2a), Humanizer pacing (§2d), ActionPolicy tiers, hash-chained audit. Not carried over from Relay: Playwright/CDP, desktop multi-tab parallelism, unsigned third-party script packs.
 
