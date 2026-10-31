@@ -56,8 +56,8 @@ Legend:
 - [~] E1 One-tap download from available sources, with verification · pinned Qwen3 ×3 one-tap with SHA, resume and import (2b43e36); hub expansion M1.B1–B3
 - [~] E2 Discovery of models: live Hugging Face catalog + on-device scan/import · device scan/import done (basic); HF live discovery M1.B2
 - [ ] E3 **Any open local model**: Llama, Gemma, Qwen, Phi, Mistral, DeepSeek, SmolLM, Granite, Falcon… via LiteRT-LM **and** llama.cpp/GGUF · M1.A1, M1.A2, M1.B1
-- [ ] E4 On-device inference running (streaming, stop, GPU→CPU fallback, RAM preflight) · M1.A1, M1.A2, M1.A3
-- [ ] E5 Downloads survive app close (foreground worker), resume, notification progress, optional HF token · M1.B2
+- [~] E4 On-device inference running (streaming, stop, GPU→CPU fallback, RAM preflight) · M1.A1, M1.A2, M1.A3 — leg-4 2026-10-31: built + CI; Qwen3 0.6B ran on the emulator only; phone + Stop latency UNVERIFIED
+- [~] E5 Downloads survive app close (foreground worker), resume, notification progress, optional HF token · M1.B2 — leg-4 2026-10-31: worker + resume built; HF token has no UI; device UNVERIFIED
 - [~] E6 Per-model settings (system prompt, temperature, context, thinking) · M1.B3
 
 ## E+. Local agent & media engine
@@ -97,8 +97,8 @@ Legend:
 
 ## I. UX, motion, speed ("alive, professional, fast")
 - [~] I1 One design system (tokens, type, spacing, components) · Paper+Mint tokens exist; full system M2.B0a–c
-- [ ] I2 Motion language with spring physics, haptics and reduce-motion fallbacks · M2.B0b
-- [ ] I3 Shared-element transitions + predictive back on every screen · M2.B0d
+- [x] I2 Motion language with spring physics, haptics and reduce-motion fallbacks · M2.B0b — leg-4 2026-10-31: ReduceMotionTest; motion only via ui/motion
+- [~] I3 Shared-element transitions + predictive back on every screen · M2.B0d — leg-4 2026-10-31: nav shell built; only root tabs exist, no recorded graph walk
 - [ ] I4 Workflow spawn cascade, step progression (pulse, check morph, rail fill), approval choreography · M2.B0c, M3.B2, M3.B1
 - [ ] I5 PresenceOrb (shader, state- and audio-reactive) across app, bubble and notification · M2.B0c
 - [ ] I6 Live Environment: running workflows, waiting approvals, recent outputs, metric health, "since you were away" · M3.B2

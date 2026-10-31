@@ -341,7 +341,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
   - [ ] unparseable runs/audit rows → load problem, never re-save a reduced list
 - Tests (PersistenceTest additions): newer bad tmp + good primary → primary imported; missing primary + good tmp → tmp imported; marker present still removes plaintext; corrupt run row → problem and save refused; checkpoint throws when read-only
 
-### [ ] M0.R2 Second independent review, then fixes if needed
+### [x] M0.R2 Second independent review, then fixes if needed — leg-4 audit 2026-10-31: done (PROGRESS M0.R2 findings + fixes M0.F5)
 
 ### [ ] M0 close (MCP)
 - Device checklist (user):
@@ -366,7 +366,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `TokensContrastTest`: ink/canvas, ink/surface, inkMuted/surface ≥ 4.5; onAccent/accent and attention/surface ≥ 3 (light and dark)
 - Checks: `grep -rn "Color(0x" app/src/main/kotlin` matches only inside `ui/theme`.
 
-### [ ] M2.B0b Motion tokens + haptics · deps M2.B0a
+### [x] M2.B0b Motion tokens + haptics · deps M2.B0a — leg-4 audit 2026-10-31: ReduceMotionTest green; no tween/spring outside ui/motion
 - Files: `app/.../ui/motion/{MemoMotion,Haptics,ReduceMotion}.kt`
 - Mini-tasks:
   - [ ] springs: snappy (0.85/700), smooth (0.9/380), gentle (1.0/200), bouncy (0.6/500)
@@ -398,7 +398,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `NavGraphTest` (pure: every route has a back target; root behaviour)
 - Build: emulator smoke test (B-STD step 3); screenshots of every tab sent to the user.
 
-### [ ] M1.A1 LiteRT-LM runtime [§4] · deps M0
+### [~] M1.A1 LiteRT-LM runtime [§4] · deps M0 — leg-4 audit 2026-10-31: code + tests in; Stop fix 3fa7826 UNVERIFIED on device
 - Files: `app/.../platform/android/llm/litert/LiteRtLmRuntime.kt`
 - Mini-tasks:
   - [ ] dedicated thread + executor; cacheDir created
@@ -412,7 +412,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Checks: no generation on the main thread; cancel path; one-at-a-time enforced.
 - Build: device check generates with Gemma 3 1B or Qwen3 0.6B.
 
-### [ ] M1.A2 llama.cpp JNI runtime · deps M0.B1
+### [x] M1.A2 llama.cpp JNI runtime · deps M0.B1 — leg-4 audit 2026-10-31: written acceptance met (CI, 4 tests); GGUF never run on a device, tokens/s not recorded
 - Files: `app/src/main/cpp/{memo_llama.cpp,CMakeLists.txt}`, `LlamaNative.kt`, `LlamaCppRuntime.kt`
 - Mini-tasks:
   - [ ] verify every API name against `include/llama.h` at b11460
@@ -426,13 +426,13 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Checks: no leaks on the unload path (code read); JNI exceptions are not swallowed.
 - Build: CI lists both ABIs; device check records tokens/s for Llama 3.2 1B and 3B Q4_K_M.
 
-### [ ] M1.A3 Inference manager + service · deps M1.A1, M1.A2
+### [x] M1.A3 Inference manager + service · deps M1.A1, M1.A2 — leg-4 audit 2026-10-31: FGS wired in gap G7 (CI 41184362573); device notification UNVERIFIED
 - Files: `app/.../runtime/InferenceManager.kt`, `app/.../platform/android/llm/InferenceService.kt`, manifest
 - Mini-tasks: [ ] runtime selected by format · [ ] single resident model, unload on switch · [ ] request queue (one at a time), cancel · [ ] specialUse FGS (subtype text) when generation lasts > 10 s
 - Tests: `InferenceManagerTest` with a fake LlmRuntime: switching unloads; queue order; cancel
 - Checks: the FGS starts only from the foreground.
 
-### [ ] M1.B1 Model catalog (pure) · deps M0.A4
+### [x] M1.B1 Model catalog (pure) · deps M0.A4 — leg-4 audit 2026-10-31: Llama 3.1 8B seed added in gap G8 (CI 41186628822)
 - Files: `core/.../catalog/{ModelCatalog,HfParsers}.kt`, fixtures `core/src/test/resources/hf/*.json`
 - Mini-tasks:
   - [ ] ModelFormat, ModelEntry fields
@@ -442,7 +442,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Tests: `HfParsersTest` (fixtures: list, model, tree, gated); `QuantRankingTest`; `SeedCatalogTest` (every entry: 64-hex sha, size > 0, revision, https URL with `resolve/<rev>/`)
 - Checks: the lead re-verifies 3 random entries against the live HF API.
 
-### [ ] M1.B2 Hub downloads · deps M1.B1, M0.C1
+### [x] M1.B2 Hub downloads · deps M1.B1, M0.C1 — leg-4 audit 2026-10-31: done; HF token has no UI yet; pause/resume not checked on device
 - Files: `app/.../hub/{ModelHub,DownloadWorker,HfClient}.kt`
 - Mini-tasks:
   - [ ] HfClient (HTTPS-only redirects, token header from the vault)
@@ -516,8 +516,8 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
   - [x] streaming Zipformer ASR with partials and endpoints
   - [x] offline ASR (Whisper base / SenseVoice) for voice messages
   - [ ] Kokoro TTS (speaker id, speed), Piper fallback; sentence-by-sentence streaming into AudioPlayback
-  - [x] Silero VAD; keyword spotter with "hey memo" keywords file
-  - [x] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded via the Hub; archives unpacked with path-traversal guard
+  - [~] Silero VAD; keyword spotter with "hey memo" keywords file — leg-4 audit 2026-10-31: VAD + SherpaKws engine exist; the "hey memo" keywords file and any KWS caller belong to M2.C2 (was falsely ticked)
+  - [x] VoiceModels entries pinned (URL, sha256, size) from the sherpa-onnx releases page; downloaded by VoiceModelInstaller (not the Hub — D-041 divergence), in-app from the Models tab since gap G5; archives unpacked with path-traversal guard
 - Tests: `SentenceChunkerTest` (abbreviations, decimals, emoji, pl/tr punctuation, flush on end); `VoiceModelsPinTest` (64-hex sha, https, size > 0); `ArchiveGuardTest` (`../` entries rejected)
 - Checks: lead diffs every sherpa call against the saved class list; models load only from the app's private dir.
 - Build: emulator: synthesize a sentence to a WAV in app files, pull it with adb, listen.

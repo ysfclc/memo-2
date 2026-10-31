@@ -1410,3 +1410,14 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G9; run wrapper reaped 
 FILES CHANGED: app/src/test/kotlin/app/memo/ui/voice/{WaveformBucketsTest,RecorderGestureStateTest}.kt (new), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; WaveformBucketsTest 4/0, RecorderGestureStateTest 6/0
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G10 (part 1) - docs track code: TASKS/FEATURES statuses synced to the leg-4 audit evidence; stale ci-failed-log.txt removed
+FILES CHANGED: docs/TASKS.md (M0.R2, M2.B0b, M1.A2, M1.A3, M1.B1, M1.B2 ticked with evidence; M1.A1 -> [~]; false tick "hey memo keywords file" -> [~]; "downloaded via the Hub" corrected), docs/FEATURES.md (E4, E5, I3 -> [~]; I2 -> [x]), ci-failed-log.txt (deleted), docs/PROGRESS.md
+VERIFICATION: each tick cites a test/CI run in the line itself; docs only
+NEXT: G10 part 2 after G5/G4b-2/G6 merge (their boxes), STATUS.md refresh
+---
