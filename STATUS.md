@@ -16,10 +16,15 @@ Legend: ✅ verified (CI or device evidence) · 🟡 implemented, verification p
 | Native build: llama.cpp b11460 JNI, sherpa-onnx 1.13.8, LiteRT-LM dep | 🟡 | Compiles and packages in CI; LiteRT-LM ran Qwen3 inference on the test AVD, while llama.cpp/sherpa device paths remain untested. |
 | Runtime wiring (`MemoRuntime`) | 🟡 | Workspace (SYN envelope), runs and hash-chained audit persisted to app-private files |
 | Planner (text/voice → gated workflow) | 🟡 | Person, task, reminder, draft: fill → HUMAN_APPROVAL → DATA_PERSIST |
-| Compose UI shell | 🟡 | Live, Work, Studio, Settings; Talk and Models screens rendered on clean Android 14 test AVD. Talk shows Qwen3 0.6B/LiteRT-LM, but Stop remained visible after two taps; cancellation is unresolved. Physical-phone check pending. |
+| Compose UI shell | 🟡 | Live, Work, Studio, Settings; Talk and Models screens rendered on clean Android 14 test AVD. Talk shows Qwen3 0.6B/LiteRT-LM, the Stop cancellation fix (3fa7826, CI-green) has not been re-checked on any device yet. Physical-phone check pending. |
 | Local model download | 🟡 | Qwen3 0.6B (344.7 MB) downloaded and shown Installed and verified on `Memo_API34_CHAT`; other planned models remain pending. |
+| App identity + in-place updates | 🟡 | Package `app.memo2` (debug `app.memo2.debug`), label "Memo" (D-053/D-054); every debug APK signed by the committed shared key (SHA-256 9e526ee8…20be2e, verified on the CI APK with apksigner). Installed side by side with the old `app.memo.debug` and launched on the emulator. Install on the user's phone UNVERIFIED. |
+| Voice models download in-app | 🟡 | Models → Voice: streaming ASR, Whisper, Kokoro, Silero VAD with progress/retry (gap G5, VoiceModelDownloadsTest). Real download on a phone UNVERIFIED. |
+| Voice messages (Text tab) | 🟡 | Hold to record → transcript as editable draft + clip attached → Send; bubble with playback; clip-only messages reach the model as their transcript (G4, G4b, G12; tests). Clips stored encrypted in the vault, played from memory (D-056). Device UNVERIFIED. |
+| Read-aloud | 🟡 | Any chat message, Kokoro via sherpa-onnx only (D-051, ReadAloudTest). Device listening UNVERIFIED. |
+| Background generation service | 🟡 | InferenceService promoted after 10 s of generation (G7). Device UNVERIFIED. |
 | Local model discovery / import | 🟡 | Browse, Import, Scan device and the Android picker were inspected on the test AVD; scan reported no files and the picker was canceled without selecting anything. Import of a model file remains unverified. |
-| On-device inference (LiteRT-LM + llama.cpp) | 🟡 | Qwen3 0.6B via LiteRT-LM returned `Hello` on the test AVD. A prior QEMU host crash did not recur on the controlled retry; its cause remains UNVERIFIED. Stop cancellation remains unresolved; llama.cpp and physical-phone inference are pending. |
+| On-device inference (LiteRT-LM + llama.cpp) | 🟡 | Qwen3 0.6B via LiteRT-LM returned `Hello` on the test AVD. A prior QEMU host crash did not recur on the controlled retry; its cause remains UNVERIFIED. Stop: code fix 3fa7826 (CI-green), device UNVERIFIED; llama.cpp and physical-phone inference are pending. A 'screen flicker during model runs' report is open (ENGINEERING_LOG, UNVERIFIED). |
 | Browser automation (frontier sites) | ⛔ | Executor returns an explicit failure; planner never emits browser steps |
 | App automation (accessibility) | ⛔ | Executor returns an explicit failure; no accessibility service declared |
 | Metrics collectors | ⛔ | Executor returns an explicit failure |

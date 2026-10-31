@@ -1,6 +1,6 @@
 # PLAN STATE
 CHAIN: Claude(plan) -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
-UPDATED: 2026-10-31 (leg-4, parallel GLM batch)
+UPDATED: 2026-10-31 (leg-4, Step 1 everyday app complete on milestone/M1)
 AUDIT + GAP REGISTER (authoritative detail): ~/.claude/plans/use-glm-5-4-free-staged-koala.md
 RULES: AGENTS.md rule 10 (in-place updates, shared debug keystore), rule 11 (strict implementation; /implement)
 
@@ -15,18 +15,19 @@ GAP REGISTER:
   G2 DRIFTED M0.A2 WorkflowAuditTest: CLOSED - CI 41180102118 green on c93398d; WorkflowAuditTest 4/0 fail; implementer glm-5.3-flash-free (D-050)
   G3 M2.B1 E3 ReadAloud merge: CLOSED - CI 41183393240 green on 9014aba; ReadAloudTest 12/0; any-message drift fixed (D-051)
   G4 M2.B1 E2 voice bubble merge: CLOSED - CI 41184305022 green on 694c516 (D-052); bubble reachable only after G4b
-  G9 M2.B1 missing tests: GLM running (worktree ../memo-wt/g9)
-  G5 M2.A2 in-app voice model download: GLM running (worktree ../memo-wt/g5)
-  G4b-1 core VoiceClipDraft: CI pending 41186623683 (task/m2-b1-clip-draft, GLM, lead-verified)
-  G4b-2 app send-with-clip wiring: OPEN (after G4b-1 merges)
-  G6 M0.C2 encrypt voice WAVs: OPEN (after G4b-2; MediaPlayerClipPlayer must switch to a decrypting MediaDataSource)
+  G9 M2.B1 missing tests: CLOSED - CI 41186974106 green
+  G5 M2.A2 in-app voice model download: CLOSED - CI 41187606281 green
+  G4b-1 core VoiceClipDraft: CLOSED - CI 41186623683 green
+  G4b-2 app send-with-clip wiring: CLOSED - CI 41187965182 green
+  G12 clip-only message dropped from model history (defect found in review): CLOSED - CI 41189276754 green
+  G6 M0.C2 encrypt voice WAVs: CLOSED (G6a+G6b, D-056) - CI 41188846864 green
   G7 M1.A3 inference FGS wiring: CLOSED - CI 41184362573 green on 8ab13ed (GLM)
-  G8 M1.B1 Llama 3.1 8B seed: CI pending 41186628822 (task/m1-b1-llama31-seed, GLM, lead-verified)
-  G10 docs/hygiene sync: OPEN
+  G8 M1.B1 Llama 3.1 8B seed: CLOSED - CI 41186628822 green
+  G10 docs/hygiene sync: part 1+2 done (TASKS/FEATURES/STATUS); OPEN: remove old opencode e2/e3 worktrees (fully ported, uncommitted files - needs user OK) and merged wp/llm, wp/hub worktrees
   G11 device batch (user's phone): OPEN
   ID app.memo2 / label Memo (D-053, D-054): app-id CI 41185263209 green; label CI 41186450339 on 33b86e1 pending
 
-CURRENT: parallel - G8 + G4b-1 in CI, G9 + G5 with GLM; then G4b-2, G6, G10
-NEXT ACTION: as each GLM run finishes: review diff, lead B-STD, commit, merge origin/milestone/M1 (union merge on logs, D-055), push, dispatch CI without waiting; merge each green branch into milestone/M1; then brief G4b-2 (ChatController.send attaches composer.voiceClip; ChatComposer Recorded.Message/Untranscribed -> attach clip; chip with remove; ChatThread skips ChatMarkdown when text == transcript)
+CURRENT: Step 1 (everyday app) complete; CI on milestone/M1 head for the user APK; then G11 device batch (user phone)
+NEXT ACTION: confirm CI green on milestone/M1 head, give the user the run link; user installs + runs the G11 checklist; then Step 2 = M3 BRAIN (M3.A1 orchestrator, M3.A4 agent engine, M3.A2 context) via /implement, per the Relay-ordered plan in ~/.claude/plans/use-glm-5-4-free-staged-koala.md
 VERIFY BASELINE: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` -> 697 tests 0 fail (2026-10-31, after G4+G7+ID change)
 OPEN BLOCKERS: G11 needs the phone (user: uninstall the other-key Memo not needed any more after app.memo2). User decisions PD1 (unused kit components), PD2 (Piper), PD3 (vision re-grounding), PD4 (bulk approval)
