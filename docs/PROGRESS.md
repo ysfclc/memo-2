@@ -1367,4 +1367,29 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G8; verdict ACCEPT, no 
 FILES CHANGED: core/.../catalog/ModelCatalog.kt (+1 ModelEntry after llama-3.2-3b), core/.../catalog/SeedCatalogTest.kt (+llama31_8bSeedIsPinned), docs/PROGRESS.md
 VERIFICATION: GLM B-STD BUILD SUCCESSFUL; lead :core:test EXIT 0, SeedCatalogTest 6/0 fail
 NEXT: merge latest milestone/M1, CI, merge
+ITEM: gap G4 - M2.B1 voice-message bubble (E2 work, found uncommitted) ported onto milestone/M1 414dd03
+STATUS: done locally; branch CI pending
+FILES CHANGED: core chat Conversation.kt + ConversationCodec.kt (v2, v1 reader), core voice ClipPlayback.kt (new), app ClipPlayerPorts.kt + MediaPlayerClipPlayer.kt (new), ChatThread.kt (VoiceMessageBubble; imports merged with the read-aloud anchor), tests ConversationCodecTest, ChatRepositoryTest, VoiceMessageStorageTest (new), ClipPlaybackTest (new); docs ENGINEERING_LOG D-052 (ex-D-047)
+REVIEW (leg-4): stray build-bstd.log dropped; D-047 dup -> D-052; bubble UNREACHABLE (no voiceClipRef writer) -> user decision 2026-10-31 "draft + attach audio" = gap G4b (next, GLM); TASKS bubble box stays unticked until reachable
+VERIFICATION: B-STD BUILD SUCCESSFUL; 697 tests 0 fail (core + app); new compiler warnings: none in touched files (CommandGrammarTest redundant-cast warnings are pre-existing test warnings surfaced by the core test recompile)
+NEXT: CI on task/m2-b1-voice-bubble -> merge; then G4b send path via GLM
+ITEM: gap G7 - M1.A3 step 3: InferenceManager state -> InferenceService.onManagerState (FGS after 10 s of generation)
+STATUS: done locally; branch CI pending
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G7; verdict ACCEPT, no defects; diff = MemoRuntime.kt only, 5 lines, exactly the briefed change; report accurate vs diff
+FILES CHANGED: app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt, docs/PROGRESS.md
+VERIFICATION: GLM B-STD + lead B-STD BUILD SUCCESSFUL; grep onManagerState( -> InferenceService.kt:63 (def) + MemoRuntime.kt:164 (caller); no new warnings. UNVERIFIED on device: the ongoing "Memo is generating a reply" notification after 10 s (also needs POST_NOTIFICATIONS on Android 13+ for the notification to be visible; the FGS itself runs without it)
+NEXT: CI -> merge; device batch G11 adds "long generation shows the notification and survives backgrounding"
+---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap (user-reported install failure)
+ITEM: app identity app.memo -> app.memo2, label "Memo 2" (D-053)
+STATUS: done locally; CI pending
+FILES CHANGED: app/build.gradle.kts, app/src/main/res/values/strings.xml, AGENTS.md (rule 10 frozen id), docs/ARCHITECTURE.md, docs/ENGINEERING_LOG.md (D-053), docs/PROGRESS.md
+VERIFICATION: emulator reproduced the phone failure for the G1 APK: INSTALL_FAILED_UPDATE_INCOMPATIBLE (existing app.memo.debug, other signer); B-STD on milestone/M1 c580e4a + this change: 697 tests 0 fail
+NEXT: CI APK -> install side by side on emulator-5554 (no uninstall) -> publish preview for the phone
+NOTES: root cause = the user's separate earlier Memo project owns app.memo; user chose app.memo2 / Memo 2.
 ---

@@ -1,7 +1,7 @@
 # Memo — Architecture & Design Document
 
 One app unifying five prototypes + one HTML product-law document into
-`app.memo`, a voice-first, checkpoint-driven personal agent for Android.
+`app.memo2` (Kotlin namespace `app.memo`; D-053), a voice-first, checkpoint-driven personal agent for Android.
 Everything below is enforced by code tracked in this repo; decisions and
 rationale live in `docs/ENGINEERING_LOG.md`.
 

@@ -13,8 +13,29 @@ object ChatLimits {
     const val MAX_MODEL_ID_CHARS: Int = 64
     const val MAX_VOICE_REF_CHARS: Int = 128
 
+    /** Recorded voice messages are capped at five minutes by the hold-to-record recorder. */
+    const val MAX_VOICE_DURATION_MS: Int = 300_000
+
+    /** Whisper output for a five-minute clip stays far below this. */
+    const val MAX_TRANSCRIPT_CHARS: Int = 20_000
+
+    /** One line, plain-language reason why a clip has no transcript. */
+    const val MAX_TRANSCRIPT_NOTE_CHARS: Int = 200
+
     /** Attached text files larger than this are refused by the UI. */
     const val MAX_ATTACHMENT_BYTES: Int = 200 * 1024
+}
+
+/**
+ * Voice-clip references are always bare file names inside the app-private
+ * `filesDir/voice-messages/` directory ([app.memo.platform.android.voice.VoiceMessageStore]).
+ * [isFilenameSafe] is the join guard: references containing separators or `.`/`..` could point
+ * the player outside that directory, so the [ChatMessage] constructor refuses them.
+ */
+object VoiceClipRefs {
+    fun isFilenameSafe(ref: String): Boolean =
+        ref.isNotEmpty() && ref != "." && ref != ".." &&
+            ref.none { it == '/' || it == '\\' || it == ':' || it == '\u0000' }
 }
 
 /** Who wrote a message. */
@@ -43,7 +64,19 @@ data class Conversation(
     }
 }
 
-/** One message. [thinking] is the reasoning channel text, empty when the model had none. */
+/**
+ * One message. [thinking] is the reasoning channel text, empty when the model had none.
+ *
+ * A voice message carries its audio by [voiceClipRef] (the WAV file name under
+ * `filesDir/voice-messages`, kept app-private) and [VoiceClipRefs.isFilenameSafe] is checked
+ * against it so the player can join the path safely. [durationMs] is the clip length;
+ * [transcript] is the Whisper output — nullable because transcription can fail or be missing.
+ * When [transcript] is null, [transcriptNote] holds the plain-language reason (nothing stored
+ * when no reason is known). An empty [transcript] means it was transcribed and heard nothing.
+ * All voice fields are forbidden without [voiceClipRef]: they describe the clip, not the text.
+ * Text-only messages written by older builds keep exactly `voiceClipRef = null` and the
+ * defaults, so stored data still reads and renders exactly as before.
+ */
 data class ChatMessage(
     val id: String,
     val role: ChatRole,
@@ -51,6 +84,9 @@ data class ChatMessage(
     val thinking: String = "",
     val modelId: String? = null,
     val voiceClipRef: String? = null,
+    val durationMs: Long? = null,
+    val transcript: String? = null,
+    val transcriptNote: String? = null,
     val createdAt: Long,
     val status: MessageStatus = MessageStatus.DONE,
     val errorText: String = "",
@@ -63,7 +99,17 @@ data class ChatMessage(
         require(errorText.isEmpty() || status == MessageStatus.ERROR) { "errorText requires ERROR status" }
         require(createdAt >= 0) { "createdAt must be >= 0" }
         require(modelId == null || modelId.length <= ChatLimits.MAX_MODEL_ID_CHARS) { "invalid model id" }
+        require(voiceClipRef == null || VoiceClipRefs.isFilenameSafe(voiceClipRef)) { "invalid voice ref" }
         require(voiceClipRef == null || voiceClipRef.length <= ChatLimits.MAX_VOICE_REF_CHARS) { "invalid voice ref" }
+        require(voiceClipRef != null || (durationMs == null && transcript == null && transcriptNote == null)) {
+            "voice fields require a voiceClipRef"
+        }
+        require(durationMs == null || durationMs in 1..ChatLimits.MAX_VOICE_DURATION_MS) { "invalid duration" }
+        require(transcript == null || transcript.length <= ChatLimits.MAX_TRANSCRIPT_CHARS) { "transcript too long" }
+        require(transcriptNote == null || transcriptNote.length <= ChatLimits.MAX_TRANSCRIPT_NOTE_CHARS) {
+            "transcript note too long"
+        }
+        require(transcript == null || transcriptNote == null) { "a transcribed clip cannot also carry a note" }
     }
 }
 

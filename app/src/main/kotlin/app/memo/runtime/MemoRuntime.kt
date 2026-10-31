@@ -36,6 +36,7 @@ import app.memo.core.registry.Workspace
 import app.memo.core.platform.LlmRuntime
 import app.memo.core.platform.ModelFormat
 import app.memo.models.ModelStore
+import app.memo.platform.android.llm.InferenceService
 import app.memo.platform.android.llm.litert.LiteRtLmRuntime
 import app.memo.platform.android.llm.llama.LlamaCppRuntime
 import app.memo.platform.android.voice.SherpaOfflineAsr
@@ -158,7 +159,10 @@ class MemoRuntime(context: Context) {
      * The one resident chat model. Every consumer — the chat UI and the voice loop — queues
      * through this, so a second model can never load behind the manager's back.
      */
-    val inference = InferenceManager(factory = { format -> runtimeFor(format) })
+    val inference = InferenceManager(
+        factory = { format -> runtimeFor(format) },
+        onStateChanged = { state -> InferenceService.onManagerState(appContext, state) },
+    )
 
     internal val chats = ChatRepository(vault)
     internal val chatSettings = ChatSettingsRepository(vault)
