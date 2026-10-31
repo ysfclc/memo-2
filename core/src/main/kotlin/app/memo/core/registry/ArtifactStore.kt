@@ -65,6 +65,32 @@ object ArtifactStore {
     }
 
     /**
+     * The natural key [payloadJson] has in the [kind] registry, the same key
+     * [persistResult] would write under. Null when the payload is invalid or
+     * the kind is not savable.
+     */
+    fun keyOf(kind: String, payloadJson: String): String? {
+        val raw = runCatching { JSONObject(payloadJson) }.getOrNull() ?: return null
+        val key = try {
+            when (kind) {
+                "person" -> Person.fromJson(raw)?.let { Schemes.People.id(it) }
+                "company" -> Company.fromJson(raw)?.let { Schemes.Companies.id(it) }
+                "job_posting" -> JobPosting.fromJson(raw)?.let { Schemes.JobPostings.id(it) }
+                "application" -> JobApplication.fromJson(raw)?.let { Schemes.Applications.id(it) }
+                "task" -> Task.fromJson(raw)?.let { Schemes.Tasks.id(it) }
+                "draft" -> ContentDraft.fromJson(raw)?.let { Schemes.Drafts.id(it) }
+                "post" -> SocialPost.fromJson(raw)?.let { Schemes.Posts.id(it) }
+                "project" -> Project.fromJson(raw)?.let { Schemes.Projects.id(it) }
+                "note" -> Note.fromJson(raw)?.let { Schemes.Notes.id(it) }
+                else -> null
+            }
+        } catch (e: RuntimeException) {
+            null
+        }
+        return key?.takeIf { it.isNotBlank() }
+    }
+
+    /**
      * Domain validation only, no registry write: null when [payloadJson] is a
      * valid [kind] payload, else a plain reason. Uses the same kind mapping as
      * [persistResult]; used by the entity extractor before anything is proposed.

@@ -173,6 +173,25 @@ class EntityExtractionTest {
         assertTrue(result.rejected.single().startsWith("too many items"), "${result.rejected}")
     }
 
+    @Test
+    fun keptIsTheIndexSpaceInOriginalOrderAcrossTypedAndEntities() {
+        val result = run(
+            """
+            {"items":[
+              {"kind":"entity","type":"place","fields":{"title":"Web Summit"},"excerpt":"Web Summit"},
+              {"kind":"person","fields":{"fullName":"Ana Lopez"},"excerpt":"Ana Lopez"}
+            ],"relations":[{"from":0,"to":1,"type":"met_at","excerpt":"Ana Lopez"}]}
+            """.trimIndent(),
+        )
+        assertTrue(result.kept[0] is KeptItem.Proposed, "${result.kept}")
+        assertTrue(result.kept[1] is KeptItem.Typed, "${result.kept}")
+        assertEquals(2, result.kept.size)
+        val relation = result.relations.single()
+        assertEquals(0, relation.fromIndex)
+        assertEquals(1, relation.toIndex)
+        assertEquals("met_at", relation.relationType)
+    }
+
     private companion object {
         const val TEXT = "Ana Lopez, CTO at Acme Corp, presented at Web Summit."
     }

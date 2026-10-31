@@ -14,9 +14,15 @@ import org.json.JSONObject
 /** A proposed typed record (kind in [Prompts.ARTIFACT_KINDS]) with the excerpt that supports it. */
 data class TypedCandidate(val kind: String, val payloadJson: String, val provenance: Provenance)
 
+/** One kept item: a typed record or an open-type entity. */
+sealed interface KeptItem {
+    data class Typed(val candidate: TypedCandidate) : KeptItem
+    data class Proposed(val entity: Entity) : KeptItem
+}
+
 /**
- * A proposed link between two KEPT items. [fromIndex] and [toIndex] index the
- * kept list: typed candidates and entities, in their original item order.
+ * A proposed link between two KEPT items. [fromIndex] and [toIndex] index
+ * [ExtractionResult.kept], in its original item order.
  */
 data class RelationCandidate(
     val fromIndex: Int,
@@ -26,15 +32,26 @@ data class RelationCandidate(
 )
 
 /**
- * Candidates for the user to approve. Nothing here is saved. [rejected] holds
- * one plain reason per dropped item or relation.
+ * Candidates for the user to approve. Nothing here is saved.
+ *
+ * [kept] is the single index space of the result: every kept item in its
+ * ORIGINAL item order. [RelationCandidate.fromIndex], [RelationCandidate.toIndex]
+ * and any user selection index this list. [typed] and [entities] are derived
+ * read-only views of [kept]; they lose the interleaved order, so never use
+ * their positions as indexes. [rejected] holds one plain reason per dropped
+ * item or relation.
  */
 data class ExtractionResult(
-    val typed: List<TypedCandidate>,
-    val entities: List<Entity>,
+    val kept: List<KeptItem>,
     val relations: List<RelationCandidate>,
     val rejected: List<String>,
-)
+) {
+    val typed: List<TypedCandidate>
+        get() = kept.filterIsInstance<KeptItem.Typed>().map { it.candidate }
+
+    val entities: List<Entity>
+        get() = kept.filterIsInstance<KeptItem.Proposed>().map { it.entity }
+}
 
 /**
  * Evidence-backed entity extraction (ENT.3, pure core). The local model
@@ -61,7 +78,7 @@ class EntityExtraction(private val model: PlanModel, private val clock: () -> Lo
         val itemsArr = root.optJSONArray("items") ?: JSONArray()
         val relArr = root.optJSONArray("relations") ?: JSONArray()
         val rejected = mutableListOf<String>()
-        val kept = mutableListOf<Kept>()
+        val kept = mutableListOf<KeptItem>()
         val keptIndexByOriginal = HashMap<Int, Int>()
         val seenKeys = HashSet<String>()
 
@@ -122,12 +139,7 @@ class EntityExtraction(private val model: PlanModel, private val clock: () -> Lo
             )
         }
 
-        return ExtractionResult(
-            typed = kept.filterIsInstance<Kept.Typed>().map { it.candidate },
-            entities = kept.filterIsInstance<Kept.Proposed>().map { it.entity },
-            relations = relations,
-            rejected = rejected,
-        )
+        return ExtractionResult(kept = kept, relations = relations, rejected = rejected)
     }
 
     private fun considerItem(
@@ -182,7 +194,7 @@ class EntityExtraction(private val model: PlanModel, private val clock: () -> Lo
         if (!seenKeys.add("entity|$type|${normalize(title)}")) {
             return Decision.Drop("duplicate: $type '$title'")
         }
-        return Decision.Keep(Kept.Proposed(entity))
+        return Decision.Keep(KeptItem.Proposed(entity))
     }
 
     private fun considerTyped(
@@ -197,7 +209,7 @@ class EntityExtraction(private val model: PlanModel, private val clock: () -> Lo
         // A record without a name key falls back to its payload, so untitled records never collide.
         val identity = normalize(name).ifEmpty { normalize(payload) }
         if (!seenKeys.add("$kind|$identity")) return Decision.Drop("duplicate: $kind '$name'")
-        return Decision.Keep(Kept.Typed(TypedCandidate(kind, payload, provenance)))
+        return Decision.Keep(KeptItem.Typed(TypedCandidate(kind, payload, provenance)))
     }
 
     private fun nameOf(fields: JSONObject, isEntity: Boolean): String {
@@ -218,18 +230,13 @@ class EntityExtraction(private val model: PlanModel, private val clock: () -> Lo
     }
 
     private fun failed(reason: String): ExtractionResult =
-        ExtractionResult(emptyList(), emptyList(), emptyList(), listOf(reason))
+        ExtractionResult(emptyList(), emptyList(), listOf(reason))
 
     private fun describe(failure: Throwable): String =
         (failure.message ?: failure::class.java.simpleName).trim().ifEmpty { "error" }.take(MAX_REASON_CHARS)
 
-    private sealed interface Kept {
-        data class Typed(val candidate: TypedCandidate) : Kept
-        data class Proposed(val entity: Entity) : Kept
-    }
-
     private sealed interface Decision {
-        data class Keep(val item: Kept) : Decision
+        data class Keep(val item: KeptItem) : Decision
         data class Drop(val reason: String) : Decision
     }
 

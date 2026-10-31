@@ -1610,3 +1610,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.3; verdict ACCEPT; its f
 FILES CHANGED: core/.../agent/EntityExtraction.kt (new), EntityExtractionTest (13, incl. rejected unsupported claim + fabricated relation excerpt), core ArtifactStore.validate, docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; EntityExtractionTest 13/0; total 892 tests 0 fail
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: ENTITIES wave (D-059)
+ITEM: ENT.4a apply the user-approved selection of an extraction (typed via ArtifactStore, generic entities/relations APPROVED with merged provenance); ENT.3 contract fix
+IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.4a; round 1 STOPPED honestly on a real ENT.3 contract defect (ExtractionResult split typed/entities and lost the kept order that relation indexes point into - a relation could link the wrong records); lead approved fixing it: ExtractionResult.kept (ordered KeptItem) with typed/entities as derived views + an order test. Round 2 ACCEPT after one lead review fix: re-approval REPLACED entity properties (silent data loss) -> now merged, newer value wins (rule 2) + test reApprovalMergesPropertiesAndNewerValuesWin
+FILES CHANGED: core agent/EntityExtraction.kt (kept order), EntityExtractionTest (14), agent/EntityApproval.kt (new), EntityApprovalTest (7), registry/ArtifactStore.keyOf, docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (899 tests 0 fail); after the merge-test add, :core:test EXIT 0 with EntityApprovalTest 7/0
+---
