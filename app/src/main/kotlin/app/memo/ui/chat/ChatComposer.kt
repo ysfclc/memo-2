@@ -132,7 +132,7 @@ fun ChatComposer(
                 when (recorded) {
                     is VoiceMessageRecorder.Recorded.Message -> {
                         attachDraftClip(
-                            ref = recorded.file.name,
+                            ref = recorded.ref,
                             durationMs = recorded.durationMs,
                             transcript = recorded.transcript,
                         )
@@ -143,12 +143,12 @@ fun ChatComposer(
                         }
                     }
                     is VoiceMessageRecorder.Recorded.Untranscribed -> {
-                        val attached = recorded.file != null && attachDraftClip(
-                            ref = recorded.file.name,
+                        val attached = recorded.ref != null && attachDraftClip(
+                            ref = recorded.ref,
                             durationMs = recorded.durationMs,
                             note = recorded.reason.take(ChatLimits.MAX_TRANSCRIPT_NOTE_CHARS),
                         )
-                        if (recorded.file == null) {
+                        if (recorded.ref == null) {
                             controller.showNotice("Audio kept; transcription unavailable: ${recorded.reason}.")
                         } else if (attached) {
                             controller.showNotice("Audio attached; transcription unavailable: ${recorded.reason}.")

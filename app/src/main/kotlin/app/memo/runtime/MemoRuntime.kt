@@ -199,10 +199,13 @@ class MemoRuntime(context: Context) {
      * Untranscribed - the audio is kept, and no fake text is produced.
      */
     val voiceMessages: VoiceMessageRecorder by lazy {
+        // Encrypted clip storage. The one-time legacy import runs here, on first use, before
+        // the recorder is built: plaintext WAVs from the old store are moved into the vault.
+        val store = VoiceMessageStore(vault).also { it.importLegacy(File(appContext.filesDir, "voice-messages")) }
         val installer = VoiceModelInstaller(File(appContext.filesDir, "voice"))
         VoiceMessageRecorder(
             capture = SherpaRecorderCapture(appContext),
-            store = VoiceMessageStore(appContext),
+            store = store,
             executor = Executors.newSingleThreadExecutor { runnable ->
                 Thread(runnable, "memo-voice-messages").apply { isDaemon = true }
             },

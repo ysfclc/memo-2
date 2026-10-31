@@ -1,6 +1,9 @@
 package app.memo.platform.android.voice
 
 import android.content.Context
+import app.memo.core.chat.VoiceClipRefs
+import app.memo.core.platform.Vault
+import app.memo.core.platform.VaultName
 import app.memo.runtime.BargeInEngine
 import app.memo.runtime.ListenEngine
 import app.memo.runtime.LoopCapture
@@ -120,16 +123,54 @@ class SherpaRecorderTranscriber(private val asr: SherpaOfflineAsr) : RecorderTra
         asr.transcribe(samples, sampleRate)
 }
 
-/** [RecorderStore]: one WAV file per message under `filesDir/voice-messages/`. */
-class VoiceMessageStore(context: Context) : RecorderStore {
+/**
+ * [RecorderStore] through the encrypted [Vault]: every WAV is written as a vault entry under
+ * a `yyyyMMdd-HHmmss-SSS` timestamp name — the same bare name the chat stores as its clip
+ * reference (`voiceClipRef`), so existing refs keep resolving. A same-millisecond collision
+ * appends `-1`, `-2`, … to the second save's name.
+ *
+ * [importLegacy] moves clips saved by the old plaintext store (`filesDir/voice-messages/`)
+ * into the vault, then zeroes and deletes each plaintext file; files with invalid names are
+ * left untouched. It runs once, before the recorder is built.
+ */
+class VoiceMessageStore(private val vault: Vault, private val clock: () -> Long = System::currentTimeMillis) :
+    RecorderStore {
 
-    private val dir = File(context.applicationContext.filesDir, "voice-messages")
+    override fun save(wav: ByteArray): String {
+        val base = TIMESTAMP_FORMAT.format(Date(clock()))
+        var name = base
+        var suffix = 1
+        while (vault.read(name) != null) {
+            name = "$base-$suffix"
+            suffix++
+        }
+        vault.write(name, wav)
+        return name
+    }
 
-    override fun save(wav: ByteArray): File {
-        dir.mkdirs()
-        val file = File(dir, TIMESTAMP_FORMAT.format(Date()))
-        file.writeBytes(wav)
-        return file
+    fun importLegacy(dir: File): Int {
+        val files = if (dir.isDirectory) dir.listFiles() else null
+        var imported = 0
+        if (files != null) {
+            for (file in files) {
+                if (!file.isFile) continue
+                val name = file.name
+                if (!VaultName.PATTERN.matches(name) || !VoiceClipRefs.isFilenameSafe(name)) continue
+                try {
+                    if (vault.read(name) == null) {
+                        vault.write(name, file.readBytes())
+                        imported++
+                    }
+                    // Already in the vault: still destroy the plaintext copy.
+                    file.outputStream().use { out -> out.write(ByteArray(file.length().toInt())) }
+                    file.delete()
+                } catch (_: Exception) {
+                    // Leave this one in place; continue with the rest.
+                }
+            }
+        }
+        if (dir.listFiles()?.isEmpty() == true) dir.delete()
+        return imported
     }
 
     private companion object {

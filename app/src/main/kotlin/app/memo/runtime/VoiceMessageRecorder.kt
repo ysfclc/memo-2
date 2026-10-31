@@ -2,7 +2,6 @@ package app.memo.runtime
 
 import app.memo.platform.android.voice.AudioCapture
 import app.memo.platform.android.voice.Pcm16
-import java.io.File
 import java.util.concurrent.Executor
 
 /**
@@ -17,7 +16,7 @@ import java.util.concurrent.Executor
  * appends and list copies, and the progress callback runs outside it. Callbacks therefore
  * arrive on background threads; a Compose caller may write `mutableStateOf` directly from
  * them (snapshot writes are thread-safe) but must not touch other UI state. Transcription
- * and file IO run on [executor]; a recording can start while a previous transcription is
+ * and clip storage run on [executor]; a recording can start while a previous transcription is
  * still finishing (the single-thread executor serialises the jobs).
  *
  * Cap: audio longer than [MAX_DURATION_MS] stops being buffered (the meter stays live); the
@@ -34,14 +33,14 @@ class VoiceMessageRecorder(
     /** Outcome of [finish]. */
     sealed interface Recorded {
         /** Audio stored and transcribed. [transcript] may be empty when nothing was said. */
-        data class Message(val file: File, val transcript: String, val durationMs: Long) : Recorded
+        data class Message(val ref: String, val transcript: String, val durationMs: Long) : Recorded
 
         /**
          * Audio stored; transcription failed ([reason] says why — usually the Whisper model
-         * is not installed). [file] is null when even the WAV could not be stored. The
-         * message is still playable when the file exists.
+         * is not installed). [ref] is null when even the WAV could not be stored. The
+         * message is still playable when the clip exists.
          */
-        data class Untranscribed(val file: File?, val durationMs: Long, val reason: String) : Recorded
+        data class Untranscribed(val ref: String?, val durationMs: Long, val reason: String) : Recorded
 
         /** Shorter than [MIN_DURATION_MS]; nothing stored. */
         data object Empty : Recorded
@@ -110,11 +109,11 @@ class VoiceMessageRecorder(
         }
         executor.execute {
             val recorded = try {
-                val file = store.save(Pcm16.encodeWav(pcm, sampleRate))
+                val ref = store.save(Pcm16.encodeWav(pcm, sampleRate))
                 try {
-                    Recorded.Message(file, transcriber.transcribe(Pcm16.toFloat(pcm), sampleRate).trim(), durationMs)
+                    Recorded.Message(ref, transcriber.transcribe(Pcm16.toFloat(pcm), sampleRate).trim(), durationMs)
                 } catch (e: Exception) {
-                    Recorded.Untranscribed(file, durationMs, e.message ?: e.javaClass.simpleName)
+                    Recorded.Untranscribed(ref, durationMs, e.message ?: e.javaClass.simpleName)
                 }
             } catch (e: Exception) {
                 Recorded.Untranscribed(null, durationMs, e.message ?: e.javaClass.simpleName)
