@@ -49,8 +49,8 @@ class ChatController(
     private val runCommand: (String) -> String,
     private val modelEntryFor: (String) -> ModelEntry? = ModelCatalog::byId,
     private val nowMs: () -> Long = System::currentTimeMillis,
-    private val runPlan: (text: String, modelId: String?, onReply: (String) -> Unit) -> Unit = { _, _, onReply ->
-        onReply("Planning is not available.")
+    private val runPlan: (text: String, modelId: String?, onReply: (String, String?) -> Unit) -> Unit = { _, _, onReply ->
+        onReply("Planning is not available.", null)
     },
 ) {
     /** A short action the snackbar offers to undo. */
@@ -324,7 +324,7 @@ class ChatController(
             doc = withUser
             saveDoc(withUser)
             val conversationId = withUser.conversation.id
-            runPlan(body, model) { reply -> scope.launch { appendSystemReply(conversationId, reply) } }
+            runPlan(body, model) { reply, runId -> scope.launch { appendSystemReply(conversationId, reply, runId) } }
             return
         }
 
@@ -362,16 +362,18 @@ class ChatController(
     }
 
     /**
-     * Adds a planner reply as a SYSTEM message. The shown conversation is updated in place;
-     * when the user has moved on, the stored conversation gets the reply so it is not lost.
+     * Adds a planner reply as a SYSTEM message, linked to the proposed run [runId] when there is
+     * one. The shown conversation is updated in place; when the user has moved on, the stored
+     * conversation gets the reply so it is not lost.
      */
-    private suspend fun appendSystemReply(conversationId: String, reply: String) {
+    private suspend fun appendSystemReply(conversationId: String, reply: String, runId: String?) {
         val shown = doc?.takeIf { it.conversation.id == conversationId }
         val target = shown
             ?: withContext(Dispatchers.IO) { runCatching { repo.readDoc(conversationId) }.getOrNull() }
             ?: return
         val message = ChatMessage(
             ChatRepository.newId(), ChatRole.SYSTEM, reply, createdAt = nowMs(), status = MessageStatus.DONE,
+            runId = runId,
         )
         val done = target.copy(messages = target.messages + message)
         if (shown != null) doc = done

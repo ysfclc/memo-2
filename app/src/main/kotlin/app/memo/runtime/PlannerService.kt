@@ -82,39 +82,42 @@ class InferencePlanModel(
 }
 
 /**
+ * A planner outcome for the chat. [runId] is set only when a plan was created as a proposal:
+ * the SYSTEM message then links to that run, and the user runs it from the plan card.
+ */
+data class PlanReply(val text: String, val runId: String?)
+
+/**
  * Plan requests typed or spoken into chat (M3.A1c). [plan] runs the orchestrator: a command
- * goes to the deterministic command path, a plan starts as a workflow run, and every outcome
- * becomes a reply the chat shows as a SYSTEM message. Blocking; the caller runs it off the
- * main thread.
+ * goes to the deterministic command path, a plan is created as a proposal through [propose]
+ * (never started here), and every outcome becomes a reply the chat shows as a SYSTEM message.
+ * Blocking; the caller runs it off the main thread.
  */
 class PlannerService(
     private val orchestratorFor: (ModelRef) -> Orchestrator,
     private val resolveModel: (String?) -> ModelRef?,
     private val templates: () -> List<WorkflowTemplate>,
-    private val startRun: (WorkflowSpec) -> Unit,
+    private val propose: (WorkflowSpec) -> String,
     private val runCommand: (String) -> String,
 ) {
 
-    fun plan(text: String, modelId: String?): String {
-        val model = resolveModel(modelId) ?: return "Install a chat model in Models to plan."
+    fun plan(text: String, modelId: String?): PlanReply {
+        val model = resolveModel(modelId) ?: return PlanReply("Install a chat model in Models to plan.", null)
         return when (val outcome = orchestratorFor(model).orchestrate(text, null, templates())) {
-            is Orchestration.Command -> runCommand(text)
-            Orchestration.Chat -> "That does not look like a plan request."
-            is Orchestration.Plan -> {
-                startRun(outcome.spec)
-                replyFor(outcome)
-            }
+            is Orchestration.Command -> PlanReply(runCommand(text), null)
+            Orchestration.Chat -> PlanReply("That does not look like a plan request.", null)
+            is Orchestration.Plan -> PlanReply(replyFor(outcome), propose(outcome.spec))
         }
     }
 
     private fun replyFor(plan: Orchestration.Plan): String {
         val title = plan.spec.title
         return when (plan.source) {
-            PlanSource.MODEL -> "Planned \"$title\". Review it in Live."
-            PlanSource.MODEL_REPAIRED -> "Planned \"$title\". Review it in Live. (repaired ${plan.repairs}x)"
-            PlanSource.TEMPLATE_REUSE -> "Planned \"$title\" from a saved template. Review it in Live."
+            PlanSource.MODEL -> "Planned \"$title\". Review the steps below, then tap Run."
+            PlanSource.MODEL_REPAIRED -> "Planned \"$title\". Review the steps below, then tap Run. (repaired ${plan.repairs}x)"
+            PlanSource.TEMPLATE_REUSE -> "Planned \"$title\" from a saved template. Review the steps below, then tap Run."
             PlanSource.FALLBACK ->
-                "Could not make a valid plan, so Memo made a one-step note instead: \"$title\". Review it in Live."
+                "Could not make a valid plan, so Memo made a one-step note instead: \"$title\"."
         }
     }
 }

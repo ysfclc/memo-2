@@ -15,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlannerServiceTest {
@@ -38,7 +39,7 @@ class PlannerServiceTest {
         val planModel: FakePlanModel,
         resolved: Boolean = true,
     ) {
-        val started = mutableListOf<WorkflowSpec>()
+        val proposed = mutableListOf<WorkflowSpec>()
         val commands = mutableListOf<String>()
         private val resolvedModel = if (resolved) ModelRef("local-chat", ModelFormat.GGUF, "/m.gguf", "a".repeat(64), 1L) else null
 
@@ -46,7 +47,10 @@ class PlannerServiceTest {
             orchestratorFor = { Orchestrator(model = planModel, clock = { 1_700_000_000_000L }) },
             resolveModel = { resolvedModel },
             templates = { TemplateLibrary.seeds },
-            startRun = { started += it },
+            propose = { spec ->
+                proposed += spec
+                "run-proposal-${proposed.size}"
+            },
             runCommand = { text ->
                 commands += text
                 "COMMAND REPLY"
@@ -60,8 +64,9 @@ class PlannerServiceTest {
 
         val reply = harness.service.plan("plan a post about our launch", null)
 
-        assertContains(reply, "Install a chat model")
-        assertTrue(harness.started.isEmpty())
+        assertContains(reply.text, "Install a chat model")
+        assertNull(reply.runId)
+        assertTrue(harness.proposed.isEmpty())
         assertEquals(0, harness.planModel.callCount)
     }
 
@@ -72,22 +77,24 @@ class PlannerServiceTest {
 
         val reply = harness.service.plan(text, "local-chat")
 
-        assertEquals("COMMAND REPLY", reply)
+        assertEquals(PlanReply("COMMAND REPLY", null), reply)
         assertEquals(listOf(text), harness.commands)
-        assertTrue(harness.started.isEmpty())
+        assertTrue(harness.proposed.isEmpty())
         assertEquals(0, harness.planModel.callCount)
     }
 
     @Test
-    fun validModelPlanStartsOneRunAndReportsIt() {
+    fun validModelPlanIsProposedOnceAndLinkedToItsRun() {
         val harness = Harness(FakePlanModel(seedPlan))
 
         val reply = harness.service.plan("plan a post about our launch", "local-chat")
 
         assertEquals(1, harness.planModel.callCount)
-        assertEquals(1, harness.started.size)
-        assertEquals("Research a contact and capture the person record", harness.started.single().title)
-        assertTrue(reply.startsWith("Planned \""), reply)
+        assertEquals(1, harness.proposed.size)
+        assertEquals("Research a contact and capture the person record", harness.proposed.single().title)
+        assertEquals("run-proposal-1", reply.runId)
+        assertTrue(reply.text.startsWith("Planned \""), reply.text)
+        assertTrue(reply.text.endsWith("then tap Run."), reply.text)
     }
 
     @Test
@@ -97,9 +104,10 @@ class PlannerServiceTest {
 
         val reply = harness.service.plan("plan $example", "local-chat")
 
-        assertContains(reply, "from a saved template")
+        assertContains(reply.text, "from a saved template")
         assertEquals(0, harness.planModel.callCount)
-        assertEquals(1, harness.started.size)
+        assertEquals(1, harness.proposed.size)
+        assertEquals("run-proposal-1", reply.runId)
     }
 
     @Test
@@ -108,9 +116,10 @@ class PlannerServiceTest {
 
         val reply = harness.service.plan("plan something the model cannot shape", "local-chat")
 
-        assertContains(reply, "Could not make a valid plan")
-        assertEquals(1, harness.started.size)
-        assertEquals(1, harness.started.single().steps.size)
+        assertContains(reply.text, "Could not make a valid plan")
+        assertEquals(1, harness.proposed.size)
+        assertEquals(1, harness.proposed.single().steps.size)
+        assertEquals("run-proposal-1", reply.runId)
     }
 
     @Test

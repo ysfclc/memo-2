@@ -1555,3 +1555,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-1; verdict ACCEPT; le
 FILES CHANGED: core chat Conversation.kt, ConversationCodec.kt, ConversationCodecTest (17), app ChatRepositoryTest (v3 literal + comment), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; ConversationCodecTest 17/0, ChatRepositoryTest 10/0
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 APPROVALS
+ITEM: M3.A3b-2 plans become proposals (created, not advanced) linked to their chat message via runId; runtime runProposal/discardRun
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-2; its Gradle run was reaped under memory pressure before tests - it reported NOT VERIFIED honestly; lead ran B-STD in the foreground. Verdict ACCEPT. Haiku caught that createRun already sets RUNNING (drive() would auto-start a proposal) and filed the proposal as PENDING via engine.putRun (the restore API). Follow-ups: an engine createRun(spec, start=false) instead of putRun; runProposal/discardRun failures are silent; the Stop-all path also cancels PENDING proposals
+FILES CHANGED: app/.../runtime/PlannerService.kt (PlanReply, propose), PlannerServiceTest (8), MemoRuntime.kt (proposeRun, runProposal, discardRun, handlePlanRequest runId), ChatController.kt (runId on the SYSTEM reply), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (foreground); PlannerServiceTest 8/0; total 852 tests 0 fail
+---

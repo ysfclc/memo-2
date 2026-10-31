@@ -55,6 +55,8 @@ import app.memo.platform.android.voice.VoiceModels
 import app.memo.platform.android.vault.KeystoreVault
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -308,7 +310,7 @@ class MemoRuntime(context: Context) {
             },
             resolveModel = { id -> id?.let(::resolveInstalledChatModel) },
             templates = { TemplateLibrary.seeds },
-            startRun = { spec -> exec.execute { startRun(spec) } },
+            propose = ::proposeRun,
             runCommand = ::handleUtterance,
         )
     }
@@ -344,16 +346,36 @@ class MemoRuntime(context: Context) {
 
     /**
      * Plans [text] with the local chat model [modelId] off the caller's thread, then delivers
-     * the reply to [onReply] on the planner thread. A failure is delivered as a reply, never thrown.
+     * the reply text and the proposed run id (null when no plan was made) to [onReply] on the
+     * planner thread. A failure is delivered as a reply, never thrown.
      */
-    fun handlePlanRequest(text: String, modelId: String?, onReply: (String) -> Unit) {
+    fun handlePlanRequest(text: String, modelId: String?, onReply: (String, String?) -> Unit) {
         planExec.execute {
             val reply = try {
                 plannerService.plan(text, modelId)
             } catch (e: Exception) {
-                "Planning failed: ${SynCodec.safeMessage(e, 160)}"
+                PlanReply("Planning failed: ${SynCodec.safeMessage(e, 160)}", null)
             }
-            onReply(reply)
+            onReply(reply.text, reply.runId)
+        }
+    }
+
+    /** Starts a proposed run (see [proposeRun]) after the user taps Run on its plan card. */
+    fun runProposal(runId: String) {
+        exec.execute {
+            runCatching { engine.advance(runId) }
+            persistAll()
+            drive()
+            publish("")
+        }
+    }
+
+    /** Discards a proposed run the user rejected. It is cancelled and never started. */
+    fun discardRun(runId: String) {
+        exec.execute {
+            runCatching { engine.cancel(runId, "discarded by the user") }
+            persistAll()
+            publish("")
         }
     }
 
@@ -645,6 +667,27 @@ class MemoRuntime(context: Context) {
         publish(result.exceptionOrNull()?.let { "Could not start: ${SynCodec.safeMessage(it, 160)}" } ?: "")
     }
 
+    /**
+     * Creates the run for a planned spec as a PROPOSAL. The run is stored as PENDING, not
+     * RUNNING: the run driver only advances RUNNING runs, so a proposal waits for [runProposal].
+     * Called from the planner thread; the engine work runs on [exec], and this blocks until the
+     * run id is known. Never call it from [exec].
+     */
+    private fun proposeRun(spec: WorkflowSpec): String {
+        val created = exec.submit(Callable {
+            val run = engine.createRun(spec)
+            engine.putRun(run.copy(status = RunStatus.PENDING))
+            persistAll()
+            publish("")
+            run.id
+        })
+        return try {
+            created.get(PROPOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } catch (e: ExecutionException) {
+            throw e.cause ?: e
+        }
+    }
+
     private fun cancelActiveRuns() {
         engine.runs()
             .filter { it.status !in TERMINAL }
@@ -738,6 +781,7 @@ class MemoRuntime(context: Context) {
 
     private companion object {
         const val TAG = "MemoRuntime"
+        const val PROPOSE_TIMEOUT_SECONDS = 10L
         const val READ_ONLY_REASON = "storage is read-only this session; side effects are refused"
         const val READ_ONLY_APPROVAL =
             "Storage is read-only; approvals that lead to outbound actions are disabled until storage is fixed"
