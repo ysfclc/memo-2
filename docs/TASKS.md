@@ -536,8 +536,8 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 ### [ ] M2.B1 Voice messages + live conversation UI · deps M2.A3, M1.C2, M2.B0c
 - Files: `app/.../ui/voice/{VoiceRecorderBar,Waveform,LiveConversationScreen,ReadAloud}.kt`, `ui/chat/ChatComposer.kt` hooks
 - Mini-tasks:
-  - [ ] hold to record with a live waveform; slide to cancel; release sends (audio + transcript)
-  - [ ] voice message bubble with playback and transcript
+  - [x] hold to record with a live waveform; slide to cancel; release sends (audio + transcript) — user decision 2026-10-31 (D-052): release puts the transcript in the composer as an editable draft and attaches the clip; Send posts both (gap G4b, VoiceClipSendTest)
+  - [x] voice message bubble with playback and transcript — D-052 (gap G4), reachable since G4b; device playback UNVERIFIED
   - [x] live mode full screen: PresenceOrb driven by level, partial transcript, speaking captions, tap to interrupt, end
   - [x] read-aloud action on any message (D-051: user and assistant messages; device listening UNVERIFIED)
 - Tests: `WaveformBucketsTest` (downsampling, empty); `RecorderGestureStateTest` (hold/slide/cancel/release)

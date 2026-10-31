@@ -186,7 +186,7 @@ private fun ChatMessageRow(
     var deleteOpen by remember(message.id) { mutableStateOf(false) }
     MessageBubble(message.role) {
         if (message.voiceClipRef != null) VoiceMessageBubble(message)
-        if (message.text.isNotBlank()) ChatMarkdown(message.text)
+        if (message.text.isNotBlank() && message.text.trim() != message.transcript?.trim()) ChatMarkdown(message.text)
         if (message.status == MessageStatus.ERROR && message.errorText.isNotBlank()) {
             Text(message.errorText, style = MemoTheme.typography.bodySmall, color = MemoTheme.colors.danger)
         }

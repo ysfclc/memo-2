@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.memo.core.chat.ChatLimits
+import app.memo.core.chat.VoiceClipDraft
 import app.memo.platform.android.voice.AudioCapture
 import app.memo.platform.android.voice.MicPermission
 import app.memo.runtime.ChatService
@@ -44,6 +45,7 @@ import app.memo.ui.components.MemoButton
 import app.memo.ui.components.MemoButtonStyle
 import app.memo.ui.theme.MemoTheme
 import app.memo.ui.voice.VoiceRecorderBar
+import app.memo.ui.voice.formatRecorderElapsed
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
@@ -86,6 +88,27 @@ fun ChatComposer(
         elapsedMs = 0L
     }
 
+    /**
+     * Keeps a finished recording pending as the composer's voice clip. A clip that breaks the
+     * stored bounds is refused with a notice — never a crash. Returns whether it was attached.
+     */
+    fun attachDraftClip(ref: String, durationMs: Long, transcript: String? = null, note: String? = null): Boolean {
+        val clip = runCatching {
+            VoiceClipDraft(
+                ref,
+                durationMs.coerceIn(1L, ChatLimits.MAX_VOICE_DURATION_MS.toLong()),
+                transcript = transcript,
+                transcriptNote = note,
+            )
+        }.getOrNull()
+        if (clip == null) {
+            controller.showNotice("Could not attach the recording.")
+            return false
+        }
+        controller.attachVoiceClip(clip)
+        return true
+    }
+
     fun beginRecording() {
         val started = voiceMessages.start { frameLevels, frameMs ->
             levels = frameLevels
@@ -107,14 +130,30 @@ fun ChatComposer(
             main.post {
                 exitVoiceMode()
                 when (recorded) {
-                    is VoiceMessageRecorder.Recorded.Message ->
+                    is VoiceMessageRecorder.Recorded.Message -> {
+                        attachDraftClip(
+                            ref = recorded.file.name,
+                            durationMs = recorded.durationMs,
+                            transcript = recorded.transcript,
+                        )
                         if (recorded.transcript.isBlank()) {
                             controller.showNotice("Recording kept, but nothing was transcribed.")
                         } else {
                             controller.onTextChanged(recorded.transcript)
                         }
-                    is VoiceMessageRecorder.Recorded.Untranscribed ->
-                        controller.showNotice("Audio kept; transcription unavailable: ${recorded.reason}.")
+                    }
+                    is VoiceMessageRecorder.Recorded.Untranscribed -> {
+                        val attached = recorded.file != null && attachDraftClip(
+                            ref = recorded.file.name,
+                            durationMs = recorded.durationMs,
+                            note = recorded.reason.take(ChatLimits.MAX_TRANSCRIPT_NOTE_CHARS),
+                        )
+                        if (recorded.file == null) {
+                            controller.showNotice("Audio kept; transcription unavailable: ${recorded.reason}.")
+                        } else if (attached) {
+                            controller.showNotice("Audio attached; transcription unavailable: ${recorded.reason}.")
+                        }
+                    }
                     VoiceMessageRecorder.Recorded.Empty -> controller.showNotice("Recording too short; nothing stored.")
                 }
             }
@@ -128,6 +167,25 @@ fun ChatComposer(
                 Text(attachment.name, modifier = Modifier.weight(1f), style = MemoTheme.typography.caption, color = MemoTheme.colors.inkMuted)
                 IconButton(onClick = controller::removeAttachment) {
                     Icon(Icons.Outlined.Close, contentDescription = "Remove attachment", modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+        controller.composer.voiceClip?.let { clip ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Mic,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MemoTheme.colors.inkMuted,
+                )
+                Text(
+                    "Voice message · ${formatRecorderElapsed(clip.durationMs)}",
+                    modifier = Modifier.weight(1f).padding(horizontal = MemoTheme.spacing.space2),
+                    style = MemoTheme.typography.caption,
+                    color = MemoTheme.colors.inkMuted,
+                )
+                IconButton(onClick = controller::removeVoiceClip) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Remove voice message", modifier = Modifier.size(18.dp))
                 }
             }
         }

@@ -17,6 +17,7 @@ import app.memo.core.chat.ConversationOrdering
 import app.memo.core.chat.ComposerState
 import app.memo.core.chat.ModelSettings
 import app.memo.core.chat.MessageStatus
+import app.memo.core.chat.VoiceClipDraft
 import app.memo.core.plan.CommandGrammar
 import app.memo.runtime.ChatRepository
 import app.memo.runtime.ChatService
@@ -145,12 +146,22 @@ class ChatController(
         composer = composer.copy(attachment = null)
     }
 
+    /** Keeps a freshly recorded clip pending; it goes out with the next send. */
+    fun attachVoiceClip(clip: VoiceClipDraft) {
+        composer = composer.copy(voiceClip = clip)
+    }
+
+    fun removeVoiceClip() {
+        composer = composer.copy(voiceClip = null)
+    }
+
     fun send() {
         if (service.streaming.value != null || !composer.canSend) return
         val body = composer.outgoingText()
+        val clip = composer.voiceClip
         composer = ComposerState()
         saveDraftNow(draftKey, "")
-        submit(doc, body)
+        submit(doc, body, clip)
     }
 
     /** Stops the reply in progress. Its partial text is kept as STOPPED. */
@@ -272,7 +283,7 @@ class ChatController(
      * command goes to the planner instead, and its reply is stored as a SYSTEM message.
      * [body] null regenerates from [base] as it is.
      */
-    private fun submit(base: ConversationDoc?, body: String?) {
+    private fun submit(base: ConversationDoc?, body: String?, clip: VoiceClipDraft? = null) {
         val now = nowMs()
         val model = modelId
         val start = base ?: ConversationDoc(
@@ -286,7 +297,7 @@ class ChatController(
             emptyList(),
         )
         val withUser = if (body == null) start else {
-            val user = ChatMessage(ChatRepository.newId(), ChatRole.USER, body, createdAt = now)
+            val user = userMessageWithClip(ChatRepository.newId(), body, now, clip)
             start.copy(
                 conversation = start.conversation.copy(updatedAt = now, modelId = model),
                 messages = start.messages + user,
@@ -386,3 +397,25 @@ class ChatController(
         const val DEFAULT_OUTPUT_TOKENS: Int = 700
     }
 }
+
+/**
+ * The USER message for a send: [clip], when present, carries the voice fields (audio ref,
+ * duration, transcript or note) beside the typed body — empty text is a clip-only message.
+ * Null [clip] is the plain text send. Pure, so a JVM test can verify the field wiring
+ * (app/src/test/.../ui/chat/VoiceClipSendTest.kt).
+ */
+internal fun userMessageWithClip(id: String, body: String, createdAt: Long, clip: VoiceClipDraft?): ChatMessage =
+    if (clip == null) {
+        ChatMessage(id, ChatRole.USER, body, createdAt = createdAt)
+    } else {
+        ChatMessage(
+            id,
+            ChatRole.USER,
+            body,
+            voiceClipRef = clip.ref,
+            durationMs = clip.durationMs,
+            transcript = clip.transcript,
+            transcriptNote = clip.transcriptNote,
+            createdAt = createdAt,
+        )
+    }
