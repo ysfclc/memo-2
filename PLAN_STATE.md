@@ -1,6 +1,6 @@
 # PLAN STATE
 CHAIN: Claude(plan) -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
-UPDATED: 2026-10-31 (leg-4; BRAIN done, APPROVALS mostly done on milestone/M3)
+UPDATED: 2026-10-31 (leg-4; ENTITIES ENT.1-ENT.4 done on milestone/M3)
 AUDIT + GAP REGISTER (authoritative detail): ~/.claude/plans/use-glm-5-4-free-staged-koala.md
 RULES: AGENTS.md rule 10 (in-place updates, shared debug keystore), rule 11 (strict implementation; /implement)
 
@@ -27,7 +27,7 @@ GAP REGISTER:
   G11 device batch (user's phone): OPEN
   ID app.memo2 / label Memo (D-053, D-054): app-id CI 41185263209 green; label CI 41186450339 on 33b86e1 pending
 
-CURRENT: milestone/M3 head 7b70c61 - BRAIN done (M3.A1a/b/c, M3.A2, M3.A4a/b/c); APPROVALS: M3.B1a renderers, M3.A3a card state, M3.A3b-1 message runId (codec v3), M3.A3b-2 proposals, M3.A3b-3 PlanCard UI - all CI-green and merged; user APK CI 41198713089
-NEXT ACTION: M3.B1b edit-before-approve (rebuild artifact + hash, gate re-opens; EditRehashTest); then ENTITIES wave (M3.C2 CRM enrichment + M4.A4d evidence-backed entity extraction), per D-057 order. Follow-ups: per-run Stop (Stop uses discardRun today); engine createRun(spec, start=false) instead of putRun; planning indicator in chat; voice status hint in the model picker; artifact fields show stored keys not names; agent transcript cap vs model context; REASON steps use summary packet. Implementer = Haiku subagent (D-058). Machine: emulator off, ONE Gradle build at a time, run lead B-STD in the FOREGROUND (background jobs get reaped).
+CURRENT: milestone/M3 a5e9a0d - BRAIN + APPROVALS (plan card) + ENTITIES ENT.1 (all 9 kinds persisted), ENT.2 (generic entities/relations + provenance, 18 registries), ENT.3 (evidence-backed extraction), ENT.4a/4b (approve selection; Extract action + review sheet) merged, CI green; user APK CI 41205370594
+NEXT ACTION: ENT.5 CRM capture (person + company + place, reuse, follow-up tasks) on ENT.1-4; M3.B1b edit-before-approve rehash; then AUTO-CORE (M4.A0, M3.5.A1, M3.5.A2), WEB, TEACH-WEB, PORTER (D-057). Implementer order (user): opencode free -> Copilot CLI free -> Haiku; opencode + Copilot free quotas exhausted 2026-10-31 -> Haiku. Follow-ups list: per-run Stop; engine createRun(start=false); planning indicator; voice status hint; artifact key->name resolution; agent transcript cap; REASON query packet; extracted typed records carry no provenance (schema has no field). Machine: emulator off, one Gradle build at a time, lead B-STD in the FOREGROUND.
 VERIFY BASELINE: B-STD `.\gradlew.bat --no-daemon --stacktrace :core:test testDebugUnitTest` -> 697 tests 0 fail (2026-10-31, after G4+G7+ID change)
 OPEN BLOCKERS: G11 needs the phone (user: uninstall the other-key Memo not needed any more after app.memo2). User decisions PD1 (unused kit components), PD2 (Piper), PD3 (vision re-grounding), PD4 (bulk approval)
