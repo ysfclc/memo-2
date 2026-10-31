@@ -20,6 +20,8 @@ app/.cxx/
 # local secrets — never commit
 *.keystore
 *.jks
+# the shared dev-only debug keystore IS committed (AGENTS.md rule 10, D-048)
+!keystore/memo-debug.jks
 gradle.properties.local
 .env
 .claude/

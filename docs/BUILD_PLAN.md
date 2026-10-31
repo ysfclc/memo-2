@@ -955,6 +955,8 @@ source (web/app session, official export, notification, manual)
 ## 3. Process (applies to every task)
 
 ### Roles
+> **2026-10-31 (D-049):** implementers are now free opencode models (a bake-off picks primary/fallback); Haiku is only the quota fallback; the lead gate is AGENTS.md rule 11 / `/implement`. Read "Haiku" below as "the implementer".
+
 - **Lead (orchestrator model):**
   - writes each task brief from this file
   - launches **Haiku** implementation subagents (`model: "haiku"`), each with `isolation: "worktree"` on its own branch `task/<id>`

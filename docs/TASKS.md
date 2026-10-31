@@ -1,6 +1,7 @@
 # Memo — Master runbook: every task from zero to end, with tests, checks and build steps
 
 This is the executable breakdown of `docs/BUILD_PLAN.md`:
+- **2026-10-31 (D-049):** implementer = a free opencode model per AGENTS.md rule 11 (`/implement`); Haiku is the quota fallback.
 - Each task is one Haiku-sized unit: one branch `task/<id>`, one green CI result, one lead verification.
 - Specs live in the BUILD_PLAN section shown as [§x]. Features map in `docs/FEATURES.md`. Running notes are in `docs/PROGRESS.md`.
 

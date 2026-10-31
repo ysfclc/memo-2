@@ -118,10 +118,27 @@ android {
         }
     }
 
+    signingConfigs {
+        // Committed dev keystore for the debug build type (AGENTS.md rule 10, D-048).
+        // This is deliberately NOT a production secret: it only protects local/CI debug
+        // artifacts so every published debug APK shares one signing identity and
+        // installs in place. Release signing stays a deliberate M6 decision.
+        create("memoDebug") {
+            storeFile = rootProject.file("keystore/memo-debug.jks")
+            storePassword = "memo-debug"
+            keyAlias = "memo-debug"
+            keyPassword = "memo-debug"
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // Shared in-repo keystore (AGENTS.md rule 10): every debug APK — local and CI —
+            // is signed with the same key so new builds install over the existing install
+            // instead of failing with "package conflicts with an existing package".
+            signingConfig = signingConfigs.getByName("memoDebug")
         }
         release {
             isMinifyEnabled = false

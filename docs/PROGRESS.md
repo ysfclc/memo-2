@@ -1316,3 +1316,16 @@ VERIFICATION: :app:compileDebugKotlin + :app:compileDebugUnitTestKotlin + :core:
 NEXT STEP: branch CI on task/e1-composer-recorder; merge E1 into milestone/M1; await E2/E3 reports, review + merge E2 then E3 (B-STD + CI per integration; D-number collisions renumbered at merge); ChatThread merges as two sources (E2 bubble + E3 anchor)
 NOTES: `by lazy` does not cache failures - pinned by test: first transcribe before the Whisper install throws through (recorder reports Untranscribed, audio kept), the next call reloads, so installing the model self-heals transcription. Transcript rides as an editable draft on purpose (review checkpoint). Device probes (hold UX, waveform, transcription quality) stay in the end-of-M2 batch.
 ---
+
+---
+
+TIMESTAMP: 2026-10-31T00:00:00Z
+CHAIN: Claude (plan) -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4 (this session)
+PHASE: audit (read-only) + close-gap
+ITEM: leg-4 audit (gap register G1-G11, plan ~/.claude/plans/use-glm-5-4-free-staged-koala.md) + gap G1 - D-048 in-place updates made real; AGENTS.md rules 10/11; D-049 implementer process
+STATUS: done locally; CI pending on this push
+FILES CHANGED: .gitignore (!keystore/memo-debug.jks), keystore/memo-debug.jks (now tracked), AGENTS.md (rule 9 dup -> 10, new rule 11 strict implementation, rule 6 path fix), app/build.gradle.kts (memoDebug signingConfig; comments -> rule 10), docs/ENGINEERING_LOG.md (D-048 rule ref, D-049), docs/BUILD_PLAN.md §3 + docs/TASKS.md header (dated D-049 notes), PLAN_STATE.md, docs/PROGRESS.md
+VERIFICATION: baseline before change - B-STD BUILD SUCCESSFUL, core 425 tests / 0 fail, app 230 / 0 fail; after - `:app:validateSigningDebug :core:test testDebugUnitTest` BUILD SUCCESSFUL; keytool SHA-256 9E:52:6E...BE:2E = D-048; CI assembleDebug pending
+NEXT: watch CI on milestone/M1; check the APK cert from the memo-apk artifact; then G2 = model bake-off (WorkflowAuditTest) via /implement
+NOTES: Audit findings (leg-4): the keystore was gitignored while D-048 said "committed"; E2/E3 work sits uncommitted in opencode worktrees (E3's PROGRESS entry claims a commit that does not exist); voice models are not downloadable in-app; voice WAVs are plaintext; InferenceService FGS is never started; TASKS/FEATURES checkboxes stale. User 2026-10-31: free opencode implementers, strict verification rule, Relay brainstorm folded in as a PORTER wave after BRAIN/APPROVALS/entities (PD3/PD4 pending the user).
+---
