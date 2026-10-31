@@ -1385,6 +1385,12 @@ NEXT: CI -> merge; device batch G11 adds "long generation shows the notification
 
 TIMESTAMP: 2026-10-31
 CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G4b-1 - core VoiceClipDraft + ComposerState.voiceClip (user decision: draft + attach audio)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G4b-1; verdict ACCEPT, no defects; lead checked every ComposerState(...) call uses named args (new property inserted before generating)
+FILES CHANGED: core/.../chat/Composer.kt, core/.../chat/ComposerStateTest.kt (+5 tests), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; ComposerStateTest 16/0 fail
+NEXT: G4b-2 app wiring (controller send with clip, composer chip, bubble dedupe)
 PHASE: close-gap (user-reported install failure)
 ITEM: app identity app.memo -> app.memo2, label "Memo 2" (D-053)
 STATUS: done locally; CI pending

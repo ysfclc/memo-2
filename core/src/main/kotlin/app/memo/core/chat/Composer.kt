@@ -40,16 +40,41 @@ object Attachments {
 enum class PrimaryAction { SEND, STOP, DISABLED }
 
 /**
- * Composer state: draft text, one attachment, and whether a reply is streaming.
+ * A recorded voice clip waiting to be sent with the next message ("draft + attach audio", D-052).
+ * [ref] is the bare file name under `filesDir/voice-messages`. [transcript] is the raw Whisper text (the
+ * composer's draft may have been edited since); when it is null, [transcriptNote] says why. Same bounds as
+ * the voice fields of [ChatMessage], checked here so a bad clip is refused before it reaches a message.
+ */
+data class VoiceClipDraft(
+    val ref: String,
+    val durationMs: Long,
+    val transcript: String? = null,
+    val transcriptNote: String? = null,
+) {
+    init {
+        require(VoiceClipRefs.isFilenameSafe(ref)) { "invalid voice ref" }
+        require(ref.length <= ChatLimits.MAX_VOICE_REF_CHARS) { "invalid voice ref" }
+        require(durationMs in 1..ChatLimits.MAX_VOICE_DURATION_MS) { "invalid duration" }
+        require(transcript == null || transcript.length <= ChatLimits.MAX_TRANSCRIPT_CHARS) { "transcript too long" }
+        require(transcriptNote == null || transcriptNote.length <= ChatLimits.MAX_TRANSCRIPT_NOTE_CHARS) {
+            "transcript note too long"
+        }
+        require(transcript == null || transcriptNote == null) { "a transcribed clip cannot also carry a note" }
+    }
+}
+
+/**
+ * Composer state: draft text, one attachment, one pending voice clip, and whether a reply is streaming.
  * While generating, the primary action is STOP, and sending is not possible.
  */
 data class ComposerState(
     val text: String = "",
     val attachment: Attachment? = null,
+    val voiceClip: VoiceClipDraft? = null,
     val generating: Boolean = false,
 ) {
     val canSend: Boolean
-        get() = !generating && (text.isNotBlank() || attachment != null)
+        get() = !generating && (text.isNotBlank() || attachment != null || voiceClip != null)
 
     val primaryAction: PrimaryAction
         get() = when {
