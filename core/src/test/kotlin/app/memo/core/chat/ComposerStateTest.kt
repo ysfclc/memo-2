@@ -3,6 +3,7 @@ package app.memo.core.chat
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -76,5 +77,49 @@ class ComposerStateTest {
     fun binaryAndInvalidUtf8AreRefused() {
         assertIs<AttachmentResult.Refused>(Attachments.fromBytes("x.bin", byteArrayOf(1, 0, 2)))
         assertIs<AttachmentResult.Refused>(Attachments.fromBytes("x.txt", byteArrayOf(0xC3.toByte(), 0x28)))
+    }
+
+    @Test
+    fun clipAloneCanBeSent() {
+        val s = ComposerState(voiceClip = VoiceClipDraft("a.wav", 1500, transcript = "hi"))
+        assertTrue(s.canSend)
+        assertEquals(PrimaryAction.SEND, s.primaryAction)
+    }
+
+    @Test
+    fun clipCannotBeSentWhileGenerating() {
+        val s = ComposerState(voiceClip = VoiceClipDraft("a.wav", 1500, transcript = "hi"), generating = true)
+        assertFalse(s.canSend)
+        assertEquals(PrimaryAction.STOP, s.primaryAction)
+    }
+
+    @Test
+    fun outgoingTextIgnoresTheClip() {
+        val s = ComposerState(text = "  hello ", voiceClip = VoiceClipDraft("a.wav", 1500, transcript = "hi"))
+        assertEquals("hello", s.outgoingText())
+    }
+
+    @Test
+    fun voiceClipDraftRefusesUnsafeRefs() {
+        for (ref in listOf("../x.wav", "a/b.wav", "", ".")) {
+            assertFailsWith<IllegalArgumentException> { VoiceClipDraft(ref, 1500, transcript = "hi") }
+        }
+    }
+
+    @Test
+    fun voiceClipDraftRefusesBadDurationAndBothTranscriptAndNote() {
+        assertFailsWith<IllegalArgumentException> {
+            VoiceClipDraft("a.wav", 0, transcript = "hi")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            VoiceClipDraft("a.wav", ChatLimits.MAX_VOICE_DURATION_MS + 1L, transcript = "hi")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            VoiceClipDraft("a.wav", 1500, transcript = "hi", transcriptNote = "why")
+        }
+        assertEquals(
+            VoiceClipDraft("a.wav", 1500, transcriptNote = "no transcript"),
+            VoiceClipDraft("a.wav", 1500, transcriptNote = "no transcript"),
+        )
     }
 }
