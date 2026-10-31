@@ -54,6 +54,7 @@ import app.memo.core.platform.ModelFormat
 import app.memo.models.ModelStore
 import app.memo.runtime.ChatSettingsRepository
 import app.memo.runtime.MemoRuntime
+import app.memo.runtime.VoiceModelStatus
 import app.memo.ui.components.EmptyState
 import app.memo.ui.components.IndeterminateProgressRing
 import app.memo.ui.components.MemoButton
@@ -227,12 +228,91 @@ fun ModelsBrowserScreen(runtime: MemoRuntime) {
                         ) { actionMessage = it }
                     }
                 }
-                ModelSection.VOICE -> item {
-                    EmptyState(
-                        title = "Local voice models",
-                        body = "Voice model downloads will appear here as the M2 speech packages are completed.",
-                        icon = Icons.Outlined.Lock,
-                    )
+                ModelSection.VOICE -> {
+                    val voiceDownloads = runtime.voiceModelDownloads
+                    item(key = "voice-models-header") {
+                        Column(Modifier.padding(horizontal = MemoTheme.spacing.space5)) {
+                            // Re-check the on-disk state every time the section shows, so the
+                            // install landings from voice messages or read-aloud appear here too.
+                            LaunchedEffect(voiceDownloads) { voiceDownloads.refresh() }
+                            Text(
+                                "Voice models on this phone",
+                                style = MemoTheme.typography.subtitle,
+                                color = MemoTheme.colors.ink,
+                            )
+                            Spacer(Modifier.height(MemoTheme.spacing.space2))
+                            Text(
+                                "Live voice, voice messages and read-aloud each run on their own pinned package; install them individually.",
+                                style = MemoTheme.typography.bodySmall,
+                                color = MemoTheme.colors.inkMuted,
+                            )
+                        }
+                    }
+                    items(voiceDownloads.models, key = { it.id }) { model ->
+                        val status = voiceDownloads.statusOf(model.id)
+                        val name = when (model.id) {
+                            "asr-zipformer-en-20m-mobile" -> "Streaming ASR (English)"
+                            "asr-whisper-base" -> "Whisper ASR (English)"
+                            "tts-kokoro-en-v0-19" -> "Kokoro TTS (English)"
+                            else -> "Silero VAD"
+                        }
+                        val purpose = when (model.id) {
+                            "asr-zipformer-en-20m-mobile" -> "Live voice: speech recognition"
+                            "asr-whisper-base" -> "Voice messages: transcription"
+                            "tts-kokoro-en-v0-19" -> "Read-aloud and live voice: speech"
+                            else -> "Live voice: detects when you speak"
+                        }
+                        MemoCard(Modifier.padding(horizontal = MemoTheme.spacing.space5)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        name,
+                                        style = MemoTheme.typography.subtitle,
+                                        color = MemoTheme.colors.ink,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        purpose,
+                                        style = MemoTheme.typography.bodySmall,
+                                        color = MemoTheme.colors.inkMuted,
+                                    )
+                                }
+                                Text(
+                                    mb(model.sizeBytes),
+                                    style = MemoTheme.typography.caption,
+                                    color = MemoTheme.colors.inkMuted,
+                                )
+                            }
+                            Spacer(Modifier.height(MemoTheme.spacing.space2))
+                            when (val current = status) {
+                                VoiceModelStatus.NotInstalled ->
+                                    MemoButton(
+                                        onClick = { voiceDownloads.download(model.id) },
+                                        style = MemoButtonStyle.PRIMARY,
+                                    ) { Text("Download") }
+                                is VoiceModelStatus.Downloading -> Text(
+                                    "Downloading ${(current.doneBytes * 100 / current.totalBytes.coerceAtLeast(1L))}%",
+                                    style = MemoTheme.typography.bodySmall,
+                                    color = MemoTheme.colors.ink,
+                                )
+                                VoiceModelStatus.Installed ->
+                                    Pill("Installed", emphasis = true)
+                                is VoiceModelStatus.Failed -> {
+                                    Text(
+                                        current.reason,
+                                        style = MemoTheme.typography.caption,
+                                        color = MemoTheme.colors.attention,
+                                    )
+                                    Spacer(Modifier.height(MemoTheme.spacing.space2))
+                                    MemoButton(
+                                        onClick = { voiceDownloads.download(model.id) },
+                                        style = MemoButtonStyle.SECONDARY,
+                                    ) { Text("Retry") }
+                                }
+                            }
+                        }
+                    }
                 }
                 ModelSection.IMPORT -> {
                     item {
