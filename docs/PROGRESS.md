@@ -1362,6 +1362,11 @@ VERIFICATION (leg-4, task/m2-b1-read-aloud): B-STD BUILD SUCCESSFUL 2m46s; ReadA
 TIMESTAMP: 2026-10-31
 CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
 PHASE: close-gap
+ITEM: gap G8 - M1.B1 Llama 3.1 8B GGUF seed (DRIFTED -> closing)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G8; verdict ACCEPT, no defects; values identical to the lead-fetched HF API pins (unsloth/Llama-3.1-8B-Instruct-GGUF @ 600b002, Q4_K_M, 4920739200 B, sha256 b3bdbf23...c506, gated false)
+FILES CHANGED: core/.../catalog/ModelCatalog.kt (+1 ModelEntry after llama-3.2-3b), core/.../catalog/SeedCatalogTest.kt (+llama31_8bSeedIsPinned), docs/PROGRESS.md
+VERIFICATION: GLM B-STD BUILD SUCCESSFUL; lead :core:test EXIT 0, SeedCatalogTest 6/0 fail
+NEXT: merge latest milestone/M1, CI, merge
 ITEM: gap G4 - M2.B1 voice-message bubble (E2 work, found uncommitted) ported onto milestone/M1 414dd03
 STATUS: done locally; branch CI pending
 FILES CHANGED: core chat Conversation.kt + ConversationCodec.kt (v2, v1 reader), core voice ClipPlayback.kt (new), app ClipPlayerPorts.kt + MediaPlayerClipPlayer.kt (new), ChatThread.kt (VoiceMessageBubble; imports merged with the read-aloud anchor), tests ConversationCodecTest, ChatRepositoryTest, VoiceMessageStorageTest (new), ClipPlaybackTest (new); docs ENGINEERING_LOG D-052 (ex-D-047)
@@ -1380,6 +1385,12 @@ NEXT: CI -> merge; device batch G11 adds "long generation shows the notification
 
 TIMESTAMP: 2026-10-31
 CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G4b-1 - core VoiceClipDraft + ComposerState.voiceClip (user decision: draft + attach audio)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G4b-1; verdict ACCEPT, no defects; lead checked every ComposerState(...) call uses named args (new property inserted before generating)
+FILES CHANGED: core/.../chat/Composer.kt, core/.../chat/ComposerStateTest.kt (+5 tests), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; ComposerStateTest 16/0 fail
+NEXT: G4b-2 app wiring (controller send with clip, composer chip, bubble dedupe)
 PHASE: close-gap (user-reported install failure)
 ITEM: app identity app.memo -> app.memo2, label "Memo 2" (D-053)
 STATUS: done locally; CI pending
@@ -1398,4 +1409,8 @@ ITEM: gap G5 - M2.A2 voice models downloadable in the Models tab (Voice section)
 IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G5; first run reaped under memory pressure (orphan stopped by lead), relaunched run completed on top of its partial files; verdict ACCEPT, no defects; one import outside the stated region, needed to compile
 FILES CHANGED: app/.../runtime/VoiceModelDownloads.kt (new), app/.../runtime/MemoRuntime.kt (+voiceModelDownloads lazy, executor memo-voice-downloads, same filesDir/voice root), app/.../ui/ModelsBrowser.kt (VOICE branch: 4 model cards with Download / Downloading n% / Installed / Failed+Retry), app/src/test/.../runtime/VoiceModelDownloadsTest.kt (7), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; VoiceModelDownloadsTest 7/0; no Color(0x and no placeholder text in ModelsBrowser; no new warnings in touched files. UNVERIFIED on device: real ~637 MB download over phone network; downloads run on a daemon thread, so they stop if Android kills the backgrounded process (retry resumes via the installer range-resume)
+ITEM: gap G9 - M2.B1 named tests WaveformBucketsTest + RecorderGestureStateTest
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G9; run wrapper reaped under memory pressure after the files were written; verdict ACCEPT, no defects (lead re-derived the 2-into-4 and clamp/drop cases by hand)
+FILES CHANGED: app/src/test/kotlin/app/memo/ui/voice/{WaveformBucketsTest,RecorderGestureStateTest}.kt (new), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; WaveformBucketsTest 4/0, RecorderGestureStateTest 6/0
 ---
