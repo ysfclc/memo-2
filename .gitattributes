@@ -4,3 +4,6 @@ gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
 *.png binary
+# Append-only logs: parallel task branches each append entries; keep both sides on merge (D-055).
+docs/PROGRESS.md merge=union
+docs/ENGINEERING_LOG.md merge=union
