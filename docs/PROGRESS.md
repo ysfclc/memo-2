@@ -1539,3 +1539,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.B1a; verdict ACCEPT; rend
 FILES CHANGED: app/.../ui/artifact/ArtifactFields.kt, ArtifactView.kt, app/src/test/.../ui/artifact/RendererCoverageTest.kt (10), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; RendererCoverageTest 10/0; no Color(0x in ui/artifact
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 APPROVALS
+ITEM: M3.A3b-1 ChatMessage.runId (SYSTEM only) + conversation codec v3 (v1/v2 still read; older versions may not carry runId)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-1; verdict ACCEPT; lead fixed one stale test comment it was not allowed to touch
+FILES CHANGED: core chat Conversation.kt, ConversationCodec.kt, ConversationCodecTest (17), app ChatRepositoryTest (v3 literal + comment), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; ConversationCodecTest 17/0, ChatRepositoryTest 10/0
+---

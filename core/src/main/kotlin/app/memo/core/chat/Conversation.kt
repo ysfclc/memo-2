@@ -13,6 +13,9 @@ object ChatLimits {
     const val MAX_MODEL_ID_CHARS: Int = 64
     const val MAX_VOICE_REF_CHARS: Int = 128
 
+    /** Workflow run ids referenced by a SYSTEM message (see [ChatMessage.runId]). */
+    const val MAX_RUN_ID_CHARS: Int = 64
+
     /** Recorded voice messages are capped at five minutes by the hold-to-record recorder. */
     const val MAX_VOICE_DURATION_MS: Int = 300_000
 
@@ -37,6 +40,9 @@ object VoiceClipRefs {
         ref.isNotEmpty() && ref != "." && ref != ".." &&
             ref.none { it == '/' || it == '\\' || it == ':' || it == '\u0000' }
 }
+
+/** Run ids are plain identifiers: letters, digits and `_ . : -`. */
+private val RUN_ID_PATTERN = Regex("^[A-Za-z0-9_.:-]+$")
 
 /** Who wrote a message. */
 enum class ChatRole { USER, ASSISTANT, SYSTEM }
@@ -76,6 +82,10 @@ data class Conversation(
  * All voice fields are forbidden without [voiceClipRef]: they describe the clip, not the text.
  * Text-only messages written by older builds keep exactly `voiceClipRef = null` and the
  * defaults, so stored data still reads and renders exactly as before.
+ *
+ * A SYSTEM message may reference a workflow run by [runId] (the chat shows a plan card for it).
+ * The id is bounded by [ChatLimits.MAX_RUN_ID_CHARS] and limited to `[A-Za-z0-9_.:-]`; no other
+ * role may carry it. Null for every message written before format version 3.
  */
 data class ChatMessage(
     val id: String,
@@ -87,6 +97,7 @@ data class ChatMessage(
     val durationMs: Long? = null,
     val transcript: String? = null,
     val transcriptNote: String? = null,
+    val runId: String? = null,
     val createdAt: Long,
     val status: MessageStatus = MessageStatus.DONE,
     val errorText: String = "",
@@ -110,6 +121,10 @@ data class ChatMessage(
             "transcript note too long"
         }
         require(transcript == null || transcriptNote == null) { "a transcribed clip cannot also carry a note" }
+        require(runId == null || (runId.length <= ChatLimits.MAX_RUN_ID_CHARS && RUN_ID_PATTERN.matches(runId))) {
+            "invalid run id"
+        }
+        require(runId == null || role == ChatRole.SYSTEM) { "runId requires a SYSTEM message" }
     }
 }
 
