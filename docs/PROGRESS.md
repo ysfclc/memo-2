@@ -1356,3 +1356,15 @@ VERIFICATION: see the leg-4 B-STD line appended below
 ---
 
 VERIFICATION (leg-4, task/m2-b1-read-aloud): B-STD BUILD SUCCESSFUL 2m46s; ReadAloudTest 12/0 fail; total 671 tests (core 429 + app 242) 0 fail; warnings = the 4 pre-existing (ModelHub.kt:307, LiteRtLmRuntime.kt:298, AudioCapture.kt:46, Persistence.kt:230), none new; `grep -rn "TextToSpeech|RecognizerIntent" app/src` = 0 after rewording one KDoc line.
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap
+ITEM: gap G8 - M1.B1 Llama 3.1 8B GGUF seed (DRIFTED -> closing)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G8; verdict ACCEPT, no defects; values identical to the lead-fetched HF API pins (unsloth/Llama-3.1-8B-Instruct-GGUF @ 600b002, Q4_K_M, 4920739200 B, sha256 b3bdbf23...c506, gated false)
+FILES CHANGED: core/.../catalog/ModelCatalog.kt (+1 ModelEntry after llama-3.2-3b), core/.../catalog/SeedCatalogTest.kt (+llama31_8bSeedIsPinned), docs/PROGRESS.md
+VERIFICATION: GLM B-STD BUILD SUCCESSFUL; lead :core:test EXIT 0, SeedCatalogTest 6/0 fail
+NEXT: merge latest milestone/M1, CI, merge
+---
