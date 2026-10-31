@@ -1512,4 +1512,8 @@ ITEM: M3.A4b AgentEngine - bounded tool loop (12 calls, time budget, <=2 repairs
 IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A4b; verdict ACCEPT; follow-up for M3.A4c: cap the whole transcript to the model context (12 x 2000-char observations can exceed a small local model)
 FILES CHANGED: core/.../agent/AgentEngine.kt (new), core/.../agent/AgentEngineTest.kt (11), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0 (read before commit); AgentEngineTest 11/0
+ITEM: M3.A2 PacketBuilder - context retrieval across all 16 registries + recent chat; mention > natural key/name > keyword; budget-capped; redacted
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A2; review round 1 REJECTED one functional defect (natural keys are hashes, so mention/natural-key could never match typed names) -> round 2 ACCEPT: matches display names (fullName/name/title/displayName - Company uses displayName, verified People.kt) with word boundaries
+FILES CHANGED: core/.../prompts/PacketBuilder.kt (new), core/.../prompts/PacketBuilderTest.kt (10), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (read before commit); PacketBuilderTest 10/0
 ---
