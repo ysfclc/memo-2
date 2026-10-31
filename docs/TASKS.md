@@ -164,6 +164,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 | 11 | **UC-CONTENT** | M5.C1, M5.C1a, M5.C1b | content, metrics, media, image gen | M5 |
 | 11 | **HARDEN** | M6.1, M6.2, M6.3, M6.4 | recovery, diagnostics, backup, app lock | M6 |
 | 12 | **QUALITY** | M6.6, M6.7, M6.10 | lint strict, coverage sweep, accessibility audit | M6 |
+| 2026-10-31 | **PORTER** (D-057) | M4.R1, M4.R2, M4.R3, M4.R4, M4.R5 | `core/automation` records/mapping/move plan, adapter payload v2, `ui/artifact/MoveReview`, replay | M4 |
 | — | lead inline | M0.R2 fixes, M6.8 docs, M6.9 acceptance, every milestone MCP, small fixes | — | all |
 
 **UX-SHELL tasks [§2p]:**

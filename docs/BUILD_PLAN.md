@@ -1014,6 +1014,18 @@ source (web/app session, official export, notification, manual)
 
 ## 4. Tasks
 
+### Execution order revision (2026-10-31, D-057 — user-approved; supersedes the M3.5–M3.9-before-M4 order)
+After M2 closes, the waves run in this order (task contents unchanged unless listed below):
+1. **BRAIN** — M3.A1 (split: M3.A1a core Orchestrator, M3.A1b TemplateLibrary seeds, M3.A1c PlannerService wiring), M3.A4, M3.A2.
+2. **APPROVALS** — M3.A3, M3.B1 (task creation through filled-artifact approval).
+3. **ENTITIES** — M3.C2 and M4.A4d (evidence-backed entity extraction), pulled forward.
+4. **AUTO-CORE** — M4.A0, M3.5.A1, M3.5.A2.
+5. **WEB** — M4.0, M4.A0b, M4.A1, M4.A3.
+6. **TEACH-WEB** — M4.E0–E3.
+7. **PORTER** — M4.R1–M4.R5 (below).
+8. Then M3.5.B/C, M3.6–M3.9 and the rest of M4–M6 in their existing relative order.
+Implementers: free opencode models per AGENTS.md rule 11 (D-049, D-050); a task larger than one file + one test is split into lettered sub-tasks before it is briefed.
+
 Format: **ID — title** · deps · files owned · steps · acceptance
 
 ### M0 — Foundation
@@ -1914,6 +1926,38 @@ Split into small tasks, all following §2i.
 **Automation acceptance (all of M4.A1–M4.D2):** the §2a emulator tests for that component are green, and the lead has reviewed the diff line by line against §2a.
 
 **M4 close:** PR. Device checklist: sign in to ChatGPT in the Browser tab; run a consult step; take over and resume; enable accessibility and run "open Calculator and type 2+2" (safe app); check discovery lists the installed AI apps.
+
+### M4.R — PORTER: move data between the user's own logged-in sites (Relay-inspired, 2026-10-31, D-057)
+Inspiration (not spec): the user's "Relay" brainstorm — the browser is the final API; the user is already logged in; Memo does the tedious moving. Memo stays Android-only: WebView sessions (§2b), DOM/AX-first grounding (§2a), Humanizer pacing (§2d), ActionPolicy tiers, hash-chained audit. Not carried over from Relay: Playwright/CDP, desktop multi-tab parallelism, unsigned third-party script packs.
+
+**M4.R1 — Record schema + normaliser (core, pure)**
+- deps: M4.A4d, M4.E0
+- files: `core/.../automation/RecordSchema.kt` (universal person/profile record: firstName, lastName, headline, company, location, summary, url, source, capturedAt), `core/.../automation/FieldMapping.kt` (site field → universal field, versioned), tests
+- steps: map ExtractionSchema output into records; dedupe by natural key through the Registry (reuse-first, rule 2); missing fields stay null, never invented.
+- acceptance: tests for mapping, missing fields, reuse hit vs new record, version bump only on real change.
+
+**M4.R2 — Site skill packs + per-domain opt-in**
+- deps: M4.A2, M4.R1
+- files: `core/.../domain/Library.kt` (ProviderAdapter payload v2: triggerPhrases, loginDetection, per-skill permission tier, rateLimit, healing strategy — data only, no scripts), `core/.../policy/ChannelSwitches.kt` (per-domain allowlist, default off), migration reader for v1 payloads, tests
+- acceptance: an adapter without an allowlisted domain never runs; v1 payloads still load; healing strategy is data the §2m regenerator reads.
+
+**M4.R3 — Cross-site mover (extract on A → store → fill on B)**
+- deps: M4.R1, M4.R2, M3.B1
+- files: `core/.../automation/MovePlan.kt` (pure: source records × target field mapping → per-item fill envelopes + a field-mapping diff), `app/.../ui/artifact/MoveReview.kt`, tests
+- steps: one ApprovedActionEnvelope per item; fills run at Humanizer pace; commit steps follow the approval model decided in **PD4 (OPEN, user decision)**: (a) one batch screen approving N per-item envelopes, each shown as a diff, or (b) per-item approval with "approve the next N identical-shape items" after the first 2 are reviewed in full.
+- acceptance: no fill runs without its envelope; the diff shows every mapped field; CAPTCHA/2FA → takeover (§2b).
+
+**M4.R4 — Run replay**
+- deps: M4.L2, M4.R3
+- files: `app/.../ui/live/session/RunReplay.kt`, `core/.../automation/ReplayTimeline.kt` (pure, from the audit chain + step records), tests
+- acceptance: a finished run replays step by step from stored data; web side effects are never "undone" (they were gated instead); thumbnails follow §2o retention.
+
+**M4.R5 — Vision re-grounding (scope = PD3, OPEN, user decision)**
+- deps: M4.E5
+- options: (a) a VLM fallback allowed only for read-only extract steps, clicks stay DOM-only; (b) §2a unchanged — vision only proposes new DOM locators that core validates before use.
+- acceptance (either option): no coordinate click on the web; every vision-derived locator is validated by core before it is used.
+
+Deferred past M6 (noted, not planned): a shared skill marketplace (would need signed, reviewed, selector-only packs).
 
 ### M5 — Use cases end to end
 
