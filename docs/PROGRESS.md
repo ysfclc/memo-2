@@ -1502,3 +1502,14 @@ FILES CHANGED: core/.../agent/Tools.kt, core/.../agent/ToolCallParser.kt, core/.
 VERIFICATION: lead B-STD EXIT 0 (read before commit); ToolCallParserTest 20/0
 NEXT: M3.A4b AgentEngine loop (budgets, repairs, no-progress, side-effecting tools -> gated workflow steps)
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A4b AgentEngine - bounded tool loop (12 calls, time budget, <=2 repairs, no-progress), side-effecting tools queued never run, escalate flag
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A4b; verdict ACCEPT; follow-up for M3.A4c: cap the whole transcript to the model context (12 x 2000-char observations can exceed a small local model)
+FILES CHANGED: core/.../agent/AgentEngine.kt (new), core/.../agent/AgentEngineTest.kt (11), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 (read before commit); AgentEngineTest 11/0
+---
