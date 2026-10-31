@@ -1452,3 +1452,14 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G12; wrapper reaped und
 FILES CHANGED: core/.../chat/ContextBudget.kt (historyTurns: text, else transcript, else VOICE_WITHOUT_TRANSCRIPT for voice messages), core/.../chat/ContextBudgetTest.kt (+5), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; ContextBudgetTest 13/0 incl. the select() regression
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: device feedback fix (first real-phone report)
+ITEM: keyboard covers the chat composer
+ROOT CAUSE: MainActivity enableEdgeToEdge() makes adjustResize a no-op; no screen applied imePadding()
+FIX (lead inline, 4 lines): MemoNavShell consumes the Scaffold insets (consumeWindowInsets(pad)); ChatScreen column gets imePadding()
+VERIFICATION: B-STD EXIT 0; device re-check by the user pending
+---

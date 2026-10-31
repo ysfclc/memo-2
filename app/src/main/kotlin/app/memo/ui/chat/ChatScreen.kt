@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -90,7 +91,8 @@ fun ChatScreen(runtime: MemoRuntime) {
         onDispose { controller.flushDraft() }
     }
 
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Top) {
+    // Edge-to-edge (MainActivity) disables adjustResize: lift the composer above the keyboard ourselves.
+    Column(Modifier.fillMaxSize().imePadding(), verticalArrangement = Arrangement.Top) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = MemoTheme.spacing.space4, vertical = MemoTheme.spacing.space3),
             verticalAlignment = Alignment.CenterVertically,
