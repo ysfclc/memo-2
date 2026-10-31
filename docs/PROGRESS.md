@@ -1375,3 +1375,16 @@ FILES CHANGED: app/src/main/kotlin/app/memo/runtime/MemoRuntime.kt, docs/PROGRES
 VERIFICATION: GLM B-STD + lead B-STD BUILD SUCCESSFUL; grep onManagerState( -> InferenceService.kt:63 (def) + MemoRuntime.kt:164 (caller); no new warnings. UNVERIFIED on device: the ongoing "Memo is generating a reply" notification after 10 s (also needs POST_NOTIFICATIONS on Android 13+ for the notification to be visible; the FGS itself runs without it)
 NEXT: CI -> merge; device batch G11 adds "long generation shows the notification and survives backgrounding"
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap (user-reported install failure)
+ITEM: app identity app.memo -> app.memo2, label "Memo 2" (D-053)
+STATUS: done locally; CI pending
+FILES CHANGED: app/build.gradle.kts, app/src/main/res/values/strings.xml, AGENTS.md (rule 10 frozen id), docs/ARCHITECTURE.md, docs/ENGINEERING_LOG.md (D-053), docs/PROGRESS.md
+VERIFICATION: emulator reproduced the phone failure for the G1 APK: INSTALL_FAILED_UPDATE_INCOMPATIBLE (existing app.memo.debug, other signer); B-STD on milestone/M1 c580e4a + this change: 697 tests 0 fail
+NEXT: CI APK -> install side by side on emulator-5554 (no uninstall) -> publish preview for the phone
+NOTES: root cause = the user's separate earlier Memo project owns app.memo; user chose app.memo2 / Memo 2.
+---

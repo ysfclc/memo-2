@@ -47,7 +47,7 @@ Other standing rules:
 
 10. **In-place updates only (permanent user requirement, 2026-10-30).**
    - The user's phone keeps the app installed; every new build must install straight over the existing one (`INSTALL_FAILED_UPDATE_INCOMPATIBLE` / "package conflicts with an existing package" is a bug).
-   - Therefore: **one shared debug keystore** (`keystore/memo-debug.jks`, committed) signs every debug APK — local and CI alike. Never let a build fall back to a machine-local debug keystore; never change `applicationId` (`app.memo` / `.debug` suffix) without a migration plan.
+   - Therefore: **one shared debug keystore** (`keystore/memo-debug.jks`, committed) signs every debug APK — local and CI alike. Never let a build fall back to a machine-local debug keystore; never change `applicationId` (`app.memo2` / `.debug` suffix → `app.memo2.debug`, D-053; the Kotlin namespace stays `app.memo`) without a migration plan.
    - `versionCode` must never regress between published builds (equal is OK for sideload updates, lower is not).
    - The one exception is deliberate: release/Play-Store managed signing at M6 — recorded with its own D-entry, then the debug keystore rule applies to debug artifacts only.
 

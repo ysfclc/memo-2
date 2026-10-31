@@ -83,7 +83,9 @@ android {
     ndkVersion = pinnedNdkVersion
 
     defaultConfig {
-        applicationId = "app.memo"
+        // App identity (D-053): app.memo2, because the user's separate earlier "Memo" app owns app.memo.
+        // Kotlin namespace stays app.memo. Frozen from here: changing it again breaks in-place updates.
+        applicationId = "app.memo2"
         minSdk = 30
         targetSdk = 35
         versionCode = 1
