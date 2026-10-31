@@ -60,6 +60,15 @@ fun ChatScreen(runtime: MemoRuntime) {
             modelEntryFor = runtime.models::entryFor,
         )
     }
+    val planCards = remember(runtime) {
+        PlanCardHooks(
+            runFor = { id -> runtime.snapshot.value.runs.firstOrNull { it.id == id } },
+            onRun = runtime::runProposal,
+            onDiscard = runtime::discardRun,
+            onDecide = { runId, stepId, approve, hash -> runtime.decide(runId, stepId, approve, hash) },
+            onStop = runtime::discardRun,
+        )
+    }
     val streaming by runtime.chatService.streaming.collectAsState()
     val modelStatus by runtime.chatService.modelStatus.collectAsState()
     val installedEntries = runtime.models.catalogEntries().filter {
@@ -114,6 +123,7 @@ fun ChatScreen(runtime: MemoRuntime) {
             streaming = streaming,
             onSuggestion = controller::onTextChanged,
             readClip = runtime::readVoiceClip,
+            planCards = planCards,
             modifier = Modifier.weight(1f),
         )
         ChatComposer(controller, streaming, runtime.voiceMessages)

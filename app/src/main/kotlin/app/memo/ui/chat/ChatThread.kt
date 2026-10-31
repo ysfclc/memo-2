@@ -82,6 +82,7 @@ fun ChatThread(
     streaming: ChatService.Streaming?,
     onSuggestion: (String) -> Unit,
     readClip: (String) -> ByteArray?,
+    planCards: PlanCardHooks,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -122,6 +123,7 @@ fun ChatThread(
                     actionsEnabled = streaming == null,
                     readAloud = readAloud,
                     readClip = readClip,
+                    planCards = planCards,
                     onRegenerate = controller::regenerate,
                     onEdit = { value -> controller.editAndResend(message.id, value) },
                     onDelete = { controller.deleteMessage(message.id) },
@@ -181,6 +183,7 @@ private fun ChatMessageRow(
     actionsEnabled: Boolean,
     readAloud: ReadAloud,
     readClip: (String) -> ByteArray?,
+    planCards: PlanCardHooks,
     onRegenerate: () -> Unit,
     onEdit: (String) -> Unit,
     onDelete: () -> Unit,
@@ -215,6 +218,7 @@ private fun ChatMessageRow(
             )
         }
         ReadAloudMessageLine(readAloud, message.id)
+        message.runId?.let { runId -> PlanCard(runId, planCards) }
     }
     if (editOpen && actionsEnabled) EditMessageDialog(message.text, onDismiss = { editOpen = false }) { updated ->
         editOpen = false

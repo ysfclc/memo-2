@@ -603,7 +603,7 @@ User direction (2026-10-26): "bundle tasks that are touching same area or priori
 - Files: `core/.../prompts/PacketBuilder.kt`
 - Tests: `PacketBuilderTest` (budget cap, redaction applied, mention > natural key > keyword ordering, recent chat included)
 
-### [ ] M3.A3 Chat ↔ workflow bridge · deps M3.A1, M1.C2
+### [~] M3.A3 Chat ↔ workflow bridge · deps M3.A1, M1.C2 — 2026-10-31: plan proposals linked to chat messages (A3b-1/2), inline PlanCard with step rail, Run/Approve/Veto/Discard/Stop and the gate artifact (A3a state + A3b-3 UI); open: Edit, per-run stop, live preview tiles (M4.L4); device UNVERIFIED
 - Files: `app/.../runtime/ChatOrchestration.kt`, `app/.../ui/chat/PlanCard.kt`
 - Mini-tasks: [ ] inline plan card with cascade-in steps, Run / Edit / Discard · [ ] live StepRail in the thread · [ ] gates inline with artifact renderer · [ ] web/app steps show the live preview tile (§2o, wired in M4.L4)
 - Tests: `PlanCardStateTest` (pure mapping run → card state)

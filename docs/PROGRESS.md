@@ -1566,3 +1566,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-2; its Gradle run was
 FILES CHANGED: app/.../runtime/PlannerService.kt (PlanReply, propose), PlannerServiceTest (8), MemoRuntime.kt (proposeRun, runProposal, discardRun, handlePlanRequest runId), ChatController.kt (runId on the SYSTEM reply), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0 (foreground); PlannerServiceTest 8/0; total 852 tests 0 fail
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 APPROVALS
+ITEM: M3.A3b-3 inline PlanCard in the chat thread (title, status, StepRail, gate ArtifactView, Run/Approve/Veto/Discard/Stop; approval binds the on-screen hash; haptics)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-3; verdict ACCEPT; deviations: Stop uses discardRun (no per-run stop yet), card renders inside the SYSTEM bubble, sourceLabel not passed yet
+FILES CHANGED: app/.../ui/chat/PlanCard.kt (new), ChatThread.kt (planCards param), ChatScreen.kt (PlanCardHooks from runtime), docs TASKS (M3.A3 [~]), PROGRESS
+VERIFICATION: lead B-STD EXIT 0; 852 tests 0 fail; card rendering UNVERIFIED on device
+---
