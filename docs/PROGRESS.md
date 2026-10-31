@@ -1436,3 +1436,14 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G4b-2; verdict ACCEPT, 
 FILES CHANGED: app/.../ui/chat/ChatController.kt (attachVoiceClip/removeVoiceClip, send passes the clip, internal userMessageWithClip), ChatComposer.kt (Recorded.Message/Untranscribed attach the clip, chip with remove), ChatThread.kt (unedited transcript not shown twice), app/src/test/.../ui/chat/VoiceClipSendTest.kt (4), docs/TASKS.md (M2.B1 mini-tasks 1+2 ticked), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; VoiceClipSendTest 4/0; grep voiceClipRef = -> new writer in ChatController; no new warnings in touched files. UNVERIFIED on device: chip, send, playback
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: close-gap (defect found in lead review of G4b-2)
+ITEM: G12 - clip-only voice message dropped from model history -> ContextBudget.select require() would throw
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G12; wrapper reaped under memory pressure, the opencode process finished on its own; verdict ACCEPT, no defects (side effect: whitespace-only messages are now skipped instead of sent as whitespace - harmless)
+FILES CHANGED: core/.../chat/ContextBudget.kt (historyTurns: text, else transcript, else VOICE_WITHOUT_TRANSCRIPT for voice messages), core/.../chat/ContextBudgetTest.kt (+5), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; ContextBudgetTest 13/0 incl. the select() regression
+---
