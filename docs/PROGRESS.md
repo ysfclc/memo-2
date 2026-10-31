@@ -1599,3 +1599,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.2; verdict ACCEPT. Lead 
 FILES CHANGED: core domain/Entity.kt (new), NaturalKeys (+entity, relation), Schemes (+Entities, Relations), Workspace (+2 registries, 18 total, additive - no schema bump), EntityTest (19), count updates in MigrationV1toV2Test/SynCodecTest/RegistryTest, comments in Limits.kt/SynCodec.kt, docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0 on milestone/M3 + ENT.1; EntityTest 19/0; total 879 tests 0 fail
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: ENTITIES wave (D-059)
+ITEM: ENT.3 (= M4.A4d pulled forward) evidence-backed entity extraction - model proposes typed records, generic entities and relations; core keeps only facts whose excerpt occurs in the source; everything PROPOSED, nothing saved
+IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.3; verdict ACCEPT; its first Gradle run failed on a network timeout fetching the sherpa AAR (not code), retry green; added ArtifactStore.validate(kind, payload)
+FILES CHANGED: core/.../agent/EntityExtraction.kt (new), EntityExtractionTest (13, incl. rejected unsupported claim + fabricated relation excerpt), core ArtifactStore.validate, docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; EntityExtractionTest 13/0; total 892 tests 0 fail
+---

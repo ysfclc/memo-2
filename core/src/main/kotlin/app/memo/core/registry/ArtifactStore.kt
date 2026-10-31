@@ -64,6 +64,33 @@ object ArtifactStore {
         }
     }
 
+    /**
+     * Domain validation only, no registry write: null when [payloadJson] is a
+     * valid [kind] payload, else a plain reason. Uses the same kind mapping as
+     * [persistResult]; used by the entity extractor before anything is proposed.
+     */
+    fun validate(kind: String, payloadJson: String): String? {
+        val raw = runCatching { JSONObject(payloadJson) }.getOrNull()
+            ?: return "payload is not JSON"
+        val valid = try {
+            when (kind) {
+                "person" -> Person.fromJson(raw) != null
+                "company" -> Company.fromJson(raw) != null
+                "job_posting" -> JobPosting.fromJson(raw) != null
+                "application" -> JobApplication.fromJson(raw) != null
+                "task" -> Task.fromJson(raw) != null
+                "draft" -> ContentDraft.fromJson(raw) != null
+                "post" -> SocialPost.fromJson(raw) != null
+                "project" -> Project.fromJson(raw) != null
+                "note" -> Note.fromJson(raw) != null
+                else -> return "kind '$kind' cannot be saved"
+            }
+        } catch (e: RuntimeException) {
+            false
+        }
+        return if (valid) null else "invalid $kind"
+    }
+
     private fun <T> upsert(
         registry: Registry<T>,
         decode: (JSONObject) -> T?,
