@@ -119,6 +119,28 @@ object ArtifactFields {
                 ) + characters(excerpt)
             },
         ),
+        "project" to Mapping(
+            title = { it.text("name") },
+            fields = { o ->
+                listOfNotNull(
+                    o.humanField("Status", "status"),
+                    o.textField("Summary", "summary"),
+                    o.listField("Tags", "tags"),
+                    o.listField("Principles", "principleKeys"),
+                )
+            },
+        ),
+        "note" to Mapping(
+            title = { it.text("title") },
+            fields = { o ->
+                listOfNotNull(
+                    o.humanField("Kind", "kind"),
+                    o.textField("Project", "projectKey"),
+                    o.textField("Body", "body"),
+                    o.textField("Source", "sourceRef"),
+                )
+            },
+        ),
     )
 
     /** Renderer kinds that have a dedicated renderer. Covers every `Prompts.ARTIFACT_KINDS` entry. */
@@ -163,6 +185,11 @@ object ArtifactFields {
 
     private fun JSONObject.humanField(label: String, key: String): ArtifactField? =
         text(key).takeIf { it.isNotBlank() }?.let { ArtifactField(label, humanize(it)) }
+
+    private fun JSONObject.listField(label: String, key: String): ArtifactField? =
+        optJSONArray(key)?.let { arr ->
+            (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+        }?.takeIf { it.isNotEmpty() }?.let { ArtifactField(label, it.joinToString(", ")) }
 
     private fun JSONObject.dateField(label: String, key: String): ArtifactField? =
         optLong(key, 0L).takeIf { it > 0L }?.let { ArtifactField(label, formatDate(it)) }

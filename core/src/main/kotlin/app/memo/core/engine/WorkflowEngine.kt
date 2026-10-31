@@ -1160,6 +1160,12 @@ class WorkflowEngine(
             NaturalKeys.dayBucket(payload.optLong("createdAt", 0L)),
         )
         "post" -> NaturalKeys.post(payload.optString("url"))
+        "project" -> NaturalKeys.project(payload.optString("name"))
+        "note" -> NaturalKeys.note(
+            payload.optString("projectKey"),
+            payload.optString("title"),
+            payload.optLong("createdAt", 0L),
+        )
         else -> ""
     }
 

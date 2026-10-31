@@ -96,6 +96,32 @@ class WorkflowEngineTest {
     }
 
     @Test
+    fun dataPersistDerivesNaturalKeysForProjectsAndNotes() {
+        for ((kind, payload, prefix) in listOf(
+            Triple("project", """{"name":"Launch site"}""", "pj:"),
+            Triple("note", """{"projectKey":"pj:x","title":"Kickoff notes","createdAt":1700000000000}""", "nt:"),
+        )) {
+            val clock = MutableClock()
+            val store = RecordingStore()
+            val engine = WorkflowEngine(
+                routes = ExecutorRoutes(reason = ReasonExecutor { _, _ -> Attempt.Completed(payload) }, dataStore = store),
+                clock = { clock.value },
+            )
+            val spec = plan(
+                """{"title":"Save it","steps":[
+                    {"id":"write","kind":"reason","title":"Compose","prompt":"write"},
+                    {"id":"keep","kind":"data_persist","title":"Persist","artifactType":"$kind"}
+                 ]}""",
+                clock.value,
+            )
+            val run = engine.advance(engine.createRun(spec).id)
+            assertEquals(RunStatus.COMPLETED, run.status, "$kind: ${run.failure}")
+            assertEquals(kind, store.rows.single().first)
+            assertTrue(store.rows.single().second.startsWith(prefix), "$kind natural key: ${store.rows.single().second}")
+        }
+    }
+
+    @Test
     fun gateFlowBindsHashAndExecutesBoundSideEffect() {
         val clock = MutableClock()
         val audit = RecordingAudit()

@@ -6,7 +6,11 @@ import app.memo.core.domain.DraftKind
 import app.memo.core.domain.JobApplication
 import app.memo.core.domain.JobApplicationState
 import app.memo.core.domain.JobPosting
+import app.memo.core.domain.Note
+import app.memo.core.domain.NoteKind
 import app.memo.core.domain.Person
+import app.memo.core.domain.Project
+import app.memo.core.domain.ProjectStatus
 import app.memo.core.domain.SocialPost
 import app.memo.core.domain.Task
 import app.memo.core.domain.TaskState
@@ -62,6 +66,21 @@ class RendererCoverageTest {
             platform = "x",
             excerpt = "Checkpoints beat vibes.",
             postedAt = 1_700_000_000_000L,
+        ).toJson().toString(),
+        "project" to Project(
+            name = "Memo launch",
+            summary = "Ship the first private beta",
+            status = ProjectStatus.ACTIVE,
+            tags = listOf("launch", "beta"),
+            principleKeys = listOf("local-first"),
+        ).toJson().toString(),
+        "note" to Note(
+            projectKey = "memo-launch",
+            title = "Pricing idea",
+            body = "Charge per workspace, not per seat.",
+            kind = NoteKind.IDEA,
+            sourceRef = "https://example.com/pricing",
+            createdAt = 1_700_000_000_000L,
         ).toJson().toString(),
     )
 

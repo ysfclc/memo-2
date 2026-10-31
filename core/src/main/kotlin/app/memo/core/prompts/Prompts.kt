@@ -13,7 +13,7 @@ object Prompts {
 
     /** Known artifact kinds for gates and data_persist steps. */
     val ARTIFACT_KINDS: Set<String> = setOf(
-        "person", "company", "job_posting", "application", "task", "draft", "post",
+        "person", "company", "job_posting", "application", "task", "draft", "post", "project", "note",
     )
 
     /**

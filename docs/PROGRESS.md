@@ -1577,3 +1577,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-3; verdict ACCEPT; de
 FILES CHANGED: app/.../ui/chat/PlanCard.kt (new), ChatThread.kt (planCards param), ChatScreen.kt (PlanCardHooks from runtime), docs TASKS (M3.A3 [~]), PROGRESS
 VERIFICATION: lead B-STD EXIT 0; 852 tests 0 fail; card rendering UNVERIFIED on device
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: ENTITIES wave (D-059)
+ITEM: ENT.1 every artifact kind is saved after approval (9 kinds incl. project, note); pure core ArtifactStore; renderers for project/note
+IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.1; verdict ACCEPT; it flagged (did not edit, outside its list) that WorkflowEngine.rowNaturalId had no project/note branch, so a DATA_PERSIST step would still fail -> lead inline fix + test dataPersistDerivesNaturalKeysForProjectsAndNotes
+FILES CHANGED: core/.../registry/ArtifactStore.kt (new) + ArtifactStoreTest (7), core Prompts.ARTIFACT_KINDS (+project, note), core WorkflowEngine.rowNaturalId (+project, note) + WorkflowEngineTest (+1), app MemoRuntime.persistRow -> ArtifactStore.persist, app ArtifactFields (+project, note) + RendererCoverageTest fixtures, docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0, 859 tests 0 fail; then :core:test EXIT 0 with WorkflowEngineTest 15/0
+---

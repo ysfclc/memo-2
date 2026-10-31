@@ -38,7 +38,7 @@ import app.memo.core.platform.ModelRef
 import app.memo.core.platform.VaultName
 import app.memo.core.prompts.ContextPacket
 import app.memo.core.prompts.PacketBuilder
-import app.memo.core.registry.Registry
+import app.memo.core.registry.ArtifactStore
 import app.memo.core.registry.Workspace
 import app.memo.core.platform.LlmRuntime
 import app.memo.core.platform.ModelFormat
@@ -53,7 +53,6 @@ import app.memo.platform.android.voice.VoiceMessageStore
 import app.memo.platform.android.voice.VoiceModelInstaller
 import app.memo.platform.android.voice.VoiceModels
 import app.memo.platform.android.vault.KeystoreVault
-import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
@@ -701,22 +700,8 @@ class MemoRuntime(context: Context) {
         return Attempt.Completed(output = json)
     }
 
-    private fun persistRow(kind: String, payload: String): String {
-        val raw = runCatching { JSONObject(payload) }.getOrNull() ?: return "payload is not JSON"
-        val now = System.currentTimeMillis()
-        val put: Registry.Put<*>? = when (kind) {
-            "person" -> Person.fromJson(raw)?.let { workspace.people.upsert(it, now) }
-            "company" -> Company.fromJson(raw)?.let { workspace.companies.upsert(it, now) }
-            "task" -> Task.fromJson(raw)?.let { workspace.tasks.upsert(it, now) }
-            "draft" -> ContentDraft.fromJson(raw)?.let { workspace.drafts.upsert(it, now) }
-            else -> return "kind '$kind' is not persisted in this build"
-        }
-        return when (put) {
-            null -> "invalid $kind"
-            is Registry.Put.Failed<*> -> put.reason
-            else -> ""
-        }
-    }
+    private fun persistRow(kind: String, payload: String): String =
+        ArtifactStore.persist(workspace, kind, payload, System.currentTimeMillis())
 
     private fun publish(message: String) {
         val next = Snapshot(
