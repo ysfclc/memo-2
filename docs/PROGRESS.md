@@ -1452,3 +1452,15 @@ IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task G12; wrapper reaped und
 FILES CHANGED: core/.../chat/ContextBudget.kt (historyTurns: text, else transcript, else VOICE_WITHOUT_TRANSCRIPT for voice messages), core/.../chat/ContextBudgetTest.kt (+5), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; ContextBudgetTest 13/0 incl. the select() regression
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: Step 2 BRAIN
+ITEM: M3.A1a core Orchestrator (command fast-path, chat vs plan, model plan with <=2 repairs, labelled FALLBACK, template reuse, few-shot)
+IMPLEMENTER RUN: model opencode/glm-5.3-flash-free; task M3.A1a; verdict ACCEPT, no defects (note: catches Throwable on the model call - deliberate, OOM becomes a fallback plan); opencode free quota exhausted right after (D-058)
+FILES CHANGED: core/.../plan/Orchestrator.kt (new), core/.../plan/OrchestratorTest.kt (13), docs/ENGINEERING_LOG.md (D-058), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; OrchestratorTest 13/0
+NEXT: M3.A1b TemplateLibrary seeds (Haiku), M3.A1c PlannerService wiring (Haiku)
+---
