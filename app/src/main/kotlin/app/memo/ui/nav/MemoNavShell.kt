@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -99,7 +100,8 @@ fun MemoNavShell(
             }
         },
     ) { pad ->
-        SharedTransitionLayout(Modifier.fillMaxSize().padding(pad)) {
+        // consumeWindowInsets: screens that add imePadding() must not count the bottom bar twice.
+        SharedTransitionLayout(Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad)) {
             AnimatedContent(
                 targetState = state.route,
                 modifier = Modifier

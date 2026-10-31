@@ -107,7 +107,7 @@ class VaultFormatTest {
     @Test
     fun selectReadableFallsBackToBak1WhenPrimaryCorrupt() {
         val key = newKey()
-        val corrupt = VaultFormat.seal(key, "runs", plain).also { it[it.size - 1] = 0 }
+        val corrupt = VaultFormat.seal(key, "runs", plain).also { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() } // flip a tag bit: always corrupts (setting 0 was a no-op 1 in 256 times)
         val older = VaultFormat.seal(key, "runs", "older".toByteArray())
         val result = VaultFormat.selectReadable(
             listOf("runs" to corrupt, "runs.bak1" to older, "runs.bak2" to null, "runs.bak3" to null),
@@ -119,7 +119,7 @@ class VaultFormatTest {
     @Test
     fun selectReadableReturnsNullWhenAllCorrupt() {
         val key = newKey()
-        val corrupt = VaultFormat.seal(key, "runs", plain).also { it[it.size - 1] = 0 }
+        val corrupt = VaultFormat.seal(key, "runs", plain).also { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() } // flip a tag bit: always corrupts (setting 0 was a no-op 1 in 256 times)
         val result = VaultFormat.selectReadable(
             listOf("runs" to corrupt, "runs.bak1" to corrupt.copyOf(), "runs.bak2" to null, "runs.bak3" to null),
         ) { VaultFormat.open(key, "runs", it) }
