@@ -50,8 +50,8 @@ class SynCodecTest {
         assertEquals(2, envelope.getInt("schemaVersion"))
         val schemas = envelope.getJSONObject("schemas")
         val registries = envelope.getJSONObject("registries")
-        assertEquals(16, schemas.length())
-        assertEquals(16, registries.length())
+        assertEquals(18, schemas.length())
+        assertEquals(18, registries.length())
         schemas.keys().forEach { kind ->
             assertEquals("1.0", schemas.getString(kind))
             assertTrue(registries.has(kind), "registry $kind missing from envelope")

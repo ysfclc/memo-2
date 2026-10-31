@@ -3,8 +3,9 @@ package app.memo.core.registry
 import app.memo.core.codec.SynCodec
 
 /**
- * The persistent work graph: one object, sixteen registries (eight v1 work
- * and content registries plus eight v2 knowledge and library registries),
+ * The persistent work graph: one object, eighteen registries (eight v1 work
+ * and content registries, eight v2 knowledge and library registries, and two
+ * entity registries: open-type entities and their relations),
  * serialized as a SYN envelope. Used by `MemoVault` (per-collection files),
  * backups and tests. Playback parse -> quarantine -> serialize round-trips
  * every row.
@@ -31,15 +32,21 @@ class Workspace {
     val channelAccounts = Registry("channel_accounts", Schemes.ChannelAccounts)
     val providerAdapters = Registry("provider_adapters", Schemes.ProviderAdapters)
 
+    // ---- entity registries (open-type entities and typed relations) ----
+    val entities = Registry("entities", Schemes.Entities)
+    val relations = Registry("relations", Schemes.Relations)
+
     /**
      * Registries in canonical order: the eight v1 registries first, then the
-     * eight v2 registries. Serialization and UI pickers agree with this order.
+     * eight v2 registries, then the two entity registries. Serialization and
+     * UI pickers agree with this order.
      * Each registry's [Registry.kind] is its key in the envelope `registries` object.
      */
     fun all(): List<Registry<*>> = listOf(
         people, companies, jobPostings, applications, tasks, drafts, posts, samples,
         projects, notes, workflowTemplates, promptTemplates, principles,
         contentPreferences, channelAccounts, providerAdapters,
+        entities, relations,
     )
 
     fun quarantineCount(): Int = all().sumOf { it.quarantinedRows().size }

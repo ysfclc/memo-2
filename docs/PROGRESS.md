@@ -1588,3 +1588,14 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.1; verdict ACCEPT; it fl
 FILES CHANGED: core/.../registry/ArtifactStore.kt (new) + ArtifactStoreTest (7), core Prompts.ARTIFACT_KINDS (+project, note), core WorkflowEngine.rowNaturalId (+project, note) + WorkflowEngineTest (+1), app MemoRuntime.persistRow -> ArtifactStore.persist, app ArtifactFields (+project, note) + RendererCoverageTest fixtures, docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0, 859 tests 0 fail; then :core:test EXIT 0 with WorkflowEngineTest 15/0
 ---
+
+---
+
+TIMESTAMP: 2026-10-31
+CHAIN: Claude -> GPT leg1 -> GLM leg2 -> GLM leg3 -> Claude leg4
+PHASE: ENTITIES wave (D-059)
+ITEM: ENT.2 generic Entity + Relation registries with provenance + review status (open type for places, events, products, ideas, topics; typed relations works_at/met_at/about/...)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task ENT.2; verdict ACCEPT. Lead decision on its open point: provenance stays OPTIONAL at the data level (hand-made records have no source); ENT.3 extraction must always attach it and reject facts whose excerpt is not in the source. Lead fixed two stale "16 registries" comments (Limits.kt, SynCodec.kt)
+FILES CHANGED: core domain/Entity.kt (new), NaturalKeys (+entity, relation), Schemes (+Entities, Relations), Workspace (+2 registries, 18 total, additive - no schema bump), EntityTest (19), count updates in MigrationV1toV2Test/SynCodecTest/RegistryTest, comments in Limits.kt/SynCodec.kt, docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0 on milestone/M3 + ENT.1; EntityTest 19/0; total 879 tests 0 fail
+---

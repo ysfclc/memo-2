@@ -6,6 +6,7 @@ import app.memo.core.domain.ArchitecturalPrinciple
 import app.memo.core.domain.ChannelAccount
 import app.memo.core.domain.ContentPreference
 import app.memo.core.domain.DraftKind
+import app.memo.core.domain.Entity
 import app.memo.core.domain.JobApplication
 import app.memo.core.domain.JobPosting
 import app.memo.core.domain.JobApplicationState
@@ -15,6 +16,7 @@ import app.memo.core.domain.Person
 import app.memo.core.domain.Project
 import app.memo.core.domain.PromptTemplate
 import app.memo.core.domain.ProviderAdapter
+import app.memo.core.domain.Relation
 import app.memo.core.domain.SocialPost
 import app.memo.core.domain.Task
 import app.memo.core.domain.TaskState
@@ -158,6 +160,34 @@ object Schemes {
         override fun stamped(item: Note, existing: Note?, now: Long, nextVersion: Int): Note =
             item.copy(
                 createdAt = existing?.createdAt?.takeIf { it > 0 } ?: item.createdAt.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object Entities : RegScheme<Entity> {
+        /** Natural key: type + title-slug, so one real-world thing is one record. */
+        override fun id(item: Entity): String = NaturalKeys.entity(item.type, item.title)
+        override fun toJson(item: Entity): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): Entity? = Entity.fromJson(raw)
+        override fun versionOf(item: Entity): Int = item.version
+        override fun stamped(item: Entity, existing: Entity?, now: Long, nextVersion: Int): Entity =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
+                updatedAt = now,
+                version = nextVersion,
+            )
+    }
+
+    object Relations : RegScheme<Relation> {
+        /** Natural key: (fromKey | toKey | relationType). */
+        override fun id(item: Relation): String = NaturalKeys.relation(item.fromKey, item.toKey, item.relationType)
+        override fun toJson(item: Relation): JSONObject = item.toJson()
+        override fun fromJson(raw: JSONObject): Relation? = Relation.fromJson(raw)
+        override fun versionOf(item: Relation): Int = item.version
+        override fun stamped(item: Relation, existing: Relation?, now: Long, nextVersion: Int): Relation =
+            item.copy(
+                createdAt = existing?.createdAt?.takeIf { it > 0 } ?: now,
                 updatedAt = now,
                 version = nextVersion,
             )

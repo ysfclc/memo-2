@@ -59,7 +59,7 @@ object Limits {
         "0000000000000000000000000000000000000000000000000000000000000000"
 
     // ---- Codec / workspace ---------------------------------------------
-    const val WORKSPACE_SCHEMA_VERSION: Int = 2     // v2: 16 registries + per-registry schema versions (D-020)
+    const val WORKSPACE_SCHEMA_VERSION: Int = 2     // v2: per-registry schema versions (D-020); 18 registries since D-059 (additive, no bump)
     const val MAX_WORKSPACE_BYTES: Int = 8_000_000
     const val MAX_ENTRIES_PER_REGISTRY: Int = 2_000
 

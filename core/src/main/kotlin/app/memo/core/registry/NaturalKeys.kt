@@ -82,6 +82,21 @@ object NaturalKeys {
         return short("nt:", projectKey.trim().lowercase() + "|" + slug + "|" + dayBucket(createdAt))
     }
 
+    /** "en:" + hash of (type | title-slug), type lowercased. Same type and title reuse one entity. */
+    fun entity(type: String, title: String): String {
+        val typeNorm = type.trim().lowercase()
+        val slug = slug(title)
+        if (typeNorm.isBlank() || slug.isBlank()) return ""
+        return short("en:", typeNorm + "|" + slug)
+    }
+
+    /** "rl:" + hash of (fromKey | toKey | relationType), type lowercased. */
+    fun relation(fromKey: String, toKey: String, relationType: String): String {
+        val typeNorm = relationType.trim().lowercase()
+        if (fromKey.isBlank() || toKey.isBlank() || typeNorm.isBlank()) return ""
+        return short("rl:", fromKey.trim() + "|" + toKey.trim() + "|" + typeNorm)
+    }
+
     /** "wt:" + hash of the workflow template slug. */
     fun workflowTemplate(name: String): String {
         val slug = slug(name)

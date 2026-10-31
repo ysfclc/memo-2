@@ -208,16 +208,16 @@ class RegistryTest {
     }
 
     @Test
-    fun workspaceHasSixteenRegistriesInCanonicalOrder() {
+    fun workspaceHasEighteenRegistriesInCanonicalOrder() {
         val kinds = Workspace().all().map { it.kind }
         assertEquals(
             listOf(
                 "people", "companies", "job_postings", "applications", "tasks", "drafts", "posts", "metric_samples",
                 "projects", "notes", "workflow_templates", "prompt_templates", "principles",
-                "content_preferences", "channel_accounts", "provider_adapters",
+                "content_preferences", "channel_accounts", "provider_adapters", "entities", "relations",
             ),
             kinds,
         )
-        assertEquals(16, kinds.toSet().size)
+        assertEquals(18, kinds.toSet().size)
     }
 }

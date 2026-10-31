@@ -91,7 +91,7 @@ class MigrationV1toV2Test {
     @Test
     fun newV2RegistriesAreEmptyAfterMigration() {
         val ws = migrated().workspace
-        assertEquals(16, ws.all().size)
+        assertEquals(18, ws.all().size)
         assertEquals(0, ws.projects.size)
         assertEquals(0, ws.notes.size)
         assertEquals(0, ws.workflowTemplates.size)
@@ -110,11 +110,11 @@ class MigrationV1toV2Test {
         assertEquals("SYN", envelope.getString("format"))
 
         val schemas = envelope.getJSONObject("schemas")
-        assertEquals(16, schemas.length())
+        assertEquals(18, schemas.length())
         (v1Kinds + v2Kinds).forEach { kind -> assertEquals("1.0", schemas.getString(kind)) }
 
         val registries = envelope.getJSONObject("registries")
-        assertEquals(16, registries.length())
+        assertEquals(18, registries.length())
         v1Kinds.forEach { kind -> assertEquals(1, registries.getJSONArray(kind).length(), kind) }
         v2Kinds.forEach { kind -> assertEquals(0, registries.getJSONArray(kind).length(), kind) }
     }

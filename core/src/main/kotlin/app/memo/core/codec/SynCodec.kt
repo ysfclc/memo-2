@@ -22,7 +22,7 @@ object SynCodec {
     /** Envelope key for quarantined rows; optional, so v2 files written before it existed still parse. */
     private const val QUARANTINE_KEY: String = "quarantine"
 
-    /** Upper bound on registry keys in one envelope; leaves headroom over the 16 registries in use. */
+    /** Upper bound on registry keys in one envelope; leaves headroom over the 18 registries in use. */
     private const val MAX_REGISTRIES_PER_ENVELOPE: Int = 64
 
     sealed interface ParseOutcome {
