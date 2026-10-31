@@ -11,26 +11,31 @@ class ChatCodecException(message: String) : RuntimeException(message)
  * JSON codec for conversation entries and the conversation index (org.json, strict).
  *
  * Format version 2 adds voice-message fields on `ChatMessage` ([durationMs], [transcript],
- * [transcriptNote]; all optional and omitted when null). It is backward compatible by
- * construction: version **1 entries decode in the identical shape they were written in** —
- * the reader accepts 1 and 2, a v1 entry may not carry the new keys, and v1 entries round-trip
- * through decode/encode unchanged in meaning (an encode rewrites them tagged v2). Parsing is
- * strict: the version must be 1 or 2, every required field must be present with the right JSON
- * type, unknown fields are rejected, enums must match exactly, and every [ChatLimits] bound is
- * checked through the model constructors. Nullable fields are omitted when null.
+ * [transcriptNote]); format version 3 adds [ChatMessage.runId] (a SYSTEM message's workflow run
+ * reference). All optional and omitted when null. It is backward compatible by construction:
+ * version **1 entries decode in the identical shape they were written in** — the reader accepts
+ * 1, 2 and 3; a v1 entry may not carry the v2 keys, a v1 or v2 entry may not carry `runId`, and
+ * older entries round-trip through decode/encode unchanged in meaning (an encode rewrites them
+ * tagged v3). Parsing is strict: the version must be 1, 2 or 3, every required field must be
+ * present with the right JSON type, unknown fields are rejected, enums must match exactly, and
+ * every [ChatLimits] bound is checked through the model constructors. Nullable fields are omitted
+ * when null.
  */
 object ConversationCodec {
-    const val VERSION: Int = 2
+    const val VERSION: Int = 3
     private const val LEGACY_VERSION: Int = 1
 
     private val CONVERSATION_KEYS = setOf("id", "title", "createdAt", "updatedAt", "modelId", "pinned", "archived")
     private val MESSAGE_KEYS = setOf(
         "id", "role", "text", "thinking", "modelId", "voiceClipRef", "durationMs", "transcript", "transcriptNote",
-        "createdAt", "status", "errorText",
+        "runId", "createdAt", "status", "errorText",
     )
 
     /** The keys only format 2 writes; a v1 entry must not carry them. */
     private val VERSION_2_MESSAGE_KEYS = setOf("durationMs", "transcript", "transcriptNote")
+
+    /** The keys only format 3 writes; a v1 or v2 entry must not carry them. */
+    private val VERSION_3_MESSAGE_KEYS = setOf("runId")
 
     // ------------------------------------------------------------ encode
 
@@ -97,6 +102,7 @@ object ConversationCodec {
         .putOpt("durationMs", m.durationMs)
         .putOpt("transcript", m.transcript)
         .putOpt("transcriptNote", m.transcriptNote)
+        .putOpt("runId", m.runId)
         .put("createdAt", m.createdAt)
         .put("status", m.status.name)
         .put("errorText", m.errorText)
@@ -120,8 +126,11 @@ object ConversationCodec {
 
     private fun messageFromJson(o: JSONObject, version: Int): ChatMessage {
         o.exact(MESSAGE_KEYS, required = setOf("id", "role", "text", "thinking", "createdAt", "status", "errorText"))
-        if (version == LEGACY_VERSION) {
-            VERSION_2_MESSAGE_KEYS.forEach { key -> if (o.has(key)) fail("field $key needs format version $VERSION") }
+        if (version < 2) {
+            VERSION_2_MESSAGE_KEYS.forEach { key -> if (o.has(key)) fail("field $key needs format version 2") }
+        }
+        if (version < 3) {
+            VERSION_3_MESSAGE_KEYS.forEach { key -> if (o.has(key)) fail("field $key needs format version 3") }
         }
         return try {
             ChatMessage(
@@ -134,6 +143,7 @@ object ConversationCodec {
                 durationMs = o.optLongOrNull("durationMs"),
                 transcript = o.optStrOrNull("transcript"),
                 transcriptNote = o.optStrOrNull("transcriptNote"),
+                runId = o.optStrOrNull("runId"),
                 createdAt = o.long("createdAt"),
                 status = enumNamed<MessageStatus>(o.str("status")),
                 errorText = o.str("errorText"),

@@ -227,13 +227,13 @@ class ChatRepositoryTest {
         assertNull("durationMs", message.durationMs)
         assertNull("transcript", message.transcript)
         assertNull("transcriptNote", message.transcriptNote)
-        // And the entry still saves from this state: encoding re-tags the document as version 2
+        // And the entry still saves from this state: encoding re-tags the document as the current version (3)
         // without touching a single field, and a reload reads the same content back.
         val reload = ChatRepository(vault)
         saveSync(reload, doc.copy(conversation = doc.conversation.copy(updatedAt = 2)))
         val reread = ChatRepository(vault).readDoc("aabbcc01")!!
         assertEquals(doc.copy(conversation = doc.conversation.copy(updatedAt = 2)), reread)
         assertEquals("note to self", reread.messages.single().text)
-        assertTrue(String(vault.data[ChatRepository.ENTRY_PREFIX + "aabbcc01"]!!, Charsets.UTF_8).contains("\"v\":2"))
+        assertTrue(String(vault.data[ChatRepository.ENTRY_PREFIX + "aabbcc01"]!!, Charsets.UTF_8).contains("\"v\":3"))
     }
 }

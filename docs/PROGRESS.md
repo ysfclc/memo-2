@@ -1550,4 +1550,8 @@ IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3a; verdict ACCEPT, no d
 FILES CHANGED: app/.../ui/chat/PlanCardState.kt, PlanCardStateTest (12), docs/PROGRESS.md
 VERIFICATION: lead B-STD EXIT 0; PlanCardStateTest 12/0
 NEXT: M3.A3b plan card UI + bridge (proposal created not started; Run/Discard/Approve/Veto wired to MemoRuntime), M3.B1b edit-before-approve rehash
+ITEM: M3.A3b-1 ChatMessage.runId (SYSTEM only) + conversation codec v3 (v1/v2 still read; older versions may not carry runId)
+IMPLEMENTER RUN: model Haiku subagent (D-058); task M3.A3b-1; verdict ACCEPT; lead fixed one stale test comment it was not allowed to touch
+FILES CHANGED: core chat Conversation.kt, ConversationCodec.kt, ConversationCodecTest (17), app ChatRepositoryTest (v3 literal + comment), docs/PROGRESS.md
+VERIFICATION: lead B-STD EXIT 0; ConversationCodecTest 17/0, ChatRepositoryTest 10/0
 ---

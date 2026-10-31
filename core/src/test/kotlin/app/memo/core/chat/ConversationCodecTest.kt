@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ConversationCodecTest {
 
@@ -66,18 +67,78 @@ class ConversationCodecTest {
         assertNull(decoded.messages[0].modelId)
     }
 
+    private val systemWithRun = ChatMessage(
+        id = "s0000001",
+        role = ChatRole.SYSTEM,
+        text = "Plan ready",
+        createdAt = 1_700_000_000_004,
+        runId = "run_20261031.a-1:plan",
+    )
+
     @Test
     fun rejectsFutureVersion() {
         val text = ConversationCodec.encodeDoc(ConversationDoc(conversation, emptyList()))
-            .replace("\"v\":2", "\"v\":3")
+            .replace("\"v\":3", "\"v\":4")
         assertFailsWith<ChatCodecException> { ConversationCodec.decodeDoc(text) }
     }
 
     @Test
     fun rejectsUnknownFields() {
         val text = ConversationCodec.encodeDoc(ConversationDoc(conversation, emptyList()))
-            .replace("\"v\":2", "\"v\":2,\"extra\":true")
+            .replace("\"v\":3", "\"v\":3,\"extra\":true")
         assertFailsWith<ChatCodecException> { ConversationCodec.decodeDoc(text) }
+    }
+
+    @Test
+    fun systemMessageWithRunIdRoundTripsExactly() {
+        val doc = ConversationDoc(conversation, listOf(messages[0], systemWithRun))
+        val text = ConversationCodec.encodeDoc(doc)
+        assertTrue(text.contains("\"v\":3"))
+        assertEquals(doc, ConversationCodec.decodeDoc(text))
+    }
+
+    @Test
+    fun versionTwoEntryWithoutRunIdStillDecodes() {
+        val doc = ConversationDoc(conversation, messages)
+        val text = ConversationCodec.encodeDoc(doc).replace("\"v\":3", "\"v\":2")
+        assertEquals(doc, ConversationCodec.decodeDoc(text))
+    }
+
+    @Test
+    fun versionOneEntryStillDecodes() {
+        val plain = messages[0]
+        val doc = ConversationDoc(conversation, listOf(plain))
+        val text = ConversationCodec.encodeDoc(doc).replace("\"v\":3", "\"v\":1")
+        assertEquals(doc, ConversationCodec.decodeDoc(text))
+    }
+
+    @Test
+    fun versionTwoEntryWithRunIdIsRejected() {
+        val text = ConversationCodec.encodeDoc(ConversationDoc(conversation, listOf(systemWithRun)))
+            .replace("\"v\":3", "\"v\":2")
+        assertFailsWith<ChatCodecException> { ConversationCodec.decodeDoc(text) }
+    }
+
+    @Test
+    fun versionOneEntryWithRunIdIsRejected() {
+        val text = ConversationCodec.encodeDoc(ConversationDoc(conversation, listOf(systemWithRun)))
+            .replace("\"v\":3", "\"v\":1")
+        assertFailsWith<ChatCodecException> { ConversationCodec.decodeDoc(text) }
+    }
+
+    @Test
+    fun runIdOnlyAllowedOnSystemMessages() {
+        assertFailsWith<IllegalArgumentException> { systemWithRun.copy(role = ChatRole.USER) }
+        assertFailsWith<IllegalArgumentException> { systemWithRun.copy(role = ChatRole.ASSISTANT) }
+    }
+
+    @Test
+    fun runIdRejectsBlankSpacesAndOversize() {
+        assertFailsWith<IllegalArgumentException> { systemWithRun.copy(runId = "") }
+        assertFailsWith<IllegalArgumentException> { systemWithRun.copy(runId = "run one") }
+        assertFailsWith<IllegalArgumentException> { systemWithRun.copy(runId = "r".repeat(65)) }
+        assertFailsWith<IllegalArgumentException> { systemWithRun.copy(runId = "run/../x") }
+        systemWithRun.copy(runId = "r".repeat(ChatLimits.MAX_RUN_ID_CHARS))
     }
 
     @Test
